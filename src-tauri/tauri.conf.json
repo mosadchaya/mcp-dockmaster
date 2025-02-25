@@ -12,9 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "mcp_dockmaster",
-        "width": 800,
-        "height": 600
+        "title": "Shinkai AI App Manager",
+        "width": 1024,
+        "height": 576,
+        "resizable": false,
+        "titleBarStyle": "Visible",
+        "decorations": true,
+        "center": true
       }
     ],
     "security": {
