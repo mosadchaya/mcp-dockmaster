@@ -31,11 +31,15 @@ fn check_docker_installed() -> bool {
 use tauri::{Manager, RunEvent};
 use tray::create_tray;
 mod tray;
+// Add MCP module
+pub mod mcp_proxy;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Add MCP state to the app
+        .manage(mcp_proxy::MCPState::default())
         .setup(|app| {
             create_tray(app.handle())?;
             Ok(())
@@ -44,7 +48,14 @@ pub fn run() {
             greet,
             check_node_installed,
             check_uv_installed,
-            check_docker_installed
+            check_docker_installed,
+            // Register MCP commands
+            mcp_proxy::register_tool,
+            mcp_proxy::list_tools,
+            mcp_proxy::execute_tool,
+            mcp_proxy::update_tool_status,
+            mcp_proxy::uninstall_tool,
+            mcp_proxy::mcp_hello_world
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

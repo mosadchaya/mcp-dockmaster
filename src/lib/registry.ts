@@ -1,4 +1,4 @@
-export const registry = [
+const availableTools: RegistryTool[] = [
   {
     id: "brave-search-ref",
     name: "Brave Search",
@@ -77,3 +77,50 @@ export const registry = [
     }
   }
 ]
+
+interface RegistryTool {
+  id: string;
+  name: string;
+  description: string;
+  publisher: {
+    id: string;
+    name: string;
+    url: string;
+  };
+  isOfficial: boolean;
+  sourceUrl: string;
+  distribution: {
+    type: string;
+    package: string;
+  };
+  license: string;
+  runtime: string;
+  config: {
+    command: string;
+    args: string[];
+    env: Record<string, any>;
+  };
+}
+
+/**
+ * Get all available tools from the registry
+ */
+export const getAvailableTools = async (): Promise<RegistryTool[]> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  return availableTools;
+};
+
+/**
+ * Get a specific tool by ID
+ */
+export const getToolById = async (id: string): Promise<RegistryTool | null> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 300));
+  return availableTools.find(tool => tool.id === id) || null;
+};
+
+export default {
+  getAvailableTools,
+  getToolById
+};

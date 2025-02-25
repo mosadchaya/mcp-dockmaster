@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import './Home.css';
+
+// Import runner icons
+import dockerIcon from '../assets/docker.svg';
+import nodeIcon from '../assets/node.svg';
+import pythonIcon from '../assets/python.svg';
 
 interface PrerequisiteStatus {
   name: string;
   installed: boolean;
   loading: boolean;
+  icon: string;
 }
 
 const Home: React.FC = () => {
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
-    { name: 'Node.js', installed: false, loading: true },
-    { name: 'uv', installed: false, loading: true },
-    { name: 'Docker', installed: false, loading: true },
+    { name: 'Node.js', installed: false, loading: true, icon: nodeIcon },
+    { name: 'UV (Python)', installed: false, loading: true, icon: pythonIcon },
+    { name: 'Docker', installed: false, loading: true, icon: dockerIcon },
   ]);
   const [isChecking, setIsChecking] = useState(false);
 
@@ -60,9 +67,9 @@ const Home: React.FC = () => {
       ]);
       
       setPrerequisites([
-        { name: 'Node.js', installed: nodeInstalled, loading: false },
-        { name: 'uv', installed: uvInstalled, loading: false },
-        { name: 'Docker', installed: dockerInstalled, loading: false },
+        { name: 'Node.js', installed: nodeInstalled, loading: false, icon: nodeIcon },
+        { name: 'UV (Python)', installed: uvInstalled, loading: false, icon: pythonIcon },
+        { name: 'Docker', installed: dockerInstalled, loading: false, icon: dockerIcon },
       ]);
     } catch (error) {
       console.error('Failed to check prerequisites:', error);
@@ -83,30 +90,49 @@ const Home: React.FC = () => {
       <h2>Welcome to Shinkai AI App Manager</h2>
       <p>Select an option from the sidebar to get started.</p>
       
-      <div style={styles.prerequisitesContainer}>
-        <div style={styles.prerequisitesHeader}>
-          <h3>Tool Support</h3>
+      <div className="claude-instructions-container">
+        <h3>Claude MCP Integration</h3>
+        <p>Claude is automatically connected to Shinkai AI App Manager. Whenever you enable, disable or make changes to your apps and tools in Shinkai AI App Manager, you may refresh Claude
+          by pressing the following keyboard shortcut:</p>
+        <div className="keyboard-shortcuts">
+          <div className="keyboard-key">⌘</div>
+          <div className="keyboard-key">+</div>
+          <div className="keyboard-key">R</div>
+        </div>
+        <p>in the Claude app. If this does not work, you may click the refresh button in the Claude app.</p>
+      </div>
+      
+      <div className="prerequisites-container">
+        <div className="prerequisites-header">
+          <h3>Runner Environment Support</h3>
           <button 
             onClick={checkPrerequisites} 
             disabled={isChecking}
-            style={styles.refreshButton}
+            className="refresh-button"
           >
             {isChecking ? 'Checking...' : 'Refresh'}
           </button>
         </div>
         
-        <div style={styles.prerequisitesList}>
+        <div className="prerequisites-list">
           {prerequisites.map((prerequisite) => (
-            <div key={prerequisite.name} style={styles.prerequisiteItem}>
-              <span style={styles.prerequisiteName}>{prerequisite.name}</span>
+            <div key={prerequisite.name} className="prerequisite-item">
+              <div className="prerequisite-info">
+                <img 
+                  src={prerequisite.icon} 
+                  alt={prerequisite.name} 
+                  className="runner-icon"
+                />
+                <span className="prerequisite-name">{prerequisite.name}</span>
+              </div>
               {prerequisite.loading ? (
-                <span style={styles.loadingIndicator}>Checking...</span>
+                <span className="loading-indicator">Checking...</span>
               ) : (
-                <span style={styles.statusIndicator}>
+                <span className="status-indicator">
                   {prerequisite.installed ? (
-                    <div style={styles.statusLight.success} title="Installed and running"></div>
+                    <div className="status-light success" title="Installed and running"></div>
                   ) : (
-                    <div style={styles.statusLight.error} title="Not installed or not running"></div>
+                    <div className="status-light error" title="Not installed or not running"></div>
                   )}
                 </span>
               )}
@@ -116,72 +142,6 @@ const Home: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const styles = {
-  prerequisitesContainer: {
-    marginTop: '2rem',
-    padding: '1.5rem',
-    borderRadius: '8px',
-    backgroundColor: '#f8f9fa',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-  },
-  prerequisitesHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1rem',
-  },
-  refreshButton: {
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    padding: '0.375rem 0.75rem',
-    cursor: 'pointer',
-    fontSize: '0.875rem',
-  },
-  prerequisitesList: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.75rem',
-  },
-  prerequisiteItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '0.75rem',
-    borderRadius: '4px',
-    backgroundColor: 'white',
-    border: '1px solid #dee2e6',
-  },
-  prerequisiteName: {
-    fontWeight: 500 as const,
-  },
-  loadingIndicator: {
-    color: '#6c757d',
-    fontStyle: 'italic' as const,
-  },
-  statusIndicator: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  statusLight: {
-    success: {
-      width: '16px',
-      height: '16px',
-      borderRadius: '50%',
-      backgroundColor: '#28a745',
-      boxShadow: '0 0 10px #28a745',
-    },
-    error: {
-      width: '16px',
-      height: '16px',
-      borderRadius: '50%',
-      backgroundColor: '#dc3545',
-      boxShadow: '0 0 10px #dc3545',
-    }
-  }
 };
 
 export default Home; 
