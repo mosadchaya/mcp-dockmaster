@@ -20,6 +20,18 @@ interface RegistryTool {
   };
   runtime: string;
   installed: boolean;
+  isOfficial?: boolean;
+  sourceUrl?: string;
+  distribution?: {
+    type: string;
+    package?: string;
+  };
+  config?: {
+    command: string;
+    args: string[];
+    env: Record<string, any>;
+  };
+  license?: string;
 }
 
 const Registry: React.FC = () => {
@@ -148,9 +160,26 @@ const Registry: React.FC = () => {
     
     setInstalling(tool.id);
     try {
+      // Map the runtime to the appropriate tool_type
+      const toolType = mapRuntimeToToolType(tool.runtime);
+      
+      // For now, use a default entry point based on the tool type
+      const entryPoint = getDefaultEntryPoint(toolType, tool.name);
+      
+      // Prepare authentication if needed
+      let authentication = null;
+      if (tool.config && tool.config.env) {
+        // For now, we don't have a way to collect env vars from the user
+        // In a real implementation, you would prompt the user for these values
+        authentication = { env: tool.config.env };
+      }
+      
       const response = await MCPClient.registerTool({
         tool_name: tool.name,
         description: tool.description,
+        tool_type: toolType,
+        entry_point: entryPoint,
+        authentication: authentication,
       });
       
       if (response.success) {
@@ -168,6 +197,49 @@ const Registry: React.FC = () => {
       console.error('Failed to install tool:', error);
     } finally {
       setInstalling(null);
+    }
+  };
+  
+  // Helper function to map runtime to tool_type
+  const mapRuntimeToToolType = (runtime: string): string => {
+    switch (runtime.toLowerCase()) {
+      case 'node':
+        return 'nodejs';
+      case 'python':
+      case 'uv':
+        return 'python';
+      case 'docker':
+        return 'docker';
+      default:
+        return 'nodejs'; // Default to nodejs if unknown
+    }
+  };
+  
+  // Helper function to get a default entry point based on tool type and name
+  const getDefaultEntryPoint = (toolType: string, toolName: string): string => {
+    // Try to find the tool in the available tools to get its distribution info
+    const tool = availableTools.find(t => t.name === toolName);
+    
+    if (tool && tool.distribution && tool.config) {
+      // If we have distribution info, use it to create a more accurate entry point
+      if (tool.distribution.type === 'npm' && tool.distribution.package) {
+        // For npm packages, we can use npx to run them
+        return tool.distribution.package;
+      }
+    }
+    
+    // Fallback to default paths if we don't have distribution info
+    const sanitizedName = toolName.toLowerCase().replace(/\s+/g, '-');
+    
+    switch (toolType) {
+      case 'nodejs':
+        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
+      case 'python':
+        return `/tmp/mcp-tools/${sanitizedName}/main.py`;
+      case 'docker':
+        return `${sanitizedName}:latest`;
+      default:
+        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
     }
   };
 

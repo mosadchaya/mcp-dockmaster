@@ -4,6 +4,8 @@ interface ToolRegistrationRequest {
   tool_name: string;
   description: string;
   authentication?: any;
+  tool_type: string;  // "nodejs", "python", "docker"
+  entry_point: string; // Path to the entry point file or container image
 }
 
 interface ToolRegistrationResponse {
@@ -40,6 +42,16 @@ interface ToolUninstallRequest {
 interface ToolUninstallResponse {
   success: boolean;
   message: string;
+}
+
+interface DiscoverServerToolsRequest {
+  server_id: string;
+}
+
+interface DiscoverServerToolsResponse {
+  success: boolean;
+  tools?: any[];
+  error?: string;
 }
 
 /**
@@ -86,6 +98,42 @@ export class MCPClient {
    */
   static async helloWorld(): Promise<any> {
     return await invoke<any>('mcp_hello_world');
+  }
+  
+  /**
+   * Discover tools from a specific MCP server
+   */
+  static async discoverTools(request: DiscoverServerToolsRequest): Promise<DiscoverServerToolsResponse> {
+    return await invoke<DiscoverServerToolsResponse>('discover_tools', { request });
+  }
+  
+  /**
+   * List all available tools from all running MCP servers
+   */
+  static async listAllServerTools(): Promise<any[]> {
+    return await invoke<any[]>('list_all_server_tools');
+  }
+  
+  /**
+   * Execute a tool from an MCP server through the proxy
+   */
+  static async executeProxyTool(request: ToolExecutionRequest): Promise<ToolExecutionResponse> {
+    return await invoke<ToolExecutionResponse>('execute_proxy_tool', { request });
+  }
+  
+  /**
+   * Get Claude configuration for MCP servers
+   */
+  static async getClaudeConfig(): Promise<any> {
+    return await invoke<any>('get_claude_config');
+  }
+
+  /**
+   * Get all server data in a single call to avoid lock issues
+   * Returns servers, tools, and Claude configuration in a single response
+   */
+  static async getAllServerData(): Promise<any> {
+    return await invoke<any>('get_all_server_data');
   }
 }
 
