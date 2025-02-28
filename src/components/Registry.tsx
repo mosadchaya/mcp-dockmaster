@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MCPClient from '../lib/mcpClient';
 import { getAvailableTools } from '../lib/registry';
-import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled } from '../lib/events';
+import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from '../lib/events';
 import './Registry.css';
 
 // Import runner icons
@@ -20,12 +20,25 @@ interface RegistryTool {
   };
   runtime: string;
   installed: boolean;
+  isOfficial?: boolean;
+  sourceUrl?: string;
+  distribution?: {
+    type: string;
+    package?: string;
+  };
+  config?: {
+    command: string;
+    args: string[];
+    env: Record<string, any>;
+  };
+  license?: string;
 }
 
 const Registry: React.FC = () => {
   const [availableTools, setAvailableTools] = useState<RegistryTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Load tools on initial mount
@@ -148,9 +161,26 @@ const Registry: React.FC = () => {
     
     setInstalling(tool.id);
     try {
+      // Map the runtime to the appropriate tool_type
+      const toolType = mapRuntimeToToolType(tool.runtime);
+      
+      // For now, use a default entry point based on the tool type
+      const entryPoint = getDefaultEntryPoint(toolType, tool.name);
+      
+      // Prepare authentication if needed
+      let authentication = null;
+      if (tool.config && tool.config.env) {
+        // For now, we don't have a way to collect env vars from the user
+        // In a real implementation, you would prompt the user for these values
+        authentication = { env: tool.config.env };
+      }
+      
       const response = await MCPClient.registerTool({
         tool_name: tool.name,
         description: tool.description,
+        tool_type: toolType,
+        entry_point: entryPoint,
+        authentication: authentication,
       });
       
       if (response.success) {
@@ -168,6 +198,113 @@ const Registry: React.FC = () => {
       console.error('Failed to install tool:', error);
     } finally {
       setInstalling(null);
+    }
+  };
+  
+  const uninstallTool = async (id: string) => {
+    try {
+      setUninstalling(id);
+      
+      // Update the UI optimistically
+      setAvailableTools(prev => 
+        prev.map(tool => 
+          tool.id === id ? { ...tool, installed: false } : tool
+        )
+      );
+      
+      // Get the tool from the registry
+      const registryTool = availableTools.find(tool => tool.id === id);
+      if (!registryTool) {
+        console.error('Tool not found in registry:', id);
+        return;
+      }
+      
+      // Get the actual tool ID from the backend by matching names
+      const installedTools = await MCPClient.listTools();
+      const matchingTool = installedTools.find(
+        tool => tool.name.toLowerCase() === registryTool.name.toLowerCase()
+      );
+      
+      if (!matchingTool) {
+        console.error('Tool not found in installed tools:', registryTool.name);
+        // Revert UI change
+        setAvailableTools(prev => 
+          prev.map(tool => 
+            tool.id === id ? { ...tool, installed: true } : tool
+          )
+        );
+        return;
+      }
+      
+      // Use the actual tool ID from the backend
+      const actualToolId = matchingTool.id;
+      
+      // Call the backend API to uninstall the tool
+      const response = await MCPClient.uninstallTool({
+        tool_id: actualToolId
+      });
+      
+      if (response.success) {
+        // Dispatch event that a tool was uninstalled with the registry ID for UI updates
+        dispatchToolUninstalled(id);
+      } else {
+        // If the API call fails, revert the UI change
+        console.error('Failed to uninstall tool:', response.message);
+        setAvailableTools(prev => 
+          prev.map(tool => 
+            tool.id === id ? { ...tool, installed: true } : tool
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error uninstalling tool:', error);
+      // Refresh the list to ensure UI is in sync with backend
+      loadAvailableTools();
+    } finally {
+      setUninstalling(null);
+    }
+  };
+  
+  // Helper function to map runtime to tool_type
+  const mapRuntimeToToolType = (runtime: string): string => {
+    switch (runtime.toLowerCase()) {
+      case 'node':
+        return 'nodejs';
+      case 'python':
+      case 'uv':
+        return 'python';
+      case 'docker':
+        return 'docker';
+      default:
+        return 'nodejs'; // Default to nodejs if unknown
+    }
+  };
+  
+  // Helper function to get a default entry point based on tool type and name
+  const getDefaultEntryPoint = (toolType: string, toolName: string): string => {
+    // Try to find the tool in the available tools to get its distribution info
+    const tool = availableTools.find(t => t.name === toolName);
+    
+    if (tool && tool.distribution && tool.config) {
+      // If we have distribution info, use it to create a more accurate entry point
+      if (tool.distribution.type === 'npm' && tool.distribution.package) {
+        // For npm packages, we can use npx to run them
+        return tool.distribution.package;
+      }
+    }
+    
+    // Fallback to default paths if we don't have distribution info
+    const sanitizedName = toolName.toLowerCase().replace(/\s+/g, '-');
+    
+    switch (toolType) {
+      case 'nodejs':
+        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
+      case 'python':
+        return `/tmp/mcp-tools/${sanitizedName}/main.py`;
+      case 'docker':
+        return `${sanitizedName}:latest`;
+      default:
+        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
     }
   };
 
@@ -241,13 +378,23 @@ const Registry: React.FC = () => {
                   </div>
                 </div>
                 <div className="tool-action">
-                  <button
-                    className={`install-button ${tool.installed ? 'installed' : ''}`}
-                    onClick={() => !tool.installed && installTool(tool)}
-                    disabled={tool.installed || installing === tool.id}
-                  >
-                    {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
-                  </button>
+                  {tool.installed ? (
+                    <button
+                      className="uninstall-button"
+                      onClick={() => uninstallTool(tool.id)}
+                      disabled={uninstalling === tool.id}
+                    >
+                      {uninstalling === tool.id ? 'Uninstalling...' : 'Uninstall'}
+                    </button>
+                  ) : (
+                    <button
+                      className={`install-button ${tool.installed ? 'installed' : ''}`}
+                      onClick={() => !tool.installed && installTool(tool)}
+                      disabled={tool.installed || installing === tool.id}
+                    >
+                      {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))

@@ -1,5 +1,28 @@
 const availableTools: RegistryTool[] = [
   {
+    id: "hello-world",
+    name: "Hello World",
+    description: "A simple tool that says hello world",
+    publisher: {
+      id: "shinkai-labs",
+      name: "Shinkai Labs",
+      url: "https://shinkai.com/",
+    },
+    isOfficial: false,
+    sourceUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/hello-world",
+    distribution: {
+      type: "npm",
+      package: "@shinkai-labs/hello-world",
+    },
+    license: "MIT",
+    runtime: "uv",
+    config: {
+      command: "npx",
+      args: ["-y", "@shinkai-labs/hello-world"],
+      env: {}
+    }
+  },
+  {
     id: "brave-search-ref",
     name: "Brave Search",
     description: "Web and local search using Brave's Search API. A Model Context Protocol reference server.",
@@ -106,8 +129,6 @@ interface RegistryTool {
  * Get all available tools from the registry
  */
 export const getAvailableTools = async (): Promise<RegistryTool[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
   return availableTools;
 };
 
@@ -115,8 +136,6 @@ export const getAvailableTools = async (): Promise<RegistryTool[]> => {
  * Get a specific tool by ID
  */
 export const getToolById = async (id: string): Promise<RegistryTool | null> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
   return availableTools.find(tool => tool.id === id) || null;
 };
 

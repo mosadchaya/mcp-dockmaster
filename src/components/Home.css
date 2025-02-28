@@ -183,4 +183,86 @@
   .prerequisite-name {
     color: #ffffff;
   }
+}
+
+.config-button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  transition: background-color 0.2s;
+}
+
+.config-button:hover {
+  background-color: #3367d6;
+}
+
+.claude-config {
+  margin-top: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.claude-config h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.config-code {
+  background-color: #2d3748;
+  color: #e2e8f0;
+  padding: 15px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: monospace;
+  margin: 15px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copy-button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.copy-button:hover {
+  background-color: #3367d6;
+}
+
+/* Dark mode support for Claude configuration */
+@media (prefers-color-scheme: dark) {
+  .claude-config {
+    background-color: #1f1f1f;
+    border-color: #333;
+  }
+  
+  .claude-config h3 {
+    color: #e2e8f0;
+  }
+  
+  .config-code {
+    background-color: #1a202c;
+    color: #e2e8f0;
+  }
+  
+  .config-button, .copy-button {
+    background-color: #3367d6;
+  }
+  
+  .config-button:hover, .copy-button:hover {
+    background-color: #4285f4;
+  }
 } 
