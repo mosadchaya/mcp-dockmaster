@@ -68,16 +68,36 @@ async fn handle_mcp_request(
     info!("Received MCP request: method={}", request.method);
     
     let result = match request.method.as_str() {
-        "list/tools" => handle_list_tools(state).await,
-        "list/prompts" => handle_list_prompts().await,
-        "list/resources" => handle_list_resources().await,
-        "invoke/tool" => {
+        "tools/list" => handle_list_tools(state).await,
+        "tools/call" => {
             if let Some(params) = request.params {
                 handle_invoke_tool(state, params).await
             } else {
                 Err(json!({
                     "code": -32602,
                     "message": "Invalid params - missing parameters for tool invocation"
+                }))
+            }
+        },
+        "prompts/list" => handle_list_prompts().await,
+        "resources/list" => handle_list_resources().await,
+        "resources/read" => {
+            if let Some(params) = request.params {
+                handle_read_resource(params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Invalid params - missing parameters for resource reading"
+                }))
+            }
+        },
+        "prompts/get" => {
+            if let Some(params) = request.params {
+                handle_get_prompt(params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Invalid params - missing parameters for prompt retrieval"
                 }))
             }
         },
@@ -136,55 +156,121 @@ async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value>
             
             tool_info.insert("server_id".to_string(), json!(server_id));
             
-            let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("main");
-            let proxy_id = format!("{}:{}", server_id, tool_id);
-            tool_info.insert("proxy_id".to_string(), json!(proxy_id));
+            // let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("main");
+            // let tool_name = tool.get("name").and_then(|v| v.as_str()).unwrap_or("tool_name");
+            
+            // let proxy_id = format!("{}:{}", server_id, tool_id);
+
+            // tool_info.insert("name".to_string(), json!(tool_name));
+            
+            if !tool_info.contains_key("description") {
+                tool_info.insert("description".to_string(), json!("Tool from server"));
+            }
+            
+            if !tool_info.contains_key("inputSchema") {
+                tool_info.insert("inputSchema".to_string(), json!({
+                    "type": "object",
+                    "properties": {}
+                }));
+            }
             
             all_tools.push(json!(tool_info));
         }
     }
     
-    Ok(json!(all_tools))
+    Ok(json!({
+        "tools": all_tools
+    }))
 }
 
 async fn handle_list_prompts() -> Result<Value, Value> {
-    Ok(json!([]))
+    Ok(json!({
+        "prompts": []
+    }))
 }
 
 async fn handle_list_resources() -> Result<Value, Value> {
-    Ok(json!([]))
+    Ok(json!({
+        "resources": []
+    }))
+}
+
+async fn handle_read_resource(params: Value) -> Result<Value, Value> {
+    Err(json!({
+        "code": -32601,
+        "message": "Resource reading not implemented yet"
+    }))
+}
+
+async fn handle_get_prompt(params: Value) -> Result<Value, Value> {
+    Err(json!({
+        "code": -32601,
+        "message": "Prompt retrieval not implemented yet"
+    }))
 }
 
 async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
-    let tool_id = match params.get("tool_id").and_then(|v| v.as_str()) {
-        Some(id) => id,
+    let tool_name = match params.get("name").and_then(|v| v.as_str()) {
+        Some(name) => name,
         None => return Err(json!({
             "code": -32602,
-            "message": "Missing tool_id in parameters"
+            "message": "Missing name in parameters"
         })),
     };
     
-    let parameters = match params.get("parameters") {
-        Some(p) => p.clone(),
+    let arguments = match params.get("arguments") {
+        Some(args) => args.clone(),
         None => json!({}),
     };
-    
-    let parts: Vec<&str> = tool_id.split(':').collect();
-    if parts.len() != 2 {
-        return Err(json!({
-            "code": -32602,
-            "message": "Invalid tool_id format. Expected 'server_id:tool_id'"
-        }));
-    }
-    
-    let server_id = parts[0];
-    let actual_tool_id = parts[1];
     
     let mcp_state = state.read().await;
     let mut registry = mcp_state.tool_registry.write().await;
     
-    match registry.execute_tool(server_id, actual_tool_id, parameters).await {
-        Ok(result) => Ok(result),
+    // Find which server has the requested tool
+    let mut server_id = None;
+    
+    for (sid, tools) in &registry.server_tools {
+        for tool in tools {
+            if let Some(tool_id) = tool.get("id").and_then(|v| v.as_str()) {
+                if tool_id == tool_name {
+                    server_id = Some(sid.clone());
+                    break;
+                }
+            }
+            
+            // Also check by name if id doesn't match
+            if let Some(name) = tool.get("name").and_then(|v| v.as_str()) {
+                if name == tool_name {
+                    server_id = Some(sid.clone());
+                    break;
+                }
+            }
+        }
+        
+        if server_id.is_some() {
+            break;
+        }
+    }
+    
+    let server_id = match server_id {
+        Some(id) => id,
+        None => return Err(json!({
+            "code": -32602,
+            "message": format!("No server found with tool: {}", tool_name)
+        })),
+    };
+
+    match registry.execute_tool(&server_id, tool_name, arguments).await {
+        Ok(result) => {
+            Ok(json!({
+                "content": [
+                    {
+                        "type": "text",
+                        "text": result.to_string()
+                    }
+                ]
+            }))
+        },
         Err(e) => Err(json!({
             "code": -32000,
             "message": format!("Tool execution error: {}", e)

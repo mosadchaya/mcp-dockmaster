@@ -271,7 +271,7 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
 /// Execute a tool on an MCP server
 async fn execute_server_tool(
     server_id: &str,
-    tool_id: &str,
+    tool_name: &str,
     parameters: Value,
     registry: &mut ToolRegistry,
 ) -> Result<Value, MCPError> {
@@ -282,9 +282,9 @@ async fn execute_server_tool(
 
     let execute_cmd = json!({
         "jsonrpc": "2.0",
-        "id": format!("execute_{}_{}", server_id, tool_id),
-        "method": "invoke/tool",
-        "params": { "tool_id": tool_id, "parameters": parameters }
+        "id": format!("execute_{}_{}", server_id, tool_name),
+        "method": "tools/call",
+        "params": { "name": tool_name, "arguments": parameters }
     });
 
     let cmd_str = serde_json::to_string(&execute_cmd)

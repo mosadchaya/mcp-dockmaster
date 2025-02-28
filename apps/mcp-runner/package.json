@@ -1,11 +1,11 @@
 {
-  "name": "My MCP Server",
+  "name": "mcp-proxy-server",
   "version": "0.1.0",
-  "description": "A custom MCP server",
+  "description": "A proxy server for MCP Protocol commands",
   "private": true,
   "type": "module",
   "bin": {
-    "My MCP Server": "./build/index.js"
+    "mcp-proxy-server": "./build/index.js"
   },
   "files": [
     "build"
@@ -17,10 +17,12 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0"
+    "@modelcontextprotocol/sdk": "1.6.1",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
+    "@types/node": "22.13.5",
+    "@types/node-fetch": "3.0.2",
     "typescript": "^5.3.3"
   }
 }

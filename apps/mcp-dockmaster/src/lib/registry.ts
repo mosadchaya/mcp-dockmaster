@@ -1,25 +1,29 @@
 const availableTools: RegistryTool[] = [
   {
-    id: "hello-world",
-    name: "Hello World",
-    description: "A simple tool that says hello world",
+    id: "helius-proxy",
+    name: "Helius Proxy",
+    description: "A simple tool that proxies requests to Helius",
     publisher: {
-      id: "shinkai-labs",
-      name: "Shinkai Labs",
-      url: "https://shinkai.com/",
+      id: "dcspark",
+      name: "dcspark",
+      url: "https://www.dcspark.com/",
     },
-    isOfficial: false,
-    sourceUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/hello-world",
+    isOfficial: true,
+    sourceUrl: "https://github.com/dcspark/mcp-server-helius",
     distribution: {
       type: "npm",
-      package: "@shinkai-labs/hello-world",
+      package: "@dcspark/mcp-server-helius",
     },
     license: "MIT",
-    runtime: "uv",
+    runtime: "node",
     config: {
       command: "npx",
-      args: ["-y", "@shinkai-labs/hello-world"],
-      env: {}
+      args: ["-y", "@dcspark/mcp-server-helius"],
+      env: {
+        "HELIUS_API_KEY": {
+          description: "Your Helius API key. See: https://www.helius.xyz/api",
+        }
+      }
     }
   },
   {
