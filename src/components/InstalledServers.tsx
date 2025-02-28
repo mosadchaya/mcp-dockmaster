@@ -34,8 +34,6 @@ const InstalledServers: React.FC = () => {
   const [servers, setServers] = useState<Server[]>([]);
   const [serverTools, setServerTools] = useState<ServerTool[]>([]);
   const [loading, setLoading] = useState(true);
-  const [claudeConfig, setClaudeConfig] = useState<any>(null);
-  const [showClaudeConfig, setShowClaudeConfig] = useState(false);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,9 +80,6 @@ const InstalledServers: React.FC = () => {
       const allServerTools = allData.tools || [];
       setServerTools(allServerTools);
       
-      // Set Claude configuration
-      setClaudeConfig(allData);
-
       // Get installed tools
       const tools = await MCPClient.listTools();
       
@@ -162,31 +157,6 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-  const uninstallTool = async (id: string) => {
-    try {
-      // Update the UI optimistically
-      setInstalledTools(prev => prev.filter(tool => tool.id !== id));
-      
-      // Call the backend API to uninstall the tool
-      const response = await MCPClient.uninstallTool({
-        tool_id: id
-      });
-      
-      if (response.success) {
-        // Dispatch event that a tool was uninstalled
-        dispatchToolUninstalled(id);
-      } else {
-        // If the API call fails, reload the tools to restore the UI
-        console.error('Failed to uninstall tool:', response.message);
-        loadData();
-      }
-    } catch (error) {
-      console.error('Error uninstalling tool:', error);
-      // Refresh the list to ensure UI is in sync with backend
-      loadData();
-    }
-  };
-
   const discoverToolsForServer = async (serverId: string, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation(); // Prevent the click from toggling the expanded state
@@ -201,22 +171,11 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        alert('Configuration copied to clipboard!');
-      })
-      .catch(err => {
-        console.error('Failed to copy text: ', err);
-      });
-  };
-
   const toggleExpandTool = (toolId: string, e: React.MouseEvent) => {
-    // Don't toggle if clicking on status toggle or uninstall button
+    // Don't toggle if clicking on status toggle
     const target = e.target as HTMLElement;
     if (
-      target.closest('.app-status-indicator') || 
-      target.closest('.uninstall-button')
+      target.closest('.app-status-indicator')
     ) {
       return;
     }
@@ -330,29 +289,6 @@ const InstalledServers: React.FC = () => {
       <div className="installed-servers-header">
         <h2>My Applications</h2>
         <p>Manage your installed AI applications and MCP tools.</p>
-        
-        <button 
-          className="config-button"
-          onClick={() => setShowClaudeConfig(!showClaudeConfig)}
-        >
-          {showClaudeConfig ? 'Hide' : 'Show'} Claude Configuration
-        </button>
-        
-        {showClaudeConfig && claudeConfig && (
-          <div className="claude-config">
-            <h3>Claude Configuration</h3>
-            <p>Use this configuration to connect Claude to your MCP servers:</p>
-            <pre className="config-code">
-              {JSON.stringify(claudeConfig, null, 2)}
-            </pre>
-            <button 
-              className="copy-button"
-              onClick={() => copyToClipboard(JSON.stringify(claudeConfig, null, 2))}
-            >
-              Copy to Clipboard
-            </button>
-          </div>
-        )}
       </div>
       
       {loading ? (
@@ -408,18 +344,6 @@ const InstalledServers: React.FC = () => {
               </div>
               
               {renderServerInfo(tool)}
-              
-              <div className="tool-actions">
-                <button 
-                  className="uninstall-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    uninstallTool(tool.id);
-                  }}
-                >
-                  Uninstall
-                </button>
-              </div>
             </div>
           ))}
         </div>

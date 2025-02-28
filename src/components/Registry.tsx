@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MCPClient from '../lib/mcpClient';
 import { getAvailableTools } from '../lib/registry';
-import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled } from '../lib/events';
+import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from '../lib/events';
 import './Registry.css';
 
 // Import runner icons
@@ -38,6 +38,7 @@ const Registry: React.FC = () => {
   const [availableTools, setAvailableTools] = useState<RegistryTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Load tools on initial mount
@@ -200,6 +201,70 @@ const Registry: React.FC = () => {
     }
   };
   
+  const uninstallTool = async (id: string) => {
+    try {
+      setUninstalling(id);
+      
+      // Update the UI optimistically
+      setAvailableTools(prev => 
+        prev.map(tool => 
+          tool.id === id ? { ...tool, installed: false } : tool
+        )
+      );
+      
+      // Get the tool from the registry
+      const registryTool = availableTools.find(tool => tool.id === id);
+      if (!registryTool) {
+        console.error('Tool not found in registry:', id);
+        return;
+      }
+      
+      // Get the actual tool ID from the backend by matching names
+      const installedTools = await MCPClient.listTools();
+      const matchingTool = installedTools.find(
+        tool => tool.name.toLowerCase() === registryTool.name.toLowerCase()
+      );
+      
+      if (!matchingTool) {
+        console.error('Tool not found in installed tools:', registryTool.name);
+        // Revert UI change
+        setAvailableTools(prev => 
+          prev.map(tool => 
+            tool.id === id ? { ...tool, installed: true } : tool
+          )
+        );
+        return;
+      }
+      
+      // Use the actual tool ID from the backend
+      const actualToolId = matchingTool.id;
+      
+      // Call the backend API to uninstall the tool
+      const response = await MCPClient.uninstallTool({
+        tool_id: actualToolId
+      });
+      
+      if (response.success) {
+        // Dispatch event that a tool was uninstalled with the registry ID for UI updates
+        dispatchToolUninstalled(id);
+      } else {
+        // If the API call fails, revert the UI change
+        console.error('Failed to uninstall tool:', response.message);
+        setAvailableTools(prev => 
+          prev.map(tool => 
+            tool.id === id ? { ...tool, installed: true } : tool
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error uninstalling tool:', error);
+      // Refresh the list to ensure UI is in sync with backend
+      loadAvailableTools();
+    } finally {
+      setUninstalling(null);
+    }
+  };
+  
   // Helper function to map runtime to tool_type
   const mapRuntimeToToolType = (runtime: string): string => {
     switch (runtime.toLowerCase()) {
@@ -313,13 +378,23 @@ const Registry: React.FC = () => {
                   </div>
                 </div>
                 <div className="tool-action">
-                  <button
-                    className={`install-button ${tool.installed ? 'installed' : ''}`}
-                    onClick={() => !tool.installed && installTool(tool)}
-                    disabled={tool.installed || installing === tool.id}
-                  >
-                    {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
-                  </button>
+                  {tool.installed ? (
+                    <button
+                      className="uninstall-button"
+                      onClick={() => uninstallTool(tool.id)}
+                      disabled={uninstalling === tool.id}
+                    >
+                      {uninstalling === tool.id ? 'Uninstalling...' : 'Uninstall'}
+                    </button>
+                  ) : (
+                    <button
+                      className={`install-button ${tool.installed ? 'installed' : ''}`}
+                      onClick={() => !tool.installed && installTool(tool)}
+                      disabled={tool.installed || installing === tool.id}
+                    >
+                      {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))
