@@ -195,14 +195,14 @@ async fn handle_list_resources() -> Result<Value, Value> {
     }))
 }
 
-async fn handle_read_resource(params: Value) -> Result<Value, Value> {
+async fn handle_read_resource(_params: Value) -> Result<Value, Value> {
     Err(json!({
         "code": -32601,
         "message": "Resource reading not implemented yet"
     }))
 }
 
-async fn handle_get_prompt(params: Value) -> Result<Value, Value> {
+async fn handle_get_prompt(_params: Value) -> Result<Value, Value> {
     Err(json!({
         "code": -32601,
         "message": "Prompt retrieval not implemented yet"
