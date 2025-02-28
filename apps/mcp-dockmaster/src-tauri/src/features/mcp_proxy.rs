@@ -99,6 +99,26 @@ pub struct ToolUpdateResponse {
     message: String,
 }
 
+/// MCP tool config update request
+#[derive(Deserialize)]
+pub struct ToolConfigUpdateRequest {
+    tool_id: String,
+    config: ToolConfig,
+}
+
+/// MCP tool config
+#[derive(Deserialize)]
+pub struct ToolConfig {
+    env: HashMap<String, String>,
+}
+
+/// MCP tool config update response
+#[derive(Serialize)]
+pub struct ToolConfigUpdateResponse {
+    success: bool,
+    message: String,
+}
+
 /// MCP tool uninstall request
 #[derive(Deserialize)]
 pub struct ToolUninstallRequest {
@@ -271,7 +291,7 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
 /// Execute a tool on an MCP server
 async fn execute_server_tool(
     server_id: &str,
-    tool_id: &str,
+    tool_name: &str,
     parameters: Value,
     registry: &mut ToolRegistry,
 ) -> Result<Value, MCPError> {
@@ -282,9 +302,9 @@ async fn execute_server_tool(
 
     let execute_cmd = json!({
         "jsonrpc": "2.0",
-        "id": format!("execute_{}_{}", server_id, tool_id),
-        "method": "invoke/tool",
-        "params": { "tool_id": tool_id, "parameters": parameters }
+        "id": format!("execute_{}_{}", server_id, tool_name),
+        "method": "tools/call",
+        "params": { "name": tool_name, "arguments": parameters }
     });
 
     let cmd_str = serde_json::to_string(&execute_cmd)
@@ -330,7 +350,7 @@ async fn execute_server_tool(
 }
 
 /// Spawn a Node.js MCP server process
-async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child, tokio::process::ChildStdin, tokio::process::ChildStdout), String> {
+async fn spawn_nodejs_process(entry_point: &str, tool_id: &str, env_vars: Option<&HashMap<String, String>>) -> Result<(Child, tokio::process::ChildStdin, tokio::process::ChildStdout), String> {
     // Check if the entry point is a file path or an npm package
     let path = PathBuf::from(entry_point);
     
@@ -364,6 +384,14 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
         // Otherwise, assume it's a file path that doesn't exist yet
         info!("Entry point doesn't exist and doesn't look like an npm package: {}", entry_point);
         return Err(format!("Entry point file '{}' does not exist", entry_point));
+    }
+    
+    // Add environment variables if provided
+    if let Some(env_map) = env_vars {
+        for (key, value) in env_map {
+            info!("Setting environment variable: {}={}", key, value);
+            cmd.env(key, value);
+        }
     }
     
     // Log the command we're about to run
@@ -446,17 +474,33 @@ pub async fn register_tool(
     info!("Generated tool ID: {}", tool_id);
     
     // Store the tool definition
-    registry.tools.insert(
-        tool_id.clone(),
-        json!({
-            "name": request.tool_name,
-            "description": request.description,
-            "authentication": request.authentication,
-            "enabled": true, // Default to enabled
-            "tool_type": request.tool_type,
-            "entry_point": request.entry_point,
-        }),
-    );
+    let mut tool_definition = json!({
+        "name": request.tool_name,
+        "description": request.description,
+        "enabled": true, // Default to enabled
+        "tool_type": request.tool_type,
+        "entry_point": request.entry_point,
+    });
+    
+    // Add authentication if provided
+    if let Some(auth) = &request.authentication {
+        // Check if authentication contains environment variables
+        if let Some(env) = auth.get("env") {
+            // Store as config.env
+            if let Some(obj) = tool_definition.as_object_mut() {
+                obj.insert("config".to_string(), json!({
+                    "env": env
+                }));
+            }
+        } else {
+            // Store as authentication
+            if let Some(obj) = tool_definition.as_object_mut() {
+                obj.insert("authentication".to_string(), auth.clone());
+            }
+        }
+    }
+    
+    registry.tools.insert(tool_id.clone(), tool_definition);
 
     // Create a default empty tools list
     registry.server_tools.insert(tool_id.clone(), Vec::new());
@@ -464,7 +508,43 @@ pub async fn register_tool(
     // Spawn process if tool is enabled
     if request.tool_type == "nodejs" {
         info!("Spawning Node.js process for: {}", request.entry_point);
-        match spawn_nodejs_process(&request.entry_point, &tool_id).await {
+        
+        // Extract environment variables if they exist
+        let env_vars = if let Some(auth) = &request.authentication {
+            if let Some(env) = auth.get("env") {
+                // Convert the JSON env vars to a HashMap<String, String>
+                let mut env_map = HashMap::new();
+                if let Some(env_obj) = env.as_object() {
+                    for (key, value) in env_obj {
+                        // Extract the value as a string
+                        let value_str = match value {
+                            Value::String(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b) => b.to_string(),
+                            _ => {
+                                // For objects, check if it has a description field (which means it's a template)
+                                if let Value::Object(obj) = value {
+                                    if obj.contains_key("description") {
+                                        // This is a template, so we don't have a value yet
+                                        continue;
+                                    }
+                                }
+                                // For other types, convert to JSON string
+                                value.to_string()
+                            }
+                        };
+                        env_map.insert(key.clone(), value_str);
+                    }
+                }
+                Some(env_map)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        
+        match spawn_nodejs_process(&request.entry_point, &tool_id, env_vars.as_ref()).await {
             Ok((process, stdin, stdout)) => {
                 info!("Process spawned successfully for tool ID: {}", tool_id);
                 registry.processes.insert(tool_id.clone(), Some(process));
@@ -752,7 +832,46 @@ pub async fn update_tool_status(
     if request.enabled {
         // Start process if it's not already running
         if tool_type == "nodejs" && !is_process_running {
-            match spawn_nodejs_process(&entry_point, &request.tool_id).await {
+            // Extract environment variables from the tool configuration
+            let env_vars = if let Some(tool) = registry.tools.get(&request.tool_id) {
+                if let Some(config) = tool.get("config") {
+                    if let Some(env) = config.get("env") {
+                        // Convert the JSON env vars to a HashMap<String, String>
+                        let mut env_map = HashMap::new();
+                        if let Some(env_obj) = env.as_object() {
+                            for (key, value) in env_obj {
+                                // Extract the value as a string
+                                let value_str = match value {
+                                    Value::String(s) => s.clone(),
+                                    Value::Number(n) => n.to_string(),
+                                    Value::Bool(b) => b.to_string(),
+                                    _ => {
+                                        // For objects, check if it has a description field (which means it's a template)
+                                        if let Value::Object(obj) = value {
+                                            if obj.contains_key("description") {
+                                                // This is a template, so we don't have a value yet
+                                                continue;
+                                            }
+                                        }
+                                        // For other types, convert to JSON string
+                                        value.to_string()
+                                    }
+                                };
+                                env_map.insert(key.clone(), value_str);
+                            }
+                        }
+                        Some(env_map)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            
+            match spawn_nodejs_process(&entry_point, &request.tool_id, env_vars.as_ref()).await {
                 Ok((process, stdin, stdout)) => {
                     registry.processes.insert(request.tool_id.clone(), Some(process));
                     registry.process_ios.insert(request.tool_id.clone(), (stdin, stdout));
@@ -802,9 +921,60 @@ pub async fn update_tool_status(
         }
     }
     
+    // Return success
     Ok(ToolUpdateResponse {
         success: true,
-        message: format!("Tool status updated successfully"),
+        message: format!("Tool '{}' status updated to {}", request.tool_id, if request.enabled { "enabled" } else { "disabled" }),
+    })
+}
+
+/// Update a tool's configuration (environment variables)
+#[tauri::command]
+pub async fn update_tool_config(
+    state: State<'_, MCPState>,
+    request: ToolConfigUpdateRequest,
+) -> Result<ToolConfigUpdateResponse, String> {
+    // First, check if the tool exists
+    let tool_exists = {
+        let registry = state.tool_registry.read().await;
+        registry.tools.contains_key(&request.tool_id)
+    };
+    
+    // If the tool doesn't exist, return an error
+    if !tool_exists {
+        return Ok(ToolConfigUpdateResponse {
+            success: false,
+            message: format!("Tool with ID '{}' not found", request.tool_id),
+        });
+    }
+    
+    // Update the tool configuration
+    let mut registry = state.tool_registry.write().await;
+    
+    // Update the configuration in the tool definition
+    if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
+        if let Some(obj) = tool.as_object_mut() {
+            // Create or update the config object
+            let config = obj.entry("config").or_insert(json!({}));
+            
+            if let Some(config_obj) = config.as_object_mut() {
+                // Create or update the env object
+                let env = config_obj.entry("env").or_insert(json!({}));
+                
+                if let Some(env_obj) = env.as_object_mut() {
+                    // Update each environment variable
+                    for (key, value) in &request.config.env {
+                        env_obj.insert(key.clone(), json!(value));
+                    }
+                }
+            }
+        }
+    }
+    
+    // Return success
+    Ok(ToolConfigUpdateResponse {
+        success: true,
+        message: format!("Tool '{}' configuration updated", request.tool_id),
     })
 }
 

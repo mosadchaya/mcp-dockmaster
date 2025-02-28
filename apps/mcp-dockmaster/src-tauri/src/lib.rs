@@ -3,7 +3,7 @@ use tauri::{Manager, RunEvent};
 use tokio::sync::RwLock;
 use log::info;
 use crate::features::http_server::start_http_server;
-use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, uninstall_tool, get_claude_config, get_claude_stdio_config, get_all_server_data, mcp_hello_world};
+use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_claude_config, get_claude_stdio_config, get_all_server_data, mcp_hello_world};
 use tray::create_tray;
 
 mod features;
@@ -116,6 +116,7 @@ pub async fn run() {
             execute_tool,
             execute_proxy_tool,
             update_tool_status,
+            update_tool_config,
             uninstall_tool,
             get_claude_config,
             get_claude_stdio_config,

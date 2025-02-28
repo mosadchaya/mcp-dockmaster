@@ -35,6 +35,18 @@ interface ToolUpdateResponse {
   message: string;
 }
 
+interface ToolConfigUpdateRequest {
+  tool_id: string;
+  config: {
+    env: Record<string, string>;
+  };
+}
+
+interface ToolConfigUpdateResponse {
+  success: boolean;
+  message: string;
+}
+
 interface ToolUninstallRequest {
   tool_id: string;
 }
@@ -84,6 +96,13 @@ export class MCPClient {
    */
   static async updateToolStatus(request: ToolUpdateRequest): Promise<ToolUpdateResponse> {
     return await invoke<ToolUpdateResponse>('update_tool_status', { request });
+  }
+
+  /**
+   * Update a tool's configuration (environment variables)
+   */
+  static async updateToolConfig(request: ToolConfigUpdateRequest): Promise<ToolConfigUpdateResponse> {
+    return await invoke<ToolConfigUpdateResponse>('update_tool_config', { request });
   }
 
   /**

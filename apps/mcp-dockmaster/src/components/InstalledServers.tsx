@@ -3,6 +3,23 @@ import MCPClient from '../lib/mcpClient';
 import { dispatchToolUninstalled, dispatchToolStatusChanged } from '../lib/events';
 import './InstalledServers.css';
 
+// Add SVG wrench icon component
+const WrenchIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  </svg>
+);
+
 interface InstalledTool {
   id: string;
   name: string;
@@ -11,6 +28,9 @@ interface InstalledTool {
   server_id?: string;
   process_running?: boolean;
   server_name?: string;
+  config?: {
+    env: Record<string, any>;
+  };
 }
 
 interface Server {
@@ -35,6 +55,11 @@ const InstalledServers: React.FC = () => {
   const [serverTools, setServerTools] = useState<ServerTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+  const [editingEnvVars, setEditingEnvVars] = useState<string | null>(null);
+  const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configPopupVisible, setConfigPopupVisible] = useState(false);
+  const [currentConfigTool, setCurrentConfigTool] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -103,7 +128,8 @@ const InstalledServers: React.FC = () => {
             enabled: tool.enabled !== undefined ? tool.enabled : true,
             server_id: serverTool?.server_id,
             server_name: server?.name,
-            process_running: server?.process_running
+            process_running: server?.process_running,
+            config: tool.config || { env: {} }
           });
         }
       });
@@ -171,6 +197,89 @@ const InstalledServers: React.FC = () => {
     }
   };
 
+  const startEditingEnvVars = (toolId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the click from toggling the expanded state
+    
+    // Find the tool to get its current env vars
+    const tool = installedTools.find(t => t.id === toolId);
+    if (!tool || !tool.config) return;
+    
+    // Initialize the env var values with current values
+    const initialValues: Record<string, string> = {};
+    Object.entries(tool.config.env).forEach(([key, value]) => {
+      // If the value is an object with a description, it might not have a value yet
+      if (typeof value === 'object' && value !== null) {
+        initialValues[key] = '';
+      } else {
+        initialValues[key] = String(value);
+      }
+    });
+    
+    setEnvVarValues(initialValues);
+    setCurrentConfigTool(toolId);
+    setConfigPopupVisible(true);
+  };
+
+  const handleEnvVarChange = (key: string, value: string) => {
+    setEnvVarValues(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const saveEnvVars = async (toolId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the click from toggling the expanded state
+    setSavingConfig(true);
+    
+    try {
+      // Find the tool to update
+      const tool = installedTools.find(t => t.id === toolId);
+      if (!tool) return;
+      
+      // Update the tool configuration
+      const response = await MCPClient.updateToolConfig({
+        tool_id: toolId,
+        config: {
+          env: envVarValues
+        }
+      });
+      
+      if (response.success) {
+        // Update the tool in the local state
+        setInstalledTools(prev => 
+          prev.map(t => 
+            t.id === toolId 
+              ? { 
+                  ...t, 
+                  config: { 
+                    ...t.config, 
+                    env: { ...envVarValues } 
+                  } 
+                } 
+              : t
+          )
+        );
+        
+        // Close the popup
+        setConfigPopupVisible(false);
+        setCurrentConfigTool(null);
+      } else {
+        console.error('Failed to update tool configuration:', response.message);
+      }
+    } catch (error) {
+      console.error('Error updating tool configuration:', error);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const cancelEditingEnvVars = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the click from toggling the expanded state
+    setConfigPopupVisible(false);
+    setCurrentConfigTool(null);
+    setEnvVarValues({});
+  };
+
   const toggleExpandTool = (toolId: string, e: React.MouseEvent) => {
     // Don't toggle if clicking on status toggle
     const target = e.target as HTMLElement;
@@ -205,7 +314,7 @@ const InstalledServers: React.FC = () => {
   };
 
   const renderServerInfo = (tool: InstalledTool) => {
-    // Only check for expandedToolId match, not server_id
+    // Only show server info when the tool is expanded
     if (expandedToolId !== tool.id) {
       return null;
     }
@@ -221,23 +330,20 @@ const InstalledServers: React.FC = () => {
       );
     }
     
-    console.log('Rendering server info for tool:', tool.id, 'with server_id:', tool.server_id);
-    
+    // Find the server for this tool
     const server = servers.find(s => s.id === tool.server_id);
     if (!server) {
-      console.log('Server not found for id:', tool.server_id);
       return (
         <div className="server-info-container">
           <div className="empty-tools-message">
-            <p>Server information not available. The server may not be running.</p>
+            <p>No server information available for this tool.</p>
           </div>
         </div>
       );
     }
     
-    console.log('Server found:', server.name, 'Running:', server.process_running);
-    const toolsForServer = serverTools.filter(t => t.server_id === tool.server_id);
-    console.log('Tools for server:', toolsForServer.length);
+    // Find tools for this server
+    const toolsForServer = serverTools.filter(t => t.server_id === server.id);
     
     return (
       <div className="server-info-container">
@@ -284,6 +390,64 @@ const InstalledServers: React.FC = () => {
     );
   };
 
+  // Configuration popup component
+  const renderConfigPopup = () => {
+    if (!configPopupVisible || !currentConfigTool) return null;
+    
+    const tool = installedTools.find(t => t.id === currentConfigTool);
+    if (!tool || !tool.config) return null;
+    
+    return (
+      <div className="config-popup-overlay" onClick={cancelEditingEnvVars}>
+        <div className="config-popup" onClick={(e) => e.stopPropagation()}>
+          <div className="config-popup-header">
+            <h3>Environment Variables - {tool.name}</h3>
+            <button className="close-popup-button" onClick={cancelEditingEnvVars}>×</button>
+          </div>
+          
+          <div className="config-popup-content">
+            <div className="env-vars-editor">
+              {Object.entries(tool.config.env).map(([key, value]) => {
+                const description = typeof value === 'object' && value !== null ? value.description : '';
+                
+                return (
+                  <div key={key} className="env-var-input-group">
+                    <label htmlFor={`env-${key}`}>{key}</label>
+                    <input
+                      id={`env-${key}`}
+                      type="text"
+                      value={envVarValues[key] || ''}
+                      onChange={(e) => handleEnvVarChange(key, e.target.value)}
+                      placeholder={description || key}
+                    />
+                    {description && <div className="env-var-description">{description}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="config-popup-actions">
+            <button 
+              className="save-env-vars-button"
+              onClick={(e) => saveEnvVars(currentConfigTool, e)}
+              disabled={savingConfig}
+            >
+              {savingConfig ? 'Saving...' : 'Save'}
+            </button>
+            <button 
+              className="cancel-env-vars-button"
+              onClick={cancelEditingEnvVars}
+              disabled={savingConfig}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="installed-servers-container">
       <div className="installed-servers-header">
@@ -304,11 +468,22 @@ const InstalledServers: React.FC = () => {
             <div 
               key={tool.id} 
               className={`tool-card ${tool.enabled ? 'enabled' : 'disabled'} ${expandedToolId === tool.id ? 'expanded' : ''}`}
-              onClick={(e) => toggleExpandTool(tool.id, e)}
             >
               <div className="tool-header">
                 <h3 className="tool-title">{tool.name}</h3>
                 <div className="tool-status">
+                  {tool.config && Object.keys(tool.config.env).length > 0 && (
+                    <button 
+                      className="config-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditingEnvVars(tool.id, e);
+                      }}
+                      title="Configure Environment Variables"
+                    >
+                      <WrenchIcon />
+                    </button>
+                  )}
                   <span 
                     className={`app-status-indicator ${tool.enabled ? 'active' : 'inactive'}`}
                     onClick={(e) => {
@@ -325,12 +500,12 @@ const InstalledServers: React.FC = () => {
               
               <p className="tool-description">{tool.description}</p>
               
-              <div className="server-status-indicator">
+              <div className="server-status-indicator" onClick={(e) => toggleExpandTool(tool.id, e)}>
                 {tool.server_id ? (
                   <>
                     <span className={`server-status-dot ${tool.process_running ? 'running' : 'stopped'}`}></span>
                     <span className="server-status-text">
-                      Server: {tool.server_name || 'Unknown'} ({tool.process_running ? 'Running' : 'Stopped'})
+                      Status: {tool.process_running ? 'Running' : 'Stopped'}
                     </span>
                   </>
                 ) : (
@@ -348,6 +523,8 @@ const InstalledServers: React.FC = () => {
           ))}
         </div>
       )}
+      
+      {renderConfigPopup()}
     </div>
   );
 };
