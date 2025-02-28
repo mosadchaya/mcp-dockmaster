@@ -1,22 +1,24 @@
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tauri::State;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use std::process::Stdio;
-use std::path::PathBuf;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
-use tokio::process::{Child, Command};
-use tokio::time::Duration;
+use tauri::State;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt},
+    process::{Child, Command},
+    sync::RwLock,
+    time::Duration,
+};
+use thiserror::Error;
 
-/// Structure to hold registered tools
+/// Holds information about registered tools and their processes
 #[derive(Default)]
 pub struct ToolRegistry {
     pub tools: HashMap<String, Value>,
     pub processes: HashMap<String, Option<Child>>,
-    pub server_tools: HashMap<String, Vec<Value>>, // Tools discovered from each server
-    pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>, // (stdin, stdout) for each process
+    pub server_tools: HashMap<String, Vec<Value>>,
+    pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
 }
 
 impl ToolRegistry {
@@ -24,30 +26,30 @@ impl ToolRegistry {
     pub async fn kill_all_processes(&mut self) {
         for (tool_id, process_opt) in self.processes.iter_mut() {
             if let Some(process) = process_opt {
-                let _ = process.kill().await; // Ignore errors during cleanup
-                println!("Killed process for tool {}", tool_id);
+                if let Err(e) = process.kill().await {
+                    error!("Failed to kill process for tool {}: {}", tool_id, e);
+                } else {
+                    info!("Killed process for tool {}", tool_id);
+                }
             }
         }
     }
-    
-    /// Public method to execute a tool on a server
-    pub async fn execute_tool(&mut self, server_id: &str, tool_id: &str, parameters: Value) -> Result<Value, String> {
+
+    /// Execute a tool on a server
+    pub async fn execute_tool(
+        &mut self,
+        server_id: &str,
+        tool_id: &str,
+        parameters: Value,
+    ) -> Result<Value, MCPError> {
         execute_server_tool(server_id, tool_id, parameters, self).await
     }
 }
 
-/// State management for registered tools
-#[derive(Clone)]
+/// Shared state for MCP tools
+#[derive(Clone, Default)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ToolRegistry>>,
-}
-
-impl Default for MCPState {
-    fn default() -> Self {
-        Self {
-            tool_registry: Arc::new(RwLock::new(ToolRegistry::default())),
-        }
-    }
 }
 
 /// MCP tool registration request
@@ -124,6 +126,54 @@ pub struct DiscoverServerToolsResponse {
     error: Option<String>,
 }
 
+#[derive(Error, Debug)]
+pub enum MCPError {
+    #[error("Server {0} not found or not running")]
+    ServerNotFound(String),
+
+    #[error("Failed to serialize command: {0}")]
+    SerializationError(String),
+
+    #[error("Failed to write to process stdin: {0}")]
+    StdinWriteError(String),
+
+    #[error("Failed to flush stdin: {0}")]
+    StdinFlushError(String),
+
+    #[error("Failed to read from process stdout: {0}")]
+    StdoutReadError(String),
+
+    #[error("Timeout waiting for response from server {0}")]
+    TimeoutError(String),
+
+    #[error("Failed to parse response as JSON: {0}")]
+    JsonParseError(String),
+
+    #[error("Tool execution error: {0}")]
+    ToolExecutionError(String),
+
+    // #[error("Entry point file '{0}' does not exist")]
+    // EntryPointNotFound(String),
+
+    // #[error("Failed to spawn process: {0}")]
+    // ProcessSpawnError(String),
+
+    // #[error("Failed to open stdin")]
+    // StdinOpenError,
+
+    // #[error("Failed to open stdout")]
+    // StdoutOpenError,
+
+    #[error("Server process closed connection")]
+    ServerClosedConnection,
+
+    #[error("No response from process")]
+    NoResponse,
+
+    #[error("Response contains no result field")]
+    NoResultField,
+}
+
 /// Discover tools available from an MCP server
 async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> Result<Vec<Value>, String> {
     // Get the stdin/stdout handles for the server
@@ -132,7 +182,7 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
         None => return Err(format!("Server {} not found or not running", server_id)),
     };
     
-    println!("Discovering tools from server {}", server_id);
+    info!("Discovering tools from server {}", server_id);
     
     // According to MCP specification, the correct method is "tools/list"
     // https://github.com/modelcontextprotocol/specification/blob/main/docs/specification/2024-11-05/server/tools.md
@@ -147,7 +197,7 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
     let cmd_str = serde_json::to_string(&discover_cmd)
         .map_err(|e| format!("Failed to serialize command: {}", e))? + "\n";
     
-    println!("Command: {}", cmd_str.trim());
+    info!("Command: {}", cmd_str.trim());
     
     // Write command to stdin
     stdin.write_all(cmd_str.as_bytes()).await
@@ -159,9 +209,11 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
     
-    match tokio::time::timeout(Duration::from_secs(10), reader.read_line(&mut response_line)).await {
+    let read_result = tokio::time::timeout(Duration::from_secs(10), reader.read_line(&mut response_line)).await;
+    
+    match read_result {
         Ok(Ok(0)) => return Err("Server process closed connection".to_string()),
-        Ok(Ok(_)) => println!("Received response from server {}: {}", server_id, response_line.trim()),
+        Ok(Ok(_)) => info!("Received response from server {}: {}", server_id, response_line.trim()),
         Ok(Err(e)) => return Err(format!("Failed to read from process stdout: {}", e)),
         Err(_) => return Err(format!("Timeout waiting for response from server {}", server_id)),
     }
@@ -185,104 +237,96 @@ async fn discover_server_tools(server_id: &str, registry: &mut ToolRegistry) -> 
     if let Some(result) = response.get("result") {
         // MCP returns tools directly in the result field as array
         if let Some(tools_array) = result.as_array() {
-            println!("Found {} tools in result array", tools_array.len());
+            info!("Found {} tools in result array", tools_array.len());
             return Ok(tools_array.clone());
         }
         
         // Some implementations might nest it under a tools field
         if let Some(tools) = result.get("tools") {
             if let Some(tools_array) = tools.as_array() {
-                println!("Found {} tools in result.tools array", tools_array.len());
+                info!("Found {} tools in result.tools array", tools_array.len());
                 return Ok(tools_array.clone());
             }
         }
         
         // If there's a result but we couldn't find tools array, try to use the entire result
-        println!("No tools array found, using entire result as fallback");
+        info!("No tools array found, using entire result as fallback");
         return Ok(vec![result.clone()]);
     }
     
     // If the server doesn't fully comply with MCP but has a tools field at root
     if let Some(tools) = response.get("tools") {
         if let Some(tools_array) = tools.as_array() {
-            println!("Found {} tools in root tools array", tools_array.len());
+            info!("Found {} tools in root tools array", tools_array.len());
             return Ok(tools_array.clone());
         }
     }
     
     // If initialization hasn't completed yet or tools are not supported,
     // return an empty array as fallback
-    println!("No tools found in response: {}", response_line.trim());
+    info!("No tools found in response: {}", response_line.trim());
     Ok(Vec::new())
 }
 
 /// Execute a tool on an MCP server
-async fn execute_server_tool(server_id: &str, tool_id: &str, parameters: Value, registry: &mut ToolRegistry) -> Result<Value, String> {
-    // Check if we have the process_ios for this server
-    let (stdin, stdout) = match registry.process_ios.get_mut(server_id) {
-        Some(io) => io,
-        None => return Err(format!("Server {} not found or not running", server_id)),
-    };
-    
-    // Create a command to execute the tool using the JSON-RPC format
+async fn execute_server_tool(
+    server_id: &str,
+    tool_id: &str,
+    parameters: Value,
+    registry: &mut ToolRegistry,
+) -> Result<Value, MCPError> {
+    let (stdin, stdout) = registry
+        .process_ios
+        .get_mut(server_id)
+        .ok_or_else(|| MCPError::ServerNotFound(server_id.to_string()))?;
+
     let execute_cmd = json!({
         "jsonrpc": "2.0",
         "id": format!("execute_{}_{}", server_id, tool_id),
         "method": "invoke/tool",
-        "params": {
-            "tool_id": tool_id,
-            "parameters": parameters
-        }
+        "params": { "tool_id": tool_id, "parameters": parameters }
     });
-    
-    // Convert to string and add newline
+
     let cmd_str = serde_json::to_string(&execute_cmd)
-        .map_err(|e| format!("Failed to serialize command: {}", e))? + "\n";
-    
-    println!("Executing tool {} on server {}: {}", tool_id, server_id, cmd_str.trim());
-    
-    // Write to stdin asynchronously
-    stdin.write_all(cmd_str.as_bytes()).await
-        .map_err(|e| format!("Failed to write to process stdin: {}", e))?;
-    stdin.flush().await
-        .map_err(|e| format!("Failed to flush stdin: {}", e))?;
-    
-    // Read from stdout asynchronously using reborrow to avoid moving the value
+        .map_err(|e| MCPError::SerializationError(e.to_string()))?
+        + "\n";
+
+    stdin
+        .write_all(cmd_str.as_bytes())
+        .await
+        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
+
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
-    
-    // Read a line with timeout
-    match tokio::time::timeout(Duration::from_secs(30), reader.read_line(&mut response_line)).await {
-        Ok(read_result) => {
-            match read_result {
-                Ok(0) => return Err("Server process closed connection".to_string()),
-                Ok(_) => {
-                    println!("Received response for tool execution: {}", response_line.trim());
-                },
-                Err(e) => return Err(format!("Failed to read from process stdout: {}", e)),
-            }
-        },
-        Err(_) => return Err("Timeout waiting for tool execution response".to_string()),
+
+    let read_result = tokio::time::timeout(Duration::from_secs(30), reader.read_line(&mut response_line)).await;
+
+    match read_result {
+        Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
+        Ok(Ok(_)) => {},
+        Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
+        Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
     }
-    
+
     if response_line.is_empty() {
-        return Err("No response from process".to_string());
+        return Err(MCPError::NoResponse);
     }
-    
-    // Parse the response as JSON
+
     let response: Value = serde_json::from_str(&response_line)
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-    
-    // Extract the result from the JSON-RPC response
+        .map_err(|e| MCPError::JsonParseError(e.to_string()))?;
+
     if let Some(error) = response.get("error") {
-        return Err(format!("Tool execution error: {}", error));
+        return Err(MCPError::ToolExecutionError(error.to_string()));
     }
-    
-    // Extract the result from the response
-    match response.get("result") {
-        Some(result) => Ok(result.clone()),
-        None => Err("Response contains no result field".to_string()),
-    }
+
+    response
+        .get("result")
+        .cloned()
+        .ok_or(MCPError::NoResultField)
 }
 
 /// Spawn a Node.js MCP server process
@@ -296,7 +340,7 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
     if path.exists() {
         // If it's a file path that exists, run it directly with node
         cmd_type = "node";
-        println!("Using node to run local file: {}", entry_point);
+        info!("Using node to run local file: {}", entry_point);
         cmd = Command::new("node");
         cmd.arg(entry_point)
            .arg("--tool-id")
@@ -307,7 +351,7 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
     } else if entry_point.contains('/') || entry_point.starts_with('@') {
         // If it looks like an npm package (contains / or starts with @), use npx
         cmd_type = "npx";
-        println!("Using npx to run npm package: {}", entry_point);
+        info!("Using npx to run npm package: {}", entry_point);
         cmd = Command::new("npx");
         cmd.arg("-y")
            .arg(entry_point)
@@ -318,18 +362,18 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
            .stderr(Stdio::piped());
     } else {
         // Otherwise, assume it's a file path that doesn't exist yet
-        println!("Entry point doesn't exist and doesn't look like an npm package: {}", entry_point);
+        info!("Entry point doesn't exist and doesn't look like an npm package: {}", entry_point);
         return Err(format!("Entry point file '{}' does not exist", entry_point));
     }
     
     // Log the command we're about to run
-    println!("Spawning process: {} with args: {:?}", cmd_type, cmd.as_std().get_args().collect::<Vec<_>>());
+    info!("Spawning process: {} with args: {:?}", cmd_type, cmd.as_std().get_args().collect::<Vec<_>>());
     
     // Spawn the process
     let mut child = match cmd.spawn() {
         Ok(child) => child,
         Err(e) => {
-            println!("Failed to spawn process: {}", e);
+            error!("Failed to spawn process: {}", e);
             return Err(format!("Failed to spawn process: {}", e));
         }
     };
@@ -344,7 +388,7 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
                 if bytes_read == 0 {
                     break;
                 }
-                println!("[{} stderr]: {}", tool_id_clone, line.trim());
+                info!("[{} stderr]: {}", tool_id_clone, line.trim());
                 line.clear();
             }
         });
@@ -354,9 +398,9 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
     let stdin = match child.stdin.take() {
         Some(stdin) => stdin,
         None => {
-            println!("Failed to open stdin for process");
+            error!("Failed to open stdin for process");
             if let Err(e) = child.kill().await {
-                println!("Failed to kill process after stdin error: {}", e);
+                error!("Failed to kill process after stdin error: {}", e);
             }
             return Err(String::from("Failed to open stdin"));
         }
@@ -365,15 +409,15 @@ async fn spawn_nodejs_process(entry_point: &str, tool_id: &str) -> Result<(Child
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
         None => {
-            println!("Failed to open stdout for process");
+            error!("Failed to open stdout for process");
             if let Err(e) = child.kill().await {
-                println!("Failed to kill process after stdout error: {}", e);
+                error!("Failed to kill process after stdout error: {}", e);
             }
             return Err(String::from("Failed to open stdout"));
         }
     };
     
-    println!("Process spawned successfully with stdin and stdout pipes");
+    info!("Process spawned successfully with stdin and stdout pipes");
     // Return the process and pipes
     Ok((child, stdin, stdout))
 }
@@ -392,14 +436,14 @@ pub async fn register_tool(
     state: State<'_, MCPState>,
     request: ToolRegistrationRequest,
 ) -> Result<ToolRegistrationResponse, String> {
-    println!("Starting registration of tool: {}", request.tool_name);
-    println!("Entry point: {}", request.entry_point);
+    info!("Starting registration of tool: {}", request.tool_name);
+    info!("Entry point: {}", request.entry_point);
     
     let mut registry = state.tool_registry.write().await;
     
     // Generate a simple tool ID (in production, use UUIDs)
     let tool_id = format!("tool_{}", registry.tools.len() + 1);
-    println!("Generated tool ID: {}", tool_id);
+    info!("Generated tool ID: {}", tool_id);
     
     // Store the tool definition
     registry.tools.insert(
@@ -419,20 +463,20 @@ pub async fn register_tool(
     
     // Spawn process if tool is enabled
     if request.tool_type == "nodejs" {
-        println!("Spawning Node.js process for: {}", request.entry_point);
+        info!("Spawning Node.js process for: {}", request.entry_point);
         match spawn_nodejs_process(&request.entry_point, &tool_id).await {
             Ok((process, stdin, stdout)) => {
-                println!("Process spawned successfully for tool ID: {}", tool_id);
+                info!("Process spawned successfully for tool ID: {}", tool_id);
                 registry.processes.insert(tool_id.clone(), Some(process));
                 registry.process_ios.insert(tool_id.clone(), (stdin, stdout));
                 
                 // Wait a moment for the server to start
-                println!("Waiting for server to initialize...");
+                info!("Waiting for server to initialize...");
                 drop(registry); // Release the lock during sleep
                 tokio::time::sleep(Duration::from_secs(3)).await;
                 
                 // Try to discover tools from this server with a timeout to avoid hanging
-                println!("Attempting to discover tools from server {}", tool_id);
+                info!("Attempting to discover tools from server {}", tool_id);
                 let discover_result = tokio::time::timeout(
                     Duration::from_secs(15),
                     async {
@@ -444,7 +488,7 @@ pub async fn register_tool(
                 // Handle the result of the discovery attempt
                 match discover_result {
                     Ok(Ok(tools)) => {
-                        println!("Successfully discovered {} tools from {}", tools.len(), tool_id);
+                        info!("Successfully discovered {} tools from {}", tools.len(), tool_id);
                         let mut registry = state.tool_registry.write().await;
                         // Clone tools before inserting to avoid the "moved value" error
                         let tools_clone = tools.clone();
@@ -452,7 +496,7 @@ pub async fn register_tool(
                         
                         // If empty tools, add a default "main" tool
                         if tools_clone.is_empty() {
-                            println!("No tools discovered, adding a default main tool");
+                            info!("No tools discovered, adding a default main tool");
                             let default_tool = json!({
                                 "id": "main",
                                 "name": request.tool_name,
@@ -462,7 +506,7 @@ pub async fn register_tool(
                         }
                     },
                     Ok(Err(e)) => {
-                        println!("Error discovering tools from server {}: {}", tool_id, e);
+                        error!("Error discovering tools from server {}: {}", tool_id, e);
                         // Add a default tool since discovery failed
                         let mut registry = state.tool_registry.write().await;
                         let default_tool = json!({
@@ -471,10 +515,10 @@ pub async fn register_tool(
                             "description": request.description
                         });
                         registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
-                        println!("Added default tool for server {}", tool_id);
+                        info!("Added default tool for server {}", tool_id);
                     },
                     Err(_) => {
-                        println!("Timeout while discovering tools from server {}", tool_id);
+                        error!("Timeout while discovering tools from server {}", tool_id);
                         // Add a default tool since discovery timed out
                         let mut registry = state.tool_registry.write().await;
                         let default_tool = json!({
@@ -483,12 +527,12 @@ pub async fn register_tool(
                             "description": request.description
                         });
                         registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
-                        println!("Added default tool for server {} after timeout", tool_id);
+                        info!("Added default tool for server {} after timeout", tool_id);
                     }
                 }
             },
             Err(e) => {
-                println!("Failed to spawn process for {}: {}", tool_id, e);
+                error!("Failed to spawn process for {}: {}", tool_id, e);
                 return Ok(ToolRegistrationResponse {
                     success: false,
                     message: format!("Tool registered but failed to start process: {}", e),
@@ -497,7 +541,7 @@ pub async fn register_tool(
             }
         }
     } else {
-        println!("Skipping process creation for non-Node.js tool: {}", request.tool_type);
+        info!("Skipping process creation for non-Node.js tool: {}", request.tool_type);
         // For other tool types, just register without spawning a process for now
         registry.processes.insert(tool_id.clone(), None);
         
@@ -505,7 +549,7 @@ pub async fn register_tool(
         // TODO: Implement container creation for Docker MCP servers
     }
     
-    println!("Tool registration completed for: {}", request.tool_name);
+    info!("Tool registration completed for: {}", request.tool_name);
     Ok(ToolRegistrationResponse {
         success: true,
         message: format!("Tool '{}' registered successfully", request.tool_name),
@@ -647,7 +691,7 @@ pub async fn execute_proxy_tool(
             Ok(ToolExecutionResponse {
                 success: false,
                 result: None,
-                error: Some(e),
+                error: Some(e.to_string()),
             })
         }
     }
@@ -724,7 +768,7 @@ pub async fn update_tool_status(
                             registry.server_tools.insert(request.tool_id.clone(), tools);
                         },
                         Err(e) => {
-                            println!("Failed to discover tools from server {}: {}", request.tool_id, e);
+                            error!("Failed to discover tools from server {}: {}", request.tool_id, e);
                             // Continue even if discovery fails
                         }
                     }

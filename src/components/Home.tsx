@@ -90,7 +90,7 @@ const Home: React.FC = () => {
       const allData = await MCPClient.getAllServerData();
       
       // Set Claude configuration
-      setClaudeConfig(allData);
+      setClaudeConfig(allData.claude_stdio_config);
     } catch (error) {
       console.error('Failed to load Claude configuration:', error);
     }

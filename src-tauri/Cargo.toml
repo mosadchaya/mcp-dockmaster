@@ -28,4 +28,7 @@ axum = { version = "0.7", features = ["macros"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
 hyper = "1.0"
+log = "0.4.26"
+thiserror = "2.0.11"
+env_logger = "0.11.6"
 
