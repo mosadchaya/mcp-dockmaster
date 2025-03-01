@@ -17,6 +17,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 // @ts-ignore - node-fetch is an ESM module
 import fetch from 'node-fetch';
+import { z } from "zod";
 
 // Target server URL
 const TARGET_SERVER_URL = 'http://localhost:3000/mcp-proxy';
@@ -170,7 +171,7 @@ server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
 debugLog('All request handlers set up');
 
 // Add a ping handler for testing
-server.setRequestHandler({ shape: { method: { value: 'ping' } } }, async () => {
+server.setRequestHandler(z.object({ method: z.literal('ping') }), async () => {
   debugLog('Ping handler called');
   return { message: 'pong' };
 });
