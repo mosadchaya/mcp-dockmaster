@@ -12,13 +12,13 @@ const availableTools: RegistryTool[] = [
     sourceUrl: "https://github.com/dcspark/mcp-server-helius",
     distribution: {
       type: "npm",
-      package: "@dcspark/mcp-server-helius",
+      package: "@mcp-dockmaster/mcp-server-helius",
     },
     license: "MIT",
     runtime: "node",
     config: {
       command: "npx",
-      args: ["-y", "@dcspark/mcp-server-helius"],
+      args: ["-y", "@mcp-dockmaster/mcp-server-helius"],
       env: {
         "HELIUS_API_KEY": {
           description: "Your Helius API key. See: https://www.helius.xyz/api",
