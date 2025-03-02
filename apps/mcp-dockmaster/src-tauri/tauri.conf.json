@@ -15,7 +15,7 @@
         "title": "Shinkai AI App Manager",
         "width": 1024,
         "height": 576,
-        "resizable": false,
+        "resizable": true,
         "titleBarStyle": "Visible",
         "decorations": true,
         "center": true
