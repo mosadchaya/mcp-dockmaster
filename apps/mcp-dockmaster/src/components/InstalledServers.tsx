@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MCPClient from '../lib/mcpClient';
-import { dispatchToolStatusChanged } from '../lib/events';
+import { dispatchToolUninstalled, dispatchToolStatusChanged } from '../lib/events';
 import './InstalledServers.css';
 
 // Add SVG wrench icon component
@@ -55,6 +55,7 @@ const InstalledServers: React.FC = () => {
   const [serverTools, setServerTools] = useState<ServerTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+  const [editingEnvVars, setEditingEnvVars] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
@@ -528,4 +529,4 @@ const InstalledServers: React.FC = () => {
   );
 };
 
-export default InstalledServers;    
+export default InstalledServers; 
