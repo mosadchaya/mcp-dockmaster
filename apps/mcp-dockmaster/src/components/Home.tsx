@@ -15,6 +15,31 @@ interface PrerequisiteStatus {
   icon: string;
 }
 
+const mcpClientProxy = {
+  "claude": {
+    "mcpServers": {
+      "mcp-dockmaster": {
+        "args": [
+          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "--stdio"
+        ],
+        "command": "node"
+      }
+    }
+  },
+  "cursor": {
+    "mcpServers": {
+      "mcp-dockmaster": {
+        "args": [
+          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "--stdio"
+        ],
+        "command": "node"
+      }
+    }
+  }
+}
+
 const Home: React.FC = () => {
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
     { name: 'Node.js', installed: false, loading: true, icon: nodeIcon },
@@ -22,8 +47,7 @@ const Home: React.FC = () => {
     { name: 'Docker', installed: false, loading: true, icon: dockerIcon },
   ]);
   const [isChecking, setIsChecking] = useState(false);
-  const [claudeConfig, setClaudeConfig] = useState<any>(null);
-  const [showClaudeConfig, setShowClaudeConfig] = useState(false);
+  const [showMCPConfig, setShowMCPConfig] = useState(false);
 
   const checkPrerequisites = async () => {
     setIsChecking(true);
@@ -84,18 +108,6 @@ const Home: React.FC = () => {
     }
   };
 
-  const loadClaudeConfig = async () => {
-    try {
-      // Get all data from MCP client
-      const allData = await MCPClient.getAllServerData();
-      
-      // Set Claude configuration
-      setClaudeConfig(allData.claude_stdio_config);
-    } catch (error) {
-      console.error('Failed to load Claude configuration:', error);
-    }
-  };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => {
@@ -108,7 +120,6 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     checkPrerequisites();
-    loadClaudeConfig();
   }, []);
 
   return (
@@ -116,37 +127,41 @@ const Home: React.FC = () => {
       <h2>Welcome to Shinkai AI App Manager</h2>
       <p>Select an option from the sidebar to get started.</p>
       
-      <div className="claude-instructions-container">
-        <h3>Claude MCP Integration</h3>
-        <p>Claude is automatically connected to Shinkai AI App Manager. Whenever you enable, disable or make changes to your apps and tools in Shinkai AI App Manager, you may refresh Claude
-          by pressing the following keyboard shortcut:</p>
-        <div className="keyboard-shortcuts">
-          <div className="keyboard-key">⌘</div>
-          <div className="keyboard-key">+</div>
-          <div className="keyboard-key">R</div>
-        </div>
-        <p>in the Claude app. If this does not work, you may click the refresh button in the Claude app.</p>
+      <div className="mcp-instructions-container">
+        <h3>Integrate with MCP Clients</h3>
+        <p>Using the proxy tool, you will be able to integrate with MCP clients like Claude offering all the tools you configure in Shinkai AI App Manager.</p>
         
         <button 
-          className="config-button"
-          onClick={() => setShowClaudeConfig(!showClaudeConfig)}
+          onClick={() => setShowMCPConfig(!showMCPConfig)}
         >
-          {showClaudeConfig ? 'Hide' : 'Show'} Claude Configuration
+          {showMCPConfig ? 'Hide' : 'Show'} MCP Configuration
         </button>
         
-        {showClaudeConfig && claudeConfig && (
-          <div className="claude-config">
+        {showMCPConfig && (
+          <div className="mcp-config">
             <h3>Claude Configuration</h3>
             <p>Use this configuration to connect Claude to your MCP servers:</p>
             <pre className="config-code">
-              {JSON.stringify(claudeConfig, null, 2)}
+              {JSON.stringify(mcpClientProxy.claude, null, 2)}
             </pre>
             <button 
               className="copy-button"
-              onClick={() => copyToClipboard(JSON.stringify(claudeConfig, null, 2))}
+              onClick={() => copyToClipboard(JSON.stringify(mcpClientProxy.claude, null, 2))}
             >
               Copy to Clipboard
             </button>
+            <p></p>
+            <h3>Cursor Configuration</h3>
+          <p>Use this configuration to connect Cursor to your MCP servers:</p>
+          <pre className="config-code">
+            {JSON.stringify(mcpClientProxy.cursor, null, 2)}
+          </pre>
+          <button 
+            className="copy-button"
+            onClick={() => copyToClipboard(JSON.stringify(mcpClientProxy.cursor, null, 2))}
+          >
+            Copy to Clipboard
+          </button>            
           </div>
         )}
       </div>

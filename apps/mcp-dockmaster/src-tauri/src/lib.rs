@@ -3,19 +3,14 @@ use tauri::{Manager, RunEvent};
 use tokio::sync::RwLock;
 use log::info;
 use crate::features::http_server::start_http_server;
-use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_claude_config, get_claude_stdio_config, get_all_server_data, mcp_hello_world};
+use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data};
 use tray::create_tray;
 
 mod features;
 mod tray;
 mod commands {
     use std::process::Command;
-    
-    #[tauri::command]
-    pub async fn greet(name: &str) -> Result<String, String> {
-        Ok(format!("Hello, {}! You've been greeted from Rust!", name))
-    }
-    
+  
     #[tauri::command]
     pub async fn check_node_installed() -> Result<bool, String> {
         match Command::new("node").arg("--version").output() {
@@ -105,7 +100,6 @@ pub async fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::greet,
             commands::check_node_installed,
             commands::check_uv_installed,
             commands::check_docker_installed,
@@ -118,10 +112,7 @@ pub async fn run() {
             update_tool_status,
             update_tool_config,
             uninstall_tool,
-            get_claude_config,
-            get_claude_stdio_config,
-            get_all_server_data,
-            mcp_hello_world
+            get_all_server_data
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")
