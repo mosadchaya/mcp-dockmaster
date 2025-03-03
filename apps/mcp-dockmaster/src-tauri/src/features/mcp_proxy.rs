@@ -44,6 +44,199 @@ impl ToolRegistry {
     ) -> Result<Value, MCPError> {
         execute_server_tool(server_id, tool_id, parameters, self).await
     }
+    
+    /// Restart a tool by its ID
+    pub async fn restart_tool(&mut self, tool_id: &str) -> Result<(), String> {
+        info!("Attempting to restart tool: {}", tool_id);
+        
+        // Check if the tool exists
+        let tool_info = if let Some(tool) = self.tools.get(tool_id) {
+            // Extract necessary information
+            let tool_type = tool.get("tool_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+                
+            let entry_point = tool.get("entry_point")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            
+            info!("Found tool {}: type={}, entry_point={}", tool_id, tool_type, entry_point);
+            Some((tool_type, entry_point, tool.clone()))
+        } else {
+            error!("Tool with ID '{}' not found in registry", tool_id);
+            None
+        };
+        
+        if tool_info.is_none() {
+            return Err(format!("Tool with ID '{}' not found", tool_id));
+        }
+        
+        let (tool_type, entry_point, tool_data) = tool_info.unwrap();
+        
+        // Check if tool_type is empty
+        if tool_type.is_empty() {
+            error!("Missing tool_type for tool {}", tool_id);
+            return Err(format!("Missing tool_type for tool {}", tool_id));
+        }
+        
+        // Check if the process is already running
+        let process_running = self.processes.get(tool_id).is_some_and(|p| p.is_some());
+        
+        if process_running {
+            info!("Tool {} is already running, killing process before restart", tool_id);
+            
+            // Get the process and kill it
+            if let Some(Some(process)) = self.processes.get_mut(tool_id) {
+                if let Err(e) = kill_process(process).await {
+                    error!("Failed to kill process for tool {}: {}", tool_id, e);
+                    return Err(format!("Failed to kill process: {}", e));
+                }
+                info!("Successfully killed process for tool {}", tool_id);
+            }
+            
+            // Remove the process from the registry
+            self.processes.insert(tool_id.to_string(), None);
+            
+            // Remove the process IOs
+            self.process_ios.remove(tool_id);
+        }
+        
+        // Check if the tool is enabled
+        let is_enabled = tool_data.get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+            
+        if !is_enabled {
+            info!("Tool {} is disabled, not restarting", tool_id);
+            return Ok(());
+        }
+        
+        info!("Tool {} is enabled and not running, starting process", tool_id);
+        
+        // Extract environment variables from the tool configuration
+        let env_vars = if let Some(config) = tool_data.get("config") {
+            if let Some(env) = config.get("env") {
+                // Convert the JSON env vars to a HashMap<String, String>
+                let mut env_map = HashMap::new();
+                if let Some(env_obj) = env.as_object() {
+                    for (key, value) in env_obj {
+                        // Extract the value as a string
+                        let value_str = match value {
+                            Value::String(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b) => b.to_string(),
+                            _ => {
+                                // For objects, check if it has a description field (which means it's a template)
+                                if let Value::Object(obj) = value {
+                                    if obj.contains_key("description") {
+                                        // This is a template, so we don't have a value yet
+                                        continue;
+                                    }
+                                }
+                                // For other types, convert to JSON string
+                                value.to_string()
+                            }
+                        };
+                        info!("Setting environment variable for tool {}: {}={}", tool_id, key, value_str);
+                        env_map.insert(key.clone(), value_str);
+                    }
+                }
+                info!("Extracted {} environment variables for tool {}", env_map.len(), tool_id);
+                Some(env_map)
+            } else {
+                info!("No environment variables found for tool {}", tool_id);
+                None
+            }
+        } else {
+            info!("No configuration found for tool {}", tool_id);
+            None
+        };
+        
+        // Get the configuration from the tool data
+        let config_value = if let Some(configuration) = tool_data.get("configuration") {
+            // Use the configuration directly
+            info!("Using configuration from tool data for {}", tool_id);
+            configuration.clone()
+        } else if !entry_point.is_empty() {
+            // If no configuration but entry_point exists, create a simple config
+            info!("Creating simple configuration with entry_point for {}", tool_id);
+            json!({
+                "command": entry_point
+            })
+        } else if let Some(config) = tool_data.get("config") {
+            // Try to use config if it exists
+            if let Some(command) = config.get("command") {
+                info!("Using command from config for {}: {}", tool_id, command);
+                json!({
+                    "command": command,
+                    "args": config.get("args").unwrap_or(&json!([]))
+                })
+            } else {
+                error!("Missing command in configuration for tool {}", tool_id);
+                return Err(format!("Missing command in configuration for tool {}", tool_id));
+            }
+        } else {
+            error!("Missing configuration for tool {}", tool_id);
+            return Err(format!("Missing configuration for tool {}", tool_id));
+        };
+        
+        // Spawn process based on tool type
+        let spawn_result = match tool_type.as_str() {
+            "node" => {
+                info!("Spawning Node.js process for tool: {}", tool_id);
+                spawn_nodejs_process(&config_value, tool_id, env_vars.as_ref()).await
+            },
+            "python" => {
+                info!("Spawning Python process for tool: {}", tool_id);
+                spawn_python_process(&config_value, tool_id, env_vars.as_ref()).await
+            },
+            "docker" => {
+                info!("Spawning Docker process for tool: {}", tool_id);
+                spawn_docker_process(&config_value, tool_id, env_vars.as_ref()).await
+            },
+            _ => {
+                error!("Unsupported tool type: {}", tool_type);
+                return Err(format!("Unsupported tool type: {}", tool_type));
+            }
+        };
+        
+        match spawn_result {
+            Ok((process, stdin, stdout)) => {
+                info!("Successfully spawned process for tool: {}", tool_id);
+                self.processes.insert(tool_id.to_string(), Some(process));
+                self.process_ios.insert(tool_id.to_string(), (stdin, stdout));
+                
+                // Wait a moment for the server to start
+                // We need to use a separate scope to avoid moving self
+                {
+                    // Release the lock during sleep
+                    info!("Waiting for server to start for tool: {}", tool_id);
+                    let sleep_future = tokio::time::sleep(Duration::from_secs(2));
+                    sleep_future.await;
+                }
+                
+                // Try to discover tools from this server
+                match discover_server_tools(tool_id, self).await {
+                    Ok(tools) => {
+                        self.server_tools.insert(tool_id.to_string(), tools.clone());
+                        info!("Successfully discovered {} tools for {}", tools.len(), tool_id);
+                    },
+                    Err(e) => {
+                        error!("Failed to discover tools from server {}: {}", tool_id, e);
+                        // Continue even if discovery fails
+                    }
+                }
+                
+                Ok(())
+            },
+            Err(e) => {
+                error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                Err(format!("Failed to spawn process: {}", e))
+            }
+        }
+    }
 }
 
 /// Shared state for MCP tools
@@ -352,24 +545,33 @@ async fn execute_server_tool(
 
 /// Spawn a Node.js MCP server process
 async fn spawn_nodejs_process(configuration: &Value, tool_id: &str, env_vars: Option<&HashMap<String, String>>) -> Result<(Child, tokio::process::ChildStdin, tokio::process::ChildStdout), String> {  
+    info!("Spawning Node.js process for tool ID: {}", tool_id);
+    info!("Configuration: {}", configuration);
+    
     let mut cmd;
 
-    let command = configuration.get("command").and_then(|v| v.as_str()).ok_or_else(|| 
-        format!("Configuration missing 'command' field or not a string"))?;
+    let command = configuration.get("command").and_then(|v| v.as_str()).ok_or_else(|| {
+        error!("Configuration missing 'command' field or not a string for tool: {}", tool_id);
+        format!("Configuration missing 'command' field or not a string")
+    })?;
 
     if command.contains("npx") || command.contains("node") {
-        info!("Using npx to run npm package: {}", command);
+        info!("Using command to start process for tool {}: {}", tool_id, command);
         cmd = Command::new(command);        
         // Add args if they exist
-        info!("Args: {:?}", configuration.get("args"));
         if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-            for arg in args {
+            info!("Adding {} arguments to command for tool {}", args.len(), tool_id);
+            for (i, arg) in args.iter().enumerate() {
                 if let Some(arg_str) = arg.as_str() {
+                    info!("Arg {}: {}", i, arg_str);
                     cmd.arg(arg_str);
                 }
             }
+        } else {
+            info!("No arguments found in configuration for tool {}", tool_id);
         }
 
+        info!("Adding tool-id argument: {}", tool_id);
         cmd.arg("--tool-id")
         .arg(tool_id);
         
@@ -378,26 +580,32 @@ async fn spawn_nodejs_process(configuration: &Value, tool_id: &str, env_vars: Op
            .stderr(Stdio::piped());        
     } else {
         // Otherwise, assume it's a file path that doesn't exist yet
-        info!("Entry point doesn't exist and doesn't look like an npm package or node command: {}", command);
+        error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
         return Err(format!("Entry point file '{}' does not exist", command));
     }
     
     // Add environment variables if provided
     if let Some(env_map) = env_vars {
+        info!("Setting {} environment variables for tool {}", env_map.len(), tool_id);
         for (key, value) in env_map {
-            info!("Setting environment variable: {}={}", key, value);
+            info!("Setting environment variable for tool {}: {}={}", tool_id, key, value);
             cmd.env(key, value);
         }
+    } else {
+        info!("No environment variables provided for tool {}", tool_id);
     }
     
     // Log the command we're about to run
-    info!("Spawning process: {:?} with args: {:?}", cmd.as_std().get_program(), cmd.as_std().get_args().collect::<Vec<_>>());
+    info!("Spawning process for tool {}: {:?} with args: {:?}", tool_id, cmd.as_std().get_program(), cmd.as_std().get_args().collect::<Vec<_>>());
     
     // Spawn the process
     let mut child = match cmd.spawn() {
-        Ok(child) => child,
+        Ok(child) => {
+            info!("Successfully spawned process for tool {}", tool_id);
+            child
+        },
         Err(e) => {
-            error!("Failed to spawn process: {}", e);
+            error!("Failed to spawn process for tool {}: {}", tool_id, e);
             return Err(format!("Failed to spawn process: {}", e));
         }
     };
@@ -745,11 +953,8 @@ pub async fn register_tool(
         None => return Err("Configuration is required for tools".to_string()),
     };
     
-    // Create a JSON Value with the command field from the entry_point string
-    let config_value = json!({
-        "command": config.get("command").and_then(|v| v.as_str()).unwrap_or(""),
-        "args": config.get("args").and_then(|v| v.as_array()).unwrap_or(&Vec::new())
-    });
+    // Create the config_value for the spawn functions
+    let config_value = config.clone();
     
     // Spawn process based on tool type
     let spawn_result = match request.tool_type.as_str() {
@@ -1037,131 +1242,153 @@ pub async fn update_tool_status(
     let (tool_type, entry_point, process_running) = tool_info.unwrap();
     
     // Now handle the process based on the enabled status
-    let mut registry = state.tool_registry.write().await;
-    
-    // Update the enabled status in the tool definition
-    if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-        if let Some(obj) = tool.as_object_mut() {
-            obj.insert("enabled".to_string(), json!(request.enabled));
+    let result = {
+        let mut registry = state.tool_registry.write().await;
+        
+        // Update the enabled status in the tool definition
+        if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
+            if let Some(obj) = tool.as_object_mut() {
+                obj.insert("enabled".to_string(), json!(request.enabled));
+            }
         }
-    }
-    
-    // Handle process management
-    if request.enabled {
-        // Start process if it's not already running
-        if !process_running {
-            // Extract environment variables from the tool configuration
-            let env_vars = if let Some(tool) = registry.tools.get(&request.tool_id) {
-                if let Some(config) = tool.get("config") {
-                    if let Some(env) = config.get("env") {
-                        // Convert the JSON env vars to a HashMap<String, String>
-                        let mut env_map = HashMap::new();
-                        if let Some(env_obj) = env.as_object() {
-                            for (key, value) in env_obj {
-                                // Extract the value as a string
-                                let value_str = match value {
-                                    Value::String(s) => s.clone(),
-                                    Value::Number(n) => n.to_string(),
-                                    Value::Bool(b) => b.to_string(),
-                                    _ => {
-                                        // For objects, check if it has a description field (which means it's a template)
-                                        if let Value::Object(obj) = value {
-                                            if obj.contains_key("description") {
-                                                // This is a template, so we don't have a value yet
-                                                continue;
+        
+        // Handle process management
+        if request.enabled {
+            // Start process if it's not already running
+            if !process_running {
+                // Extract environment variables from the tool configuration
+                let env_vars = if let Some(tool) = registry.tools.get(&request.tool_id) {
+                    if let Some(config) = tool.get("config") {
+                        if let Some(env) = config.get("env") {
+                            // Convert the JSON env vars to a HashMap<String, String>
+                            let mut env_map = HashMap::new();
+                            if let Some(env_obj) = env.as_object() {
+                                for (key, value) in env_obj {
+                                    // Extract the value as a string
+                                    let value_str = match value {
+                                        Value::String(s) => s.clone(),
+                                        Value::Number(n) => n.to_string(),
+                                        Value::Bool(b) => b.to_string(),
+                                        _ => {
+                                            // For objects, check if it has a description field (which means it's a template)
+                                            if let Value::Object(obj) = value {
+                                                if obj.contains_key("description") {
+                                                    // This is a template, so we don't have a value yet
+                                                    continue;
+                                                }
                                             }
+                                            // For other types, convert to JSON string
+                                            value.to_string()
                                         }
-                                        // For other types, convert to JSON string
-                                        value.to_string()
-                                    }
-                                };
-                                env_map.insert(key.clone(), value_str);
+                                    };
+                                    env_map.insert(key.clone(), value_str);
+                                }
                             }
+                            Some(env_map)
+                        } else {
+                            None
                         }
-                        Some(env_map)
                     } else {
                         None
                     }
                 } else {
                     None
+                };
+                
+                // Create a JSON Value with the command field from the entry_point string
+                let config_value = json!({
+                    "command": entry_point
+                });
+                
+                // Spawn process based on tool type
+                let spawn_result = match tool_type.as_str() {
+                    "node" => {
+                        info!("Spawning Node.js process for tool: {}", request.tool_id);
+                        spawn_nodejs_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                    },
+                    "python" => {
+                        info!("Spawning Python process for tool: {}", request.tool_id);
+                        spawn_python_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                    },
+                    "docker" => {
+                        info!("Spawning Docker process for tool: {}", request.tool_id);
+                        spawn_docker_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                    },
+                    _ => {
+                        info!("Unsupported tool type: {}", tool_type);
+                        return Ok(ToolUpdateResponse {
+                            success: false,
+                            message: format!("Unsupported tool type: {}", tool_type),
+                        });
+                    }
+                };
+                
+                match spawn_result {
+                    Ok((process, stdin, stdout)) => {
+                        registry.processes.insert(request.tool_id.clone(), Some(process));
+                        registry.process_ios.insert(request.tool_id.clone(), (stdin, stdout));
+                        
+                        // We need to release the lock during sleep, but we'll need to reacquire it later
+                        drop(registry);
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        
+                        // Try to discover tools from this server
+                        let mut registry = state.tool_registry.write().await;
+                        match discover_server_tools(&request.tool_id, &mut registry).await {
+                            Ok(tools) => {
+                                registry.server_tools.insert(request.tool_id.clone(), tools);
+                                Ok(())
+                            },
+                            Err(e) => {
+                                error!("Failed to discover tools from server {}: {}", request.tool_id, e);
+                                // Continue even if discovery fails
+                                Ok(())
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        Err(format!("Failed to start process: {}", e))
+                    }
                 }
             } else {
-                None
-            };
-            
-            // Create a JSON Value with the command field from the entry_point string
-            let config_value = json!({
-                "command": entry_point
-            });
-            
-            // Spawn process based on tool type
-            let spawn_result = match tool_type.as_str() {
-                "node" => {
-                    info!("Spawning Node.js process for tool: {}", request.tool_id);
-                    spawn_nodejs_process(&config_value, &request.tool_id, env_vars.as_ref()).await
-                },
-                "python" => {
-                    info!("Spawning Python process for tool: {}", request.tool_id);
-                    spawn_python_process(&config_value, &request.tool_id, env_vars.as_ref()).await
-                },
-                "docker" => {
-                    info!("Spawning Docker process for tool: {}", request.tool_id);
-                    spawn_docker_process(&config_value, &request.tool_id, env_vars.as_ref()).await
-                },
-                _ => {
-                    info!("Unsupported tool type: {}", tool_type);
-                    return Ok(ToolUpdateResponse {
-                        success: false,
-                        message: format!("Unsupported tool type: {}", tool_type),
-                    });
-                }
-            };
-            
-            match spawn_result {
-                Ok((process, stdin, stdout)) => {
-                    registry.processes.insert(request.tool_id.clone(), Some(process));
-                    registry.process_ios.insert(request.tool_id.clone(), (stdin, stdout));
-                    
-                    // Wait a moment for the server to start
-                    drop(registry); // Release the lock during sleep
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    
-                    // Try to discover tools from this server
-                    let mut registry = state.tool_registry.write().await;
-                    match discover_server_tools(&request.tool_id, &mut registry).await {
-                        Ok(tools) => {
-                            registry.server_tools.insert(request.tool_id.clone(), tools);
-                        },
-                        Err(e) => {
-                            error!("Failed to discover tools from server {}: {}", request.tool_id, e);
-                            // Continue even if discovery fails
-                        }
-                    }
-                },
-                Err(e) => {
-                    return Ok(ToolUpdateResponse {
-                        success: false,
-                        message: format!("Failed to start process: {}", e),
-                    });
-                }
+                // Process is already running
+                Ok(())
             }
+        } else {
+            // Kill process if it's running
+            if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
+                if let Err(e) = kill_process(process).await {
+                    return Ok(ToolUpdateResponse {
+                        success: false,
+                        message: format!("Failed to kill process: {}", e),
+                    });
+                }
+                
+                // Remove the process from the registry
+                registry.processes.insert(request.tool_id.clone(), None);
+                
+                // Clear the server tools
+                registry.server_tools.remove(&request.tool_id);
+            }
+            Ok(())
         }
+    };
+    
+    // Handle any errors from the process management
+    if let Err(e) = result {
+        return Ok(ToolUpdateResponse {
+            success: false,
+            message: e,
+        });
+    }
+    
+    // Save the updated state to the database
+    use crate::features::database::save_mcp_state;
+    if let Err(e) = save_mcp_state(&state).await {
+        error!("Failed to save MCP state after updating tool status: {}", e);
+        // Continue even if saving fails
     } else {
-        // Kill process if it's running
-        if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
-            if let Err(e) = kill_process(process).await {
-                return Ok(ToolUpdateResponse {
-                    success: false,
-                    message: format!("Failed to kill process: {}", e),
-                });
-            }
-            
-            // Remove the process from the registry
-            registry.processes.insert(request.tool_id.clone(), None);
-            
-            // Clear the server tools
-            registry.server_tools.remove(&request.tool_id);
-        }
+        info!("Successfully saved MCP state after updating tool status");
     }
     
     // Return success
@@ -1177,19 +1404,28 @@ pub async fn update_tool_config(
     state: State<'_, MCPState>,
     request: ToolConfigUpdateRequest,
 ) -> Result<ToolConfigUpdateResponse, String> {
+    info!("Updating configuration for tool: {}", request.tool_id);
+    
     // First, check if the tool exists
-    let tool_exists = {
+    let (tool_exists, is_enabled) = {
         let registry = state.tool_registry.read().await;
-        registry.tools.contains_key(&request.tool_id)
+        let tool = registry.tools.get(&request.tool_id);
+        let enabled = tool.and_then(|t| t.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        (tool.is_some(), enabled)
     };
     
     // If the tool doesn't exist, return an error
     if !tool_exists {
+        error!("Tool with ID '{}' not found", request.tool_id);
         return Ok(ToolConfigUpdateResponse {
             success: false,
             message: format!("Tool with ID '{}' not found", request.tool_id),
         });
     }
+    
+    info!("Tool '{}' found, enabled: {}", request.tool_id, is_enabled);
     
     // Update the tool configuration
     let mut registry = state.tool_registry.write().await;
@@ -1207,11 +1443,24 @@ pub async fn update_tool_config(
                 if let Some(env_obj) = env.as_object_mut() {
                     // Update each environment variable
                     for (key, value) in &request.config.env {
+                        info!("Setting environment variable for tool {}: {}={}", request.tool_id, key, value);
                         env_obj.insert(key.clone(), json!(value));
                     }
                 }
             }
         }
+    }
+    
+    // Release the registry lock before saving state
+    drop(registry);
+    
+    // Save the updated state to the database
+    use crate::features::database::save_mcp_state;
+    if let Err(e) = save_mcp_state(&state).await {
+        error!("Failed to save MCP state after updating tool config: {}", e);
+        // Continue even if saving fails
+    } else {
+        info!("Successfully saved MCP state after updating tool config for tool: {}", request.tool_id);
     }
     
     // Return success
@@ -1356,4 +1605,105 @@ pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, St
         "servers": servers,
         "tools": all_tools
     }))
+}
+
+/// Save the current MCP state to the database
+#[tauri::command]
+pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
+    use crate::features::database::save_mcp_state;
+    
+    match save_mcp_state(&state).await {
+        Ok(_) => Ok("MCP state saved successfully".to_string()),
+        Err(e) => Err(format!("Failed to save MCP state: {}", e)),
+    }
+}
+
+/// Load MCP state from the database
+#[tauri::command]
+pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
+    use crate::features::database::{DatabaseManager};
+    
+    match DatabaseManager::new() {
+        Ok(db_manager) => {
+            match db_manager.load_tool_registry() {
+                Ok(registry) => {
+                    // Update the tool registry with loaded data
+                    let mut state_registry = state.tool_registry.write().await;
+                    state_registry.tools = registry.tools;
+                    state_registry.server_tools = registry.server_tools;
+                    // Note: processes and process_ios are not persisted
+                    
+                    Ok("MCP state loaded successfully".to_string())
+                }
+                Err(e) => Err(format!("Failed to load tool registry: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("Failed to initialize database: {}", e)),
+    }
+}
+
+/// Check if the database exists and has data
+#[tauri::command]
+pub async fn check_database_exists_command() -> Result<bool, String> {
+    use crate::features::database::check_database_exists;
+    check_database_exists()
+}
+
+/// Clear all data from the database
+#[tauri::command]
+pub async fn clear_database_command() -> Result<String, String> {
+    use crate::features::database::clear_database;
+    
+    match clear_database() {
+        Ok(_) => Ok("Database cleared successfully".to_string()),
+        Err(e) => Err(format!("Failed to clear database: {}", e)),
+    }
+}
+
+/// Restart a tool by its ID
+#[tauri::command(rename_all = "camelCase")]
+pub async fn restart_tool_command(
+    state: State<'_, MCPState>,
+    tool_id: String,
+) -> Result<ToolUpdateResponse, String> {
+    info!("Received request to restart tool: {}", tool_id);
+    
+    // Check if the tool exists
+    let tool_exists = {
+        let registry = state.tool_registry.read().await;
+        registry.tools.contains_key(&tool_id)
+    };
+    
+    if !tool_exists {
+        error!("Tool with ID '{}' not found for restart", tool_id);
+        return Ok(ToolUpdateResponse {
+            success: false,
+            message: format!("Tool with ID '{}' not found", tool_id),
+        });
+    }
+    
+    info!("Tool '{}' found, attempting to restart", tool_id);
+    
+    // Get a write lock on the registry to restart the tool
+    let restart_result = {
+        let mut registry = state.tool_registry.write().await;
+        registry.restart_tool(&tool_id).await
+    };
+    
+    match restart_result {
+        Ok(_) => {
+            info!("Successfully restarted tool: {}", tool_id);
+            Ok(ToolUpdateResponse {
+                success: true,
+                message: format!("Tool '{}' restarted successfully", tool_id),
+            })
+        },
+        Err(e) => {
+            error!("Failed to restart tool {}: {}", tool_id, e);
+            Ok(ToolUpdateResponse {
+                success: false,
+                message: format!("Failed to restart tool: {}", e),
+            })
+        }
+    }
 }

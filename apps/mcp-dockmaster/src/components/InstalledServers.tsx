@@ -3,6 +3,29 @@ import MCPClient from '../lib/mcpClient';
 import { dispatchToolStatusChanged } from '../lib/events';
 import './InstalledServers.css';
 
+// Add a simple notification component
+interface NotificationProps {
+  message: string;
+  type: 'success' | 'error' | 'info';
+  onClose: () => void;
+}
+
+const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`notification ${type}`}>
+      {message}
+      <button onClick={onClose} className="close-btn">×</button>
+    </div>
+  );
+};
+
 // Add SVG wrench icon component
 const WrenchIcon = () => (
   <svg 
@@ -55,10 +78,12 @@ const InstalledServers: React.FC = () => {
   const [serverTools, setServerTools] = useState<ServerTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
-  const [currentConfigTool, setCurrentConfigTool] = useState<string | null>(null);
+  const [currentConfigTool, setCurrentConfigTool] = useState<InstalledTool | null>(null);
+  const [notifications, setNotifications] = useState<Array<{id: string, message: string, type: 'success' | 'error' | 'info'}>>([]);
 
   useEffect(() => {
     loadData();
@@ -215,7 +240,7 @@ const InstalledServers: React.FC = () => {
     });
     
     setEnvVarValues(initialValues);
-    setCurrentConfigTool(toolId);
+    setCurrentConfigTool(tool);
     setConfigPopupVisible(true);
   };
 
@@ -226,6 +251,15 @@ const InstalledServers: React.FC = () => {
     }));
   };
 
+  const addNotification = (message: string, type: 'success' | 'error' | 'info') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
+
   const saveEnvVars = async (toolId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setSavingConfig(true);
@@ -233,7 +267,13 @@ const InstalledServers: React.FC = () => {
     try {
       // Find the tool to update
       const tool = installedTools.find(t => t.id === toolId);
-      if (!tool) return;
+      if (!tool) {
+        console.error(`Tool with ID ${toolId} not found`);
+        addNotification(`Tool with ID ${toolId} not found`, 'error');
+        return;
+      }
+      
+      console.log(`Updating configuration for tool: ${toolId}`, envVarValues);
       
       // Update the tool configuration
       const response = await MCPClient.updateToolConfig({
@@ -244,6 +284,9 @@ const InstalledServers: React.FC = () => {
       });
       
       if (response.success) {
+        console.log(`Tool ${toolId} configuration updated successfully`);
+        addNotification(`Configuration for ${tool.name} updated successfully`, 'success');
+        
         // Update the tool in the local state
         setInstalledTools(prev => 
           prev.map(t => 
@@ -259,14 +302,40 @@ const InstalledServers: React.FC = () => {
           )
         );
         
+        // Restart the tool with the new configuration if it's enabled
+        if (tool.enabled) {
+          console.log(`Tool ${toolId} is enabled, restarting with new configuration...`);
+          addNotification(`Restarting ${tool.name}...`, 'info');
+          
+          try {
+            const restartResponse = await MCPClient.restartTool(toolId);
+            if (restartResponse.success) {
+              console.log(`Tool ${toolId} restarted successfully with new configuration`);
+              addNotification(`${tool.name} restarted successfully with new configuration`, 'success');
+              // Dispatch event to update UI
+              dispatchToolStatusChanged(toolId);
+            } else {
+              console.error(`Failed to restart tool ${toolId}:`, restartResponse.message);
+              addNotification(`Failed to restart ${tool.name}: ${restartResponse.message}`, 'error');
+            }
+          } catch (restartError) {
+            console.error(`Error restarting tool ${toolId}:`, restartError);
+            addNotification(`Error restarting ${tool.name}`, 'error');
+          }
+        } else {
+          console.log(`Tool ${toolId} is disabled, not restarting`);
+        }
+        
         // Close the popup
         setConfigPopupVisible(false);
         setCurrentConfigTool(null);
       } else {
         console.error('Failed to update tool configuration:', response.message);
+        addNotification(`Failed to update configuration: ${response.message}`, 'error');
       }
     } catch (error) {
       console.error('Error updating tool configuration:', error);
+      addNotification('Error updating configuration', 'error');
     } finally {
       setSavingConfig(false);
     }
@@ -393,7 +462,7 @@ const InstalledServers: React.FC = () => {
   const renderConfigPopup = () => {
     if (!configPopupVisible || !currentConfigTool) return null;
     
-    const tool = installedTools.find(t => t.id === currentConfigTool);
+    const tool = installedTools.find(t => t.id === currentConfigTool.id);
     if (!tool || !tool.config) return null;
     
     return (
@@ -429,7 +498,7 @@ const InstalledServers: React.FC = () => {
           <div className="config-popup-actions">
             <button 
               className="save-env-vars-button"
-              onClick={(e) => saveEnvVars(currentConfigTool, e)}
+              onClick={(e) => saveEnvVars(currentConfigTool.id, e)}
               disabled={savingConfig}
             >
               {savingConfig ? 'Saving...' : 'Save'}
@@ -449,6 +518,18 @@ const InstalledServers: React.FC = () => {
 
   return (
     <div className="installed-servers-container">
+      {/* Notifications */}
+      <div className="notification-container">
+        {notifications.map(notification => (
+          <Notification
+            key={notification.id}
+            message={notification.message}
+            type={notification.type}
+            onClose={() => removeNotification(notification.id)}
+          />
+        ))}
+      </div>
+
       <div className="installed-servers-header">
         <h2>My Applications</h2>
         <p>Manage your installed AI applications and MCP tools.</p>
