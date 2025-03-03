@@ -1,11 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 
 interface ToolRegistrationRequest {
+  tool_id: string;
   tool_name: string;
   description: string;
   authentication?: any;
   tool_type: string;  // "nodejs", "python", "docker"
-  entry_point: string; // Path to the entry point file or container image
+  configuration?: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+  };
+  distribution?: {
+    type: string;
+    package: string;
+  };
 }
 
 interface ToolRegistrationResponse {
@@ -112,13 +121,6 @@ export class MCPClient {
     return await invoke<ToolUninstallResponse>('uninstall_tool', { request });
   }
 
-  /**
-   * Test the MCP server connection with a hello world request
-   */
-  static async helloWorld(): Promise<any> {
-    return await invoke<any>('mcp_hello_world');
-  }
-  
   /**
    * Discover tools from a specific MCP server
    */

@@ -24,7 +24,7 @@ interface RegistryTool {
   sourceUrl?: string;
   distribution?: {
     type: string;
-    package?: string;
+    package: string;
   };
   config?: {
     command: string;
@@ -160,12 +160,9 @@ const Registry: React.FC = () => {
     }
     
     setInstalling(tool.id);
-    try {
-      // Map the runtime to the appropriate tool_type
-      const toolType = mapRuntimeToToolType(tool.runtime);
-      
+    try {      
       // For now, use a default entry point based on the tool type
-      const entryPoint = getDefaultEntryPoint(toolType, tool.name);
+      const entryPoint = getDefaultEntryPoint(tool.name);
       
       // Prepare authentication if needed
       let authentication = null;
@@ -175,11 +172,14 @@ const Registry: React.FC = () => {
         authentication = { env: tool.config.env };
       }
       
+      console.log('Registering tool:', JSON.stringify(tool, null, 2), tool.runtime, entryPoint, authentication);
       const response = await MCPClient.registerTool({
+        tool_id: tool.id,
         tool_name: tool.name,
         description: tool.description,
-        tool_type: toolType,
-        entry_point: entryPoint,
+        tool_type: tool.runtime,
+        configuration: tool.config,
+        distribution: tool.distribution,
         authentication: authentication,
       });
       
@@ -265,47 +265,29 @@ const Registry: React.FC = () => {
     }
   };
   
-  // Helper function to map runtime to tool_type
-  const mapRuntimeToToolType = (runtime: string): string => {
-    switch (runtime.toLowerCase()) {
-      case 'node':
-        return 'nodejs';
-      case 'python':
-      case 'uv':
-        return 'python';
-      case 'docker':
-        return 'docker';
-      default:
-        return 'nodejs'; // Default to nodejs if unknown
-    }
-  };
-  
   // Helper function to get a default entry point based on tool type and name
-  const getDefaultEntryPoint = (toolType: string, toolName: string): string => {
+  const getDefaultEntryPoint = (toolName: string): string => {
     // Try to find the tool in the available tools to get its distribution info
     const tool = availableTools.find(t => t.name === toolName);
     
     if (tool && tool.distribution && tool.config) {
-      // If we have distribution info, use it to create a more accurate entry point
-      if (tool.distribution.type === 'npm' && tool.distribution.package) {
-        // For npm packages, we can use npx to run them
-        return tool.distribution.package;
+      // Run the command with the args if provided
+      if (tool.config.command && tool.config.args) {
+        return `${tool.config.command} ${tool.config.args.join(" ")}`;
+      }
+
+      // Fallback 1: If the tool is an npm package, use npx to run it
+      if (tool.distribution.type === "npm" && tool.distribution.package) {
+        return `npx -y ${tool.distribution.package}`;
+      }
+
+      // Fallback 2: If the tool is a docker image, use the image name
+      if (tool.distribution.type === "dockerhub" && tool.distribution.package) {
+        return `docker run --name ${tool.id} ${tool.distribution.package}`;
       }
     }
-    
-    // Fallback to default paths if we don't have distribution info
-    const sanitizedName = toolName.toLowerCase().replace(/\s+/g, '-');
-    
-    switch (toolType) {
-      case 'nodejs':
-        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
-      case 'python':
-        return `/tmp/mcp-tools/${sanitizedName}/main.py`;
-      case 'docker':
-        return `${sanitizedName}:latest`;
-      default:
-        return `/tmp/mcp-tools/${sanitizedName}/index.js`;
-    }
+
+    throw new Error(`No entry point found for tool: ${toolName}`);
   };
 
   const getRunnerIcon = (runtime: string) => {
@@ -315,7 +297,6 @@ const Registry: React.FC = () => {
       case 'node':
         return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
       case 'python':
-      case 'uv':
         return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
       default:
         return <span className="runner-icon unknown">?</span>;
