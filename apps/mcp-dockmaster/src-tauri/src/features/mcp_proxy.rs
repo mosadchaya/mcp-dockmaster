@@ -446,6 +446,198 @@ async fn spawn_nodejs_process(configuration: &Value, tool_id: &str, env_vars: Op
     Ok((child, stdin, stdout))
 }
 
+/// Spawn a Python MCP server process
+async fn spawn_python_process(configuration: &Value, tool_id: &str, env_vars: Option<&HashMap<String, String>>) -> Result<(Child, tokio::process::ChildStdin, tokio::process::ChildStdout), String> {  
+    let mut cmd;
+
+    let command = configuration.get("command").and_then(|v| v.as_str()).ok_or_else(|| 
+        format!("Configuration missing 'command' field or not a string"))?;
+
+    info!("Using Python command: {}", command);
+    cmd = Command::new(command);        
+    
+    // Add args if they exist
+    info!("Args: {:?}", configuration.get("args"));
+    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
+        for arg in args {
+            if let Some(arg_str) = arg.as_str() {
+                cmd.arg(arg_str);
+            }
+        }
+    }
+    
+    cmd.stdin(Stdio::piped())
+       .stdout(Stdio::piped())
+       .stderr(Stdio::piped());        
+    
+    // Add environment variables if provided
+    if let Some(env_map) = env_vars {
+        for (key, value) in env_map {
+            info!("Setting environment variable: {}={}", key, value);
+            cmd.env(key, value);
+        }
+    }
+    
+    // Log the command we're about to run
+    info!("Spawning Python process: {:?} with args: {:?}", cmd.as_std().get_program(), cmd.as_std().get_args().collect::<Vec<_>>());
+    
+    // Spawn the process
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            error!("Failed to spawn Python process: {}", e);
+            return Err(format!("Failed to spawn Python process: {}", e));
+        }
+    };
+    
+    // Capture stderr to a separate task that logs errors
+    if let Some(stderr) = child.stderr.take() {
+        let tool_id_clone = tool_id.to_string();
+        tokio::spawn(async move {
+            let mut stderr_reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
+                if bytes_read == 0 {
+                    break;
+                }
+                info!("[{} stderr]: {}", tool_id_clone, line.trim());
+                line.clear();
+            }
+        });
+    }
+    
+    // Take ownership of the pipes
+    let stdin = match child.stdin.take() {
+        Some(stdin) => stdin,
+        None => {
+            error!("Failed to open stdin for Python process");
+            if let Err(e) = child.kill().await {
+                error!("Failed to kill process after stdin error: {}", e);
+            }
+            return Err(String::from("Failed to open stdin"));
+        }
+    };
+    
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            error!("Failed to open stdout for Python process");
+            if let Err(e) = child.kill().await {
+                error!("Failed to kill process after stdout error: {}", e);
+            }
+            return Err(String::from("Failed to open stdout"));
+        }
+    };
+    
+    info!("Python process spawned successfully with stdin and stdout pipes");
+    // Return the process and pipes
+    Ok((child, stdin, stdout))
+}
+
+/// Spawn a Docker MCP server process
+async fn spawn_docker_process(configuration: &Value, tool_id: &str, env_vars: Option<&HashMap<String, String>>) -> Result<(Child, tokio::process::ChildStdin, tokio::process::ChildStdout), String> {  
+    let command = configuration.get("command").and_then(|v| v.as_str()).ok_or_else(|| 
+        format!("Configuration missing 'command' field or not a string"))?;
+
+    if command != "docker" {
+        return Err(format!("Expected 'docker' command for Docker runtime, got '{}'", command));
+    }
+
+    info!("Using Docker command");
+    let mut cmd = Command::new(command);
+
+    cmd.arg("run")
+       .arg("-i")
+       .arg("--name")
+       .arg(tool_id)
+       .arg("-a")
+       .arg("stdout")
+       .arg("-a")
+       .arg("stderr")
+       .arg("-a")
+       .arg("stdin");
+    
+    // Add environment variables as Docker -e flags if provided
+    if let Some(env_map) = env_vars {
+        for (key, value) in env_map {
+            info!("Setting Docker environment variable: {}={}", key, value);
+            cmd.arg("-e")
+               .arg(format!("{}={}", key, value));
+        }
+    }
+
+    cmd.arg("--rm");
+
+    // Add args if they exist
+    info!("Args: {:?}", configuration.get("args"));
+    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
+        for arg in args {
+            if let Some(arg_str) = arg.as_str() {
+                cmd.arg(arg_str);
+            }
+        }
+    }
+    
+    cmd.stdin(Stdio::piped())
+       .stdout(Stdio::piped())
+       .stderr(Stdio::piped());        
+    
+    // Log the command we're about to run
+    info!("Spawning Docker process: {:?} with args: {:?}", cmd.as_std().get_program(), cmd.as_std().get_args().collect::<Vec<_>>());
+    
+    // Spawn the process
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            error!("Failed to spawn Docker process: {}", e);
+            return Err(format!("Failed to spawn Docker process: {}", e));
+        }
+    };
+    
+    // Capture stderr to a separate task that logs errors
+    if let Some(stderr) = child.stderr.take() {
+        let tool_id_clone = tool_id.to_string();
+        tokio::spawn(async move {
+            let mut stderr_reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
+                if bytes_read == 0 {
+                    break;
+                }
+                info!("[{} stderr]: {}", tool_id_clone, line.trim());
+                line.clear();
+            }
+        });
+    }
+    
+    // Take ownership of the pipes
+    let stdin = match child.stdin.take() {
+        Some(stdin) => stdin,
+        None => {
+            error!("Failed to open stdin for Docker process");
+            if let Err(e) = child.kill().await {
+                error!("Failed to kill process after stdin error: {}", e);
+            }
+            return Err(String::from("Failed to open stdin"));
+        }
+    };
+    
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            error!("Failed to open stdout for Docker process");
+            if let Err(e) = child.kill().await {
+                error!("Failed to kill process after stdout error: {}", e);
+            }
+            return Err(String::from("Failed to open stdout"));
+        }
+    };
+    
+    info!("Docker process spawned successfully with stdin and stdout pipes");
+    // Return the process and pipes
+    Ok((child, stdin, stdout))
+}
+
 /// Kill a running process
 async fn kill_process(process: &mut Child) -> Result<(), String> {
     match process.kill().await {
@@ -512,149 +704,148 @@ pub async fn register_tool(
     // Create a default empty tools list
     registry.server_tools.insert(tool_id.clone(), Vec::new());
     
-    // Spawn process if tool is enabled
-    if request.tool_type == "node" {
-        // Safely log the command if configuration exists
-        if let Some(config) = &request.configuration {
-            if let Some(cmd) = config.get("command") {
-                info!("Spawning Node.js process for: {}", cmd);
-            } else {
-                info!("Spawning Node.js process with no command specified");
-            }
-        } else {
-            info!("Spawning Node.js process with no configuration");
-        }
-        
-        // Extract environment variables if they exist
-        let env_vars = if let Some(auth) = &request.authentication {
-            if let Some(env) = auth.get("env") {
-                // Convert the JSON env vars to a HashMap<String, String>
-                let mut env_map = HashMap::new();
-                if let Some(env_obj) = env.as_object() {
-                    for (key, value) in env_obj {
-                        // Extract the value as a string
-                        let value_str = match value {
-                            Value::String(s) => s.clone(),
-                            Value::Number(n) => n.to_string(),
-                            Value::Bool(b) => b.to_string(),
-                            _ => {
-                                // For objects, check if it has a description field (which means it's a template)
-                                if let Value::Object(obj) = value {
-                                    if obj.contains_key("description") {
-                                        // This is a template, so we don't have a value yet
-                                        continue;
-                                    }
+    // Extract environment variables if they exist
+    let env_vars = if let Some(auth) = &request.authentication {
+        if let Some(env) = auth.get("env") {
+            // Convert the JSON env vars to a HashMap<String, String>
+            let mut env_map = HashMap::new();
+            if let Some(env_obj) = env.as_object() {
+                for (key, value) in env_obj {
+                    // Extract the value as a string
+                    let value_str = match value {
+                        Value::String(s) => s.clone(),
+                        Value::Number(n) => n.to_string(),
+                        Value::Bool(b) => b.to_string(),
+                        _ => {
+                            // For objects, check if it has a description field (which means it's a template)
+                            if let Value::Object(obj) = value {
+                                if obj.contains_key("description") {
+                                    // This is a template, so we don't have a value yet
+                                    continue;
                                 }
-                                // For other types, convert to JSON string
-                                value.to_string()
                             }
-                        };
-                        env_map.insert(key.clone(), value_str);
-                    }
+                            // For other types, convert to JSON string
+                            value.to_string()
+                        }
+                    };
+                    env_map.insert(key.clone(), value_str);
                 }
-                Some(env_map)
-            } else {
-                None
             }
+            Some(env_map)
         } else {
             None
-        };
-        
-        // Ensure configuration exists before passing to spawn_nodejs_process
-        let config = match &request.configuration {
-            Some(config) => config,
-            None => return Err("Configuration is required for Node.js tools".to_string()),
-        };
-        
-        // Create a JSON Value with the command field from the entry_point string
-        let config_value = json!({
-            "command": config.get("command").and_then(|v| v.as_str()).unwrap_or(""),
-            "args": config.get("args").and_then(|v| v.as_array()).unwrap_or(&Vec::new())
-        });
-        
-        match spawn_nodejs_process(&config_value, &tool_id, env_vars.as_ref()).await {
-            Ok((process, stdin, stdout)) => {
-                info!("Process spawned successfully for tool ID: {}", tool_id);
-                registry.processes.insert(tool_id.clone(), Some(process));
-                registry.process_ios.insert(tool_id.clone(), (stdin, stdout));
-                
-                // Wait a moment for the server to start
-                info!("Waiting for server to initialize...");
-                drop(registry); // Release the lock during sleep
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                
-                // Try to discover tools from this server with a timeout to avoid hanging
-                info!("Attempting to discover tools from server {}", tool_id);
-                let discover_result = tokio::time::timeout(
-                    Duration::from_secs(15),
-                    async {
-                        let mut registry = state.tool_registry.write().await;
-                        discover_server_tools(&tool_id, &mut registry).await
-                    }
-                ).await;
-                
-                // Handle the result of the discovery attempt
-                match discover_result {
-                    Ok(Ok(tools)) => {
-                        info!("Successfully discovered {} tools from {}", tools.len(), tool_id);
-                        let mut registry = state.tool_registry.write().await;
-                        // Clone tools before inserting to avoid the "moved value" error
-                        let tools_clone = tools.clone();
-                        registry.server_tools.insert(tool_id.clone(), tools);
-                        
-                        // If empty tools, add a default "main" tool
-                        if tools_clone.is_empty() {
-                            info!("No tools discovered, adding a default main tool");
-                            let default_tool = json!({
-                                "id": "main",
-                                "name": request.tool_name,
-                                "description": request.description
-                            });
-                            registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
-                        }
-                    },
-                    Ok(Err(e)) => {
-                        error!("Error discovering tools from server {}: {}", tool_id, e);
-                        // Add a default tool since discovery failed
-                        let mut registry = state.tool_registry.write().await;
-                        let default_tool = json!({
-                            "id": "main",
-                            "name": request.tool_name,
-                            "description": request.description
-                        });
-                        registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
-                        info!("Added default tool for server {}", tool_id);
-                    },
-                    Err(_) => {
-                        error!("Timeout while discovering tools from server {}", tool_id);
-                        // Add a default tool since discovery timed out
-                        let mut registry = state.tool_registry.write().await;
-                        let default_tool = json!({
-                            "id": "main",
-                            "name": request.tool_name,
-                            "description": request.description
-                        });
-                        registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
-                        info!("Added default tool for server {} after timeout", tool_id);
-                    }
-                }
-            },
-            Err(e) => {
-                error!("Failed to spawn process for {}: {}", tool_id, e);
-                return Ok(ToolRegistrationResponse {
-                    success: false,
-                    message: format!("Tool registered but failed to start process: {}", e),
-                    tool_id: Some(tool_id),
-                });
-            }
         }
     } else {
-        info!("Skipping process creation for non-Node.js tool: {}", request.tool_type);
-        // For other tool types, just register without spawning a process for now
-        registry.processes.insert(tool_id.clone(), None);
-        
-        // TODO: Implement process spawning for Python MCP servers
-        // TODO: Implement container creation for Docker MCP servers
+        None
+    };
+    
+    // Ensure configuration exists before passing to spawn process
+    let config = match &request.configuration {
+        Some(config) => config,
+        None => return Err("Configuration is required for tools".to_string()),
+    };
+    
+    // Create a JSON Value with the command field from the entry_point string
+    let config_value = json!({
+        "command": config.get("command").and_then(|v| v.as_str()).unwrap_or(""),
+        "args": config.get("args").and_then(|v| v.as_array()).unwrap_or(&Vec::new())
+    });
+    
+    // Spawn process based on tool type
+    let spawn_result = match request.tool_type.as_str() {
+        "node" => {
+            info!("Spawning Node.js process for tool: {}", request.tool_name);
+            spawn_nodejs_process(&config_value, &tool_id, env_vars.as_ref()).await
+        },
+        "python" => {
+            info!("Spawning Python process for tool: {}", request.tool_name);
+            spawn_python_process(&config_value, &tool_id, env_vars.as_ref()).await
+        },
+        "docker" => {
+            info!("Spawning Docker process for tool: {}", request.tool_name);
+            spawn_docker_process(&config_value, &tool_id, env_vars.as_ref()).await
+        },
+        _ => {
+            info!("Unsupported tool type: {}", request.tool_type);
+            return Err(format!("Unsupported tool type: {}", request.tool_type));
+        }
+    };
+    
+    match spawn_result {
+        Ok((process, stdin, stdout)) => {
+            info!("Process spawned successfully for tool ID: {}", tool_id);
+            registry.processes.insert(tool_id.clone(), Some(process));
+            registry.process_ios.insert(tool_id.clone(), (stdin, stdout));
+            
+            // Wait a moment for the server to start
+            info!("Waiting for server to initialize...");
+            drop(registry); // Release the lock during sleep
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            
+            // Try to discover tools from this server with a timeout to avoid hanging
+            info!("Attempting to discover tools from server {}", tool_id);
+            let discover_result = tokio::time::timeout(
+                Duration::from_secs(15),
+                async {
+                    let mut registry = state.tool_registry.write().await;
+                    discover_server_tools(&tool_id, &mut registry).await
+                }
+            ).await;
+            
+            // Handle the result of the discovery attempt
+            match discover_result {
+                Ok(Ok(tools)) => {
+                    info!("Successfully discovered {} tools from {}", tools.len(), tool_id);
+                    let mut registry = state.tool_registry.write().await;
+                    // Clone tools before inserting to avoid the "moved value" error
+                    let tools_clone = tools.clone();
+                    registry.server_tools.insert(tool_id.clone(), tools);
+                    
+                    // If empty tools, add a default "main" tool
+                    if tools_clone.is_empty() {
+                        info!("No tools discovered, adding a default main tool");
+                        let default_tool = json!({
+                            "id": "main",
+                            "name": request.tool_name,
+                            "description": request.description
+                        });
+                        registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                    }
+                },
+                Ok(Err(e)) => {
+                    error!("Error discovering tools from server {}: {}", tool_id, e);
+                    // Add a default tool since discovery failed
+                    let mut registry = state.tool_registry.write().await;
+                    let default_tool = json!({
+                        "id": "main",
+                        "name": request.tool_name,
+                        "description": request.description
+                    });
+                    registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                    info!("Added default tool for server {}", tool_id);
+                },
+                Err(_) => {
+                    error!("Timeout while discovering tools from server {}", tool_id);
+                    // Add a default tool since discovery timed out
+                    let mut registry = state.tool_registry.write().await;
+                    let default_tool = json!({
+                        "id": "main",
+                        "name": request.tool_name,
+                        "description": request.description
+                    });
+                    registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                    info!("Added default tool for server {} after timeout", tool_id);
+                }
+            }
+        },
+        Err(e) => {
+            error!("Failed to spawn process for {}: {}", tool_id, e);
+            return Ok(ToolRegistrationResponse {
+                success: false,
+                message: format!("Tool registered but failed to start process: {}", e),
+                tool_id: Some(tool_id),
+            });
+        }
     }
     
     info!("Tool registration completed for: {}", request.tool_name);
@@ -858,7 +1049,7 @@ pub async fn update_tool_status(
     // Handle process management
     if request.enabled {
         // Start process if it's not already running
-        if tool_type == "node" && !process_running {
+        if !process_running {
             // Extract environment variables from the tool configuration
             let env_vars = if let Some(tool) = registry.tools.get(&request.tool_id) {
                 if let Some(config) = tool.get("config") {
@@ -903,7 +1094,30 @@ pub async fn update_tool_status(
                 "command": entry_point
             });
             
-            match spawn_nodejs_process(&config_value, &request.tool_id, env_vars.as_ref()).await {
+            // Spawn process based on tool type
+            let spawn_result = match tool_type.as_str() {
+                "node" => {
+                    info!("Spawning Node.js process for tool: {}", request.tool_id);
+                    spawn_nodejs_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                },
+                "python" => {
+                    info!("Spawning Python process for tool: {}", request.tool_id);
+                    spawn_python_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                },
+                "docker" => {
+                    info!("Spawning Docker process for tool: {}", request.tool_id);
+                    spawn_docker_process(&config_value, &request.tool_id, env_vars.as_ref()).await
+                },
+                _ => {
+                    info!("Unsupported tool type: {}", tool_type);
+                    return Ok(ToolUpdateResponse {
+                        success: false,
+                        message: format!("Unsupported tool type: {}", tool_type),
+                    });
+                }
+            };
+            
+            match spawn_result {
                 Ok((process, stdin, stdout)) => {
                     registry.processes.insert(request.tool_id.clone(), Some(process));
                     registry.process_ios.insert(request.tool_id.clone(), (stdin, stdout));
@@ -931,9 +1145,6 @@ pub async fn update_tool_status(
                     });
                 }
             }
-            
-            // TODO: Implement process spawning for Python MCP servers
-            // TODO: Implement container creation for Docker MCP servers
         }
     } else {
         // Kill process if it's running

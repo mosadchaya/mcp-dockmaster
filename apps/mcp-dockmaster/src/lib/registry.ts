@@ -102,7 +102,53 @@ const availableTools: RegistryTool[] = [
       args: ["-y", "@modelcontextprotocol/server-memory"],
       env: {}
     }
-  }
+  },
+  {
+    id: "fetch",
+    name: "Fetch manager",
+    description: "Web content fetching and processing tool for efficient LLM usage.",
+    publisher: {
+      id: "modelcontextprotocol",
+      name: "Anthropic, PBC",
+      url: "https://modelcontextprotocol.io/",
+    },
+    isOfficial: false,
+    sourceUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    distribution: {
+      type: "python",
+      package: "mcp-server-fetch",
+    },
+    license: "MIT",
+    runtime: "python",
+    config: {
+      command: "uvx",
+      args: ["mcp-server-fetch"],
+      env: {}
+    }
+  },
+  {
+    id: "fetch-docker",
+    name: "Fetch manager (Docker)",
+    description: "Web content fetching and processing tool for efficient LLM usage.",
+    publisher: {
+      id: "modelcontextprotocol",
+      name: "Anthropic, PBC",
+      url: "https://modelcontextprotocol.io/",
+    },
+    isOfficial: false,
+    sourceUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    distribution: {
+      type: "dockerhub",
+      package: "mcp/fetch",
+    },
+    license: "MIT",
+    runtime: "docker",
+    config: {
+      command: "docker",
+      args: ["mcp/fetch", "--user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "--ignore-robots-txt"],
+      env: {}
+    }
+  }  
 ]
 
 interface RegistryTool {
