@@ -3,7 +3,8 @@ use tauri::{Manager, RunEvent};
 use tokio::sync::RwLock;
 use log::info;
 use crate::features::http_server::start_http_server;
-use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data};
+use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
+use crate::features::database::{initialize_mcp_state, save_mcp_state};
 use tray::create_tray;
 
 mod features;
@@ -50,7 +51,8 @@ fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
 }
 
 async fn init_mcp_services() -> MCPState {
-    let mcp_state = MCPState::default();
+    // Initialize MCP state from database
+    let mcp_state = initialize_mcp_state().await;
     let http_state = Arc::new(RwLock::new(mcp_state.clone()));
     
     info!("Starting MCP HTTP server...");
@@ -94,7 +96,7 @@ pub async fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(mcp_state)
+        .manage(mcp_state.clone())
         .setup(|app| {
             create_tray(app.handle())?;
             Ok(())
@@ -111,17 +113,63 @@ pub async fn run() {
             execute_proxy_tool,
             update_tool_status,
             update_tool_config,
+            restart_tool_command,
             uninstall_tool,
-            get_all_server_data
+            get_all_server_data,
+            save_mcp_state_command,
+            load_mcp_state_command,
+            check_database_exists_command,
+            clear_database_command
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")
         .run(move |app_handle, event| match event {
             RunEvent::ExitRequested { api, .. } => {
-                cleanup_mcp_processes(app_handle);
+                // First, prevent exit to handle cleanup
                 api.prevent_exit();
+                
+                // Clone the entire state to avoid lifetime issues
+                if let Some(state) = app_handle.try_state::<MCPState>() {
+                    // Create a deep clone that's fully owned
+                    let state_owned = state.inner().clone();
+                    
+                    // Spawn a task to save state and then cleanup
+                    std::thread::spawn(move || {
+                        // Create a new runtime for this thread
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            if let Err(e) = save_mcp_state(&state_owned).await {
+                                log::error!("Failed to save MCP state: {}", e);
+                            } else {
+                                log::info!("MCP state saved successfully");
+                            }
+                        });
+                    });
+                }
+                
+                // Cleanup processes
+                cleanup_mcp_processes(app_handle);
             }
             RunEvent::Exit { .. } => {
+                // Clone the entire state to avoid lifetime issues
+                if let Some(state) = app_handle.try_state::<MCPState>() {
+                    // Create a deep clone that's fully owned
+                    let state_owned = state.inner().clone();
+                    
+                    // Use a separate thread to avoid blocking the main thread
+                    std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            if let Err(e) = save_mcp_state(&state_owned).await {
+                                log::error!("Failed to save MCP state: {}", e);
+                            } else {
+                                log::info!("MCP state saved successfully");
+                            }
+                        });
+                    });
+                }
+                
+                // Cleanup processes
                 cleanup_mcp_processes(app_handle);
                 std::process::exit(0);
             }

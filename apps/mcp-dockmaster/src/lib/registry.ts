@@ -127,6 +127,37 @@ const availableTools: RegistryTool[] = [
     }
   },
   {
+    id: "perplexity",
+    name: "Perplexity",
+    description: "Web search using Perplexity's API.",
+    publisher: {
+      id: "daniel-lxs",
+      name: "Daniel Lxs",
+      url: "https://github.com/daniel-lxs",
+    },
+    isOfficial: false,
+    sourceUrl: "https://github.com/daniel-lxs/mcp-perplexity",
+    distribution: {
+      type: "python",
+      package: "mcp-perplexity",
+    },
+    license: "MIT",
+    runtime: "python",
+    config: {
+      command: "uvx",
+      args: ["mcp-perplexity"],
+      "env": {
+        "PERPLEXITY_API_KEY": {
+          description: "Your Perplexity API key. See: https://www.perplexity.ai/settings/api",
+        },
+        "PERPLEXITY_MODEL": {
+          description: "The Perplexity model to use. See: https://www.perplexity.ai/settings/api",
+          default: "sonar-pro"
+        }
+      }
+    }
+  },  
+  {
     id: "fetch-docker",
     name: "Fetch manager (Docker)",
     description: "Web content fetching and processing tool for efficient LLM usage.",

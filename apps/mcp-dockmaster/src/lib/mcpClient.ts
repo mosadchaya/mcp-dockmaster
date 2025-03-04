@@ -114,6 +114,10 @@ export class MCPClient {
     return await invoke<ToolConfigUpdateResponse>('update_tool_config', { request });
   }
 
+  static async restartTool(toolId: string): Promise<ToolUpdateResponse> {
+    return await invoke<ToolUpdateResponse>('restart_tool_command', { toolId });
+  }
+
   /**
    * Uninstall a registered tool
    */
