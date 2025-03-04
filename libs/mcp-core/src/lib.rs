@@ -1,10 +1,17 @@
 pub mod database;
-pub mod mcp_proxy;
+pub mod error;
 pub mod http_server;
+pub mod mcp_proxy;
+pub mod models;
+pub mod process;
+pub mod registry;
 
 // Re-export commonly used types and functions
-pub use mcp_proxy::{MCPState, ToolRegistry, MCPError};
 pub use database::DatabaseManager;
+pub use error::{MCPError, MCPResult};
+pub use models::*;
+pub use process::ProcessManager;
+pub use registry::{MCPState, ToolRegistry};
 
 // Initialize logging
 pub fn init_logging() {
@@ -14,11 +21,3 @@ pub fn init_logging() {
     
     log::info!("MCP Core library initialized");
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-} 
