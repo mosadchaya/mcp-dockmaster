@@ -1,0 +1,15 @@
+# Ignore node_modules
+node_modules
+
+# Ignore build artifacts
+dist
+build
+out
+
+# Ignore logs
+*.log
+
+# Ignore environment files
+.env
+.env.*
+!.env.example 
