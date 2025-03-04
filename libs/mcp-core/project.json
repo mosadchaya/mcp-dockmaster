@@ -1,0 +1,51 @@
+{
+  "name": "mcp-core",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/mcp-core/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo build"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo test"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo check"
+      }
+    },
+    "clippy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo clippy -- -D warnings"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo fmt --check"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-core",
+        "command": "cargo clean"
+      }
+    }
+  },
+  "tags": ["rust", "core"]
+} 

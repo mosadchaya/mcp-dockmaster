@@ -10,7 +10,7 @@ use axum::{
     Json, Router, Extension,
 };
 use axum::response::IntoResponse;
-use crate::features::mcp_proxy::MCPState;
+use crate::mcp_proxy::MCPState;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {

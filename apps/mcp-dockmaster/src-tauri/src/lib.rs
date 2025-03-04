@@ -2,8 +2,9 @@ use std::sync::Arc;
 use tauri::{Manager, RunEvent, Emitter};
 use tokio::sync::RwLock;
 use log::{info, error};
-use crate::features::http_server::start_http_server;
-use crate::features::mcp_proxy::{MCPState, ToolRegistry, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
+use mcp_core::http_server::start_http_server;
+use mcp_core::mcp_proxy::{MCPState, ToolRegistry};
+use crate::features::mcp_proxy::{register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
 use tray::create_tray;
 
 mod features;
