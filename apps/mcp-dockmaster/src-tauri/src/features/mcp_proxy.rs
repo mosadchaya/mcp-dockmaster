@@ -110,10 +110,12 @@ impl ToolRegistry {
             let server_tools_clone = registry.server_tools.clone();
 
             // Create a temporary registry with just the data we need
-            let mut temp_registry = ToolRegistry::default();
-            temp_registry.tools = tools_clone;
-            temp_registry.server_tools = server_tools_clone;
-            temp_registry
+            ToolRegistry {
+                tools: tools_clone,
+                server_tools: server_tools_clone,
+                processes: HashMap::new(),
+                process_ios: HashMap::new(),
+            }
         };
 
         // Now save the cloned data to the database
@@ -1490,9 +1492,6 @@ pub async fn update_tool_status(
         });
     }
 
-    // Unwrap the tool info
-    let (tool_type, entry_point, process_running) = tool_info.unwrap();
-
     // Now handle the process based on the enabled status
     let result = {
         let mut registry = state.tool_registry.write().await;
@@ -1504,132 +1503,13 @@ pub async fn update_tool_status(
             }
         }
 
-        // Handle process management
+        // Drop the write lock before trying to restart the tool
+        drop(registry);
+
         if request.enabled {
-            // Start process if it's not already running
-            if !process_running {
-                // Extract environment variables from the tool configuration
-                let env_vars = if let Some(tool) = registry.tools.get(&request.tool_id) {
-                    if let Some(config) = tool.get("config") {
-                        if let Some(env) = config.get("env") {
-                            // Convert the JSON env vars to a HashMap<String, String>
-                            let mut env_map = HashMap::new();
-                            if let Some(env_obj) = env.as_object() {
-                                for (key, value) in env_obj {
-                                    // Extract the value as a string
-                                    let value_str = match value {
-                                        Value::String(s) => s.clone(),
-                                        Value::Number(n) => n.to_string(),
-                                        Value::Bool(b) => b.to_string(),
-                                        _ => {
-                                            // For objects, check if it has a description field (which means it's a template)
-                                            if let Value::Object(obj) = value {
-                                                if obj.contains_key("description") {
-                                                    // This is a template, so we don't have a value yet
-                                                    continue;
-                                                }
-                                            }
-                                            // For other types, convert to JSON string
-                                            value.to_string()
-                                        }
-                                    };
-                                    env_map.insert(key.clone(), value_str);
-                                }
-                            }
-                            Some(env_map)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-                // Create a JSON Value with the command field from the entry_point string
-                let config_value = json!({
-                    "command": entry_point
-                });
-
-                // Spawn process based on tool type
-                let spawn_result = match tool_type.as_str() {
-                    "node" => {
-                        info!("Spawning Node.js process for tool: {}", request.tool_id);
-                        spawn_nodejs_process(&config_value, &request.tool_id, env_vars.as_ref())
-                            .await
-                    }
-                    "python" => {
-                        info!("Spawning Python process for tool: {}", request.tool_id);
-                        spawn_python_process(&config_value, &request.tool_id, env_vars.as_ref())
-                            .await
-                    }
-                    "docker" => {
-                        info!("Spawning Docker process for tool: {}", request.tool_id);
-                        spawn_docker_process(&config_value, &request.tool_id, env_vars.as_ref())
-                            .await
-                    }
-                    _ => {
-                        info!("Unsupported tool type: {}", tool_type);
-                        return Ok(ToolUpdateResponse {
-                            success: false,
-                            message: format!("Unsupported tool type: {}", tool_type),
-                        });
-                    }
-                };
-
-                match spawn_result {
-                    Ok((process, stdin, stdout)) => {
-                        registry
-                            .processes
-                            .insert(request.tool_id.clone(), Some(process));
-                        registry
-                            .process_ios
-                            .insert(request.tool_id.clone(), (stdin, stdout));
-
-                        // We need to release the lock during sleep, but we'll need to reacquire it later
-                        drop(registry);
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-
-                        // Try to discover tools from this server
-                        let mut registry = state.tool_registry.write().await;
-                        match discover_server_tools(&request.tool_id, &mut registry).await {
-                            Ok(tools) => {
-                                registry.server_tools.insert(request.tool_id.clone(), tools);
-                                Ok(())
-                            }
-                            Err(e) => {
-                                error!(
-                                    "Failed to discover tools from server {}: {}",
-                                    request.tool_id, e
-                                );
-                                // Continue even if discovery fails
-                                Ok(())
-                            }
-                        }
-                    }
-                    Err(e) => Err(format!("Failed to start process: {}", e)),
-                }
-            } else {
-                // Process is already running
-                Ok(())
-            }
+            let mut registry = state.tool_registry.write().await;
+            registry.restart_tool(&request.tool_id).await
         } else {
-            // Kill process if it's running
-            if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
-                if let Err(e) = kill_process(process).await {
-                    return Ok(ToolUpdateResponse {
-                        success: false,
-                        message: format!("Failed to kill process: {}", e),
-                    });
-                }
-
-                // Remove the process from the registry
-                registry.processes.insert(request.tool_id.clone(), None);
-
-                // Clear the server tools
-                registry.server_tools.remove(&request.tool_id);
-            }
             Ok(())
         }
     };
