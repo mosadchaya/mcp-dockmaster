@@ -11,6 +11,7 @@ use tokio::{
     time::Duration,
 };
 use thiserror::Error;
+use crate::features::database;
 
 /// Holds information about registered tools and their processes
 #[derive(Default)]
@@ -1383,8 +1384,7 @@ pub async fn update_tool_status(
     }
     
     // Save the updated state to the database
-    use crate::features::database::save_mcp_state;
-    if let Err(e) = save_mcp_state(&state).await {
+    if let Err(e) = database::save_mcp_state(&state).await {
         error!("Failed to save MCP state after updating tool status: {}", e);
         // Continue even if saving fails
     } else {
@@ -1455,8 +1455,7 @@ pub async fn update_tool_config(
     drop(registry);
     
     // Save the updated state to the database
-    use crate::features::database::save_mcp_state;
-    if let Err(e) = save_mcp_state(&state).await {
+    if let Err(e) = database::save_mcp_state(&state).await {
         error!("Failed to save MCP state after updating tool config: {}", e);
         // Continue even if saving fails
     } else {
@@ -1562,8 +1561,11 @@ pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, St
         if let Some(obj) = tool.as_object_mut() {
             obj.insert("id".to_string(), json!(id));
             
-            // Add process status
-            let process_running = registry.processes.get(id).is_some_and(|p| p.is_some());
+            // Add process status - check both the processes map and the tool data
+            let process_running_in_map = registry.processes.get(id).is_some_and(|p| p.is_some());
+            let process_running_in_data = tool_value.get("process_running").and_then(|v| v.as_bool()).unwrap_or(false);
+            let process_running = process_running_in_map || process_running_in_data;
+            
             obj.insert("process_running".to_string(), json!(process_running));
             
             // Add number of available tools from this server
@@ -1610,9 +1612,7 @@ pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, St
 /// Save the current MCP state to the database
 #[tauri::command]
 pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
-    use crate::features::database::save_mcp_state;
-    
-    match save_mcp_state(&state).await {
+    match database::save_mcp_state(&state).await {
         Ok(_) => Ok("MCP state saved successfully".to_string()),
         Err(e) => Err(format!("Failed to save MCP state: {}", e)),
     }
@@ -1620,10 +1620,8 @@ pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String
 
 /// Load MCP state from the database
 #[tauri::command]
-pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
-    use crate::features::database::{DatabaseManager};
-    
-    match DatabaseManager::new() {
+pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> { 
+    match database::DatabaseManager::new() {
         Ok(db_manager) => {
             match db_manager.load_tool_registry() {
                 Ok(registry) => {
@@ -1645,16 +1643,13 @@ pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String
 /// Check if the database exists and has data
 #[tauri::command]
 pub async fn check_database_exists_command() -> Result<bool, String> {
-    use crate::features::database::check_database_exists;
-    check_database_exists()
+    database::check_database_exists()
 }
 
 /// Clear all data from the database
 #[tauri::command]
 pub async fn clear_database_command() -> Result<String, String> {
-    use crate::features::database::clear_database;
-    
-    match clear_database() {
+    match database::clear_database() {
         Ok(_) => Ok("Database cleared successfully".to_string()),
         Err(e) => Err(format!("Failed to clear database: {}", e)),
     }

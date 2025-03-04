@@ -261,17 +261,11 @@ async fn restart_enabled_tools(mcp_state: &MCPState) {
         info!("No enabled tools to restart");
         return;
     }
+
     
     // Restart each enabled tool
     for (tool_id, tool_data) in enabled_tools {
         info!("Attempting to restart tool: {}", tool_id);
-        
-        // Get tool type and entry point
-        let tool_type = tool_data.get("tool_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        
-        info!("Tool {} is type {}", tool_id, tool_type);
         
         // Get a write lock on the registry to restart the tool
         let restart_result = {
