@@ -1,0 +1,17 @@
+{
+  "name": "mcp-dockmaster-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "nx run-many --target=start",
+    "build": "nx run-many --target=build",
+    "test": "nx run-many --target=test",
+    "lint": "nx run-many --target=lint"
+  },
+  "devDependencies": {
+    "nx": "18.1.2"
+  }
+} 

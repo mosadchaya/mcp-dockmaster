@@ -78,7 +78,6 @@ const InstalledServers: React.FC = () => {
   const [serverTools, setServerTools] = useState<ServerTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
-  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
