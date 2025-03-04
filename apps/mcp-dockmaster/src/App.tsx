@@ -8,9 +8,11 @@ import registryIcon from "./assets/registry.svg";
 import Home from "./components/Home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
+import LoadingOverlay from "./components/LoadingOverlay";
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('home');
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const menuItems = [
     { id: 'home', label: 'Home', icon: homeIcon },
@@ -29,6 +31,17 @@ function App() {
       default:
         return <Home />;
     }
+  };
+
+  const handleInitializationComplete = () => {
+    setIsInitializing(false);
+    
+    // Force a re-render of the active component
+    setActiveMenu(prevMenu => {
+      // This is a trick to force a re-render without changing the actual menu
+      setTimeout(() => setActiveMenu(prevMenu), 100);
+      return prevMenu;
+    });
   };
 
   return (
@@ -50,6 +63,10 @@ function App() {
       <main className="main-content">
         {renderContent()}
       </main>
+      
+      {isInitializing && (
+        <LoadingOverlay onInitializationComplete={handleInitializationComplete} />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MCPClient from '../lib/mcpClient';
-import { dispatchToolStatusChanged } from '../lib/events';
+import { dispatchToolStatusChanged, TOOL_STATUS_CHANGED } from '../lib/events';
 import './InstalledServers.css';
 
 // Add a simple notification component
@@ -113,6 +113,32 @@ const InstalledServers: React.FC = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedToolId]);
+
+  // Add event listeners for tool status changes
+  useEffect(() => {
+    const handleToolStatusChanged = (event: CustomEvent) => {
+      const { toolId } = event.detail;
+      console.log('Tool status changed:', toolId);
+      
+      // If toolId is 'all', refresh all data
+      if (toolId === 'all') {
+        loadData();
+        return;
+      }
+      
+      // Otherwise, just refresh the specific tool
+      const tool = installedTools.find(t => t.id === toolId);
+      if (tool) {
+        loadData();
+      }
+    };
+    
+    document.addEventListener(TOOL_STATUS_CHANGED, handleToolStatusChanged as EventListener);
+    
+    return () => {
+      document.removeEventListener(TOOL_STATUS_CHANGED, handleToolStatusChanged as EventListener);
+    };
+  }, [installedTools]);
 
   const loadData = async () => {
     setLoading(true);
