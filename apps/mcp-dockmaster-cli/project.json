@@ -1,0 +1,20 @@
+{
+  "name": "mcp-dockmaster-cli",
+  "projectType": "application",
+  "sourceRoot": "apps/mcp-dockmaster-cli/src",
+  "targets": {
+    "build": {
+      "executor": "@nx-rs/nx-rust:build",
+      "options": {
+        "release": false
+      }
+    },
+    "test": {
+      "executor": "@nx-rs/nx-rust:test"
+    },
+    "lint": {
+      "executor": "@nx-rs/nx-rust:lint"
+    }
+  },
+  "tags": []
+}
