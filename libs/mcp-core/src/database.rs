@@ -1,4 +1,4 @@
-use crate::features::mcp_proxy::ToolRegistry;
+use crate::mcp_proxy::ToolRegistry;
 use directories::ProjectDirs;
 use log::info;
 use rusqlite::{params, Connection};
