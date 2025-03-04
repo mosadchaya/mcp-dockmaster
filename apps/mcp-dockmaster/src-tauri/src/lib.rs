@@ -3,8 +3,7 @@ use tauri::{Manager, RunEvent, Emitter};
 use tokio::sync::RwLock;
 use log::{info, error};
 use crate::features::http_server::start_http_server;
-use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
-use crate::features::database::{initialize_mcp_state, save_mcp_state};
+use crate::features::mcp_proxy::{MCPState, ToolRegistry, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
 use tray::create_tray;
 
 mod features;
@@ -75,7 +74,7 @@ async fn init_mcp_services_background(mcp_state: MCPState) {
     info!("Starting background initialization of MCP services...");
     
     // Use the existing initialize_mcp_state function which handles loading from DB and restarting tools
-    let initialized_state = initialize_mcp_state().await;
+    let initialized_state = ToolRegistry::init_mcp_state().await;
     
     // Copy the initialized data to our existing state
     {
@@ -202,7 +201,7 @@ pub async fn run() {
                         // Create a new runtime for this thread
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         rt.block_on(async {
-                            if let Err(e) = save_mcp_state(&state_owned).await {
+                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
                                 log::error!("Failed to save MCP state: {}", e);
                             } else {
                                 log::info!("MCP state saved successfully");
@@ -224,7 +223,7 @@ pub async fn run() {
                     std::thread::spawn(move || {
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         rt.block_on(async {
-                            if let Err(e) = save_mcp_state(&state_owned).await {
+                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
                                 log::error!("Failed to save MCP state: {}", e);
                             } else {
                                 log::info!("MCP state saved successfully");
