@@ -1,0 +1,11 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# IDE-specific files
+.idea/
+.vscode/
+*.iml
+
+# Generated files
+Cargo.lock 
