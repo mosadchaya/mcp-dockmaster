@@ -721,7 +721,7 @@ fn extract_tools_from_response(response: Value) -> Result<Vec<Value>, String> {
 async fn initialize_server_connection(
     server_id: &str,
     registry: &mut ToolRegistry,
-) -> Result<(), String> {
+) -> Result<Value, MCPError> {
     info!("Initializing connection to server {}", server_id);
 
     let initialize_cmd = json!({
@@ -729,11 +729,9 @@ async fn initialize_server_connection(
         "method": "notifications/initialized"
     });
 
-    // Since initialization is a notification, we don't expect a specific result
-    match send_server_command(server_id, initialize_cmd, registry, 10).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+    let response_line = send_server_command(server_id, initialize_cmd, registry, 2).await?;
+
+    parse_server_response(&response_line, MCPResponseType::Acknowledgement).await
 }
 
 /// Discover tools available from an MCP server
@@ -752,7 +750,7 @@ async fn discover_server_tools(
         "params": {}
     });
 
-    let response_line = match send_server_command(server_id, discover_cmd, registry, 10).await {
+    let response_line = match send_server_command(server_id, discover_cmd, registry, 2).await {
         Ok(response) => response,
         Err(e) => return Err(e.to_string()),
     };
@@ -785,7 +783,7 @@ async fn execute_server_tool(
         "params": { "name": tool_name, "arguments": parameters }
     });
 
-    let response_line = send_server_command(server_id, execute_cmd, registry, 30).await?;
+    let response_line = send_server_command(server_id, execute_cmd, registry, 2).await?;
 
     parse_server_response(&response_line, MCPResponseType::Result).await
 }
