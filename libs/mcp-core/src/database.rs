@@ -1,14 +1,18 @@
 use crate::mcp_proxy::ToolRegistry;
 use directories::ProjectDirs;
 use log::info;
-use rusqlite::{params, Connection};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::params;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Database manager for persisting application state
 pub struct DatabaseManager {
-    conn: Connection,
+    pool: Arc<Pool<SqliteConnectionManager>>,
 }
 
 impl DatabaseManager {
@@ -24,11 +28,33 @@ impl DatabaseManager {
             }
         }
 
-        // Open or create the database
-        let conn =
-            Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
+        // Create the connection manager
+        let manager = SqliteConnectionManager::file(&db_path);
+        
+        // Create the connection pool
+        let pool = Pool::builder()
+            .max_size(10)
+            .connection_timeout(Duration::from_secs(60))
+            .build(manager)
+            .map_err(|e| format!("Failed to create connection pool: {}", e))?;
+        
+        // Get a connection to initialize the database
+        let conn = pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+        
+        // Enable WAL mode and set optimizations
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL;
+             PRAGMA synchronous=FULL;
+             PRAGMA temp_store=MEMORY;
+             PRAGMA optimize;
+             PRAGMA busy_timeout = 5000;
+             PRAGMA mmap_size=262144000; -- 250 MB in bytes (250 * 1024 * 1024)
+             PRAGMA foreign_keys = ON;", // Enable foreign key support
+        ).map_err(|e| format!("Failed to set PRAGMA configurations: {}", e))?;
 
-        let db_manager = Self { conn };
+        let db_manager = Self { pool: Arc::new(pool) };
         db_manager.initialize_tables()?;
 
         info!("Database initialized at: {:?}", db_path);
@@ -37,35 +63,37 @@ impl DatabaseManager {
 
     /// Initialize database tables
     fn initialize_tables(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS tools (
-                    id TEXT PRIMARY KEY,
-                    data TEXT NOT NULL
-                )",
-                [],
-            )
-            .map_err(|e| format!("Failed to create tools table: {}", e))?;
+        let conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS tools (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| format!("Failed to create tools table: {}", e))?;
 
-        self.conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS server_tools (
-                    server_id TEXT,
-                    tool_data TEXT NOT NULL,
-                    PRIMARY KEY (server_id)
-                )",
-                [],
-            )
-            .map_err(|e| format!("Failed to create server_tools table: {}", e))?;
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS server_tools (
+                server_id TEXT,
+                tool_data TEXT NOT NULL,
+                PRIMARY KEY (server_id)
+            )",
+            [],
+        )
+        .map_err(|e| format!("Failed to create server_tools table: {}", e))?;
 
         Ok(())
     }
 
     /// Save tool registry to database
     pub fn save_tool_registry(&mut self, registry: &ToolRegistry) -> Result<(), String> {
+        // Get a connection from the pool
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
+        
         // Begin transaction
-        let tx = self
-            .conn
+        let tx = conn
             .transaction()
             .map_err(|e| format!("Failed to begin transaction: {}", e))?;
 
@@ -112,10 +140,12 @@ impl DatabaseManager {
     /// Load tool registry from database
     pub fn load_tool_registry(&self) -> Result<ToolRegistry, String> {
         let mut registry = ToolRegistry::default();
+        
+        // Get a connection from the pool
+        let conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // Load tools
-        let mut stmt = self
-            .conn
+        let mut stmt = conn
             .prepare("SELECT id, data FROM tools")
             .map_err(|e| format!("Failed to prepare tools query: {}", e))?;
 
@@ -136,8 +166,7 @@ impl DatabaseManager {
         }
 
         // Load server tools
-        let mut stmt = self
-            .conn
+        let mut stmt = conn
             .prepare("SELECT server_id, tool_data FROM server_tools")
             .map_err(|e| format!("Failed to prepare server_tools query: {}", e))?;
 
@@ -164,9 +193,11 @@ impl DatabaseManager {
 
     /// Clear the database
     pub fn clear_database(&mut self) -> Result<(), String> {
+        // Get a connection from the pool
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
+        
         // Begin transaction
-        let tx = self
-            .conn
+        let tx = conn
             .transaction()
             .map_err(|e| format!("Failed to begin transaction: {}", e))?;
 
@@ -188,8 +219,8 @@ impl DatabaseManager {
 
     /// Safely close the database connection
     pub fn close(self) -> Result<(), String> {
-        // The connection will be closed automatically when self is dropped,
-        // but we can add explicit handling if needed
+        // The connection pool will be dropped when self is dropped
+        // No explicit handling needed
         info!("Database connection closed");
         Ok(())
     }
@@ -234,8 +265,16 @@ pub fn check_database_exists() -> Result<bool, String> {
         return Ok(false);
     }
 
-    // Try to open the database and check if it has data
-    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
+    // Create a temporary connection manager and pool
+    let manager = SqliteConnectionManager::file(&db_path);
+    let pool = Pool::builder()
+        .max_size(1)
+        .connection_timeout(Duration::from_secs(5))
+        .build(manager)
+        .map_err(|e| format!("Failed to create connection pool: {}", e))?;
+        
+    // Get a connection to check the database
+    let conn = pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
 
     // Check if the tools table exists and has data
     let count: i64 = conn
