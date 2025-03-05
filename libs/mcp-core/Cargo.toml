@@ -24,4 +24,8 @@ r2d2_sqlite = { version = "0.26.0", features = ["bundled"] }
 
 [lib]
 name = "mcp_core"
-path = "src/lib.rs"      
+path = "src/lib.rs"   
+
+[dev-dependencies]
+serial_test = "3.0.0"
+tempfile = "3.10.1"     
