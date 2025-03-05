@@ -718,13 +718,7 @@ async fn spawn_nodejs_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            error!(
-                "Configuration missing 'command' field or not a string for tool: {}",
-                tool_id
-            );
-            format!("Configuration missing 'command' field or not a string")
-        })?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     if command.contains("npx") || command.contains("node") {
         info!(
@@ -861,7 +855,7 @@ async fn spawn_python_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("Configuration missing 'command' field or not a string"))?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     info!("Using Python command: {}", command);
     cmd = Command::new(command);
@@ -964,7 +958,7 @@ async fn spawn_docker_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("Configuration missing 'command' field or not a string"))?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     if command != "docker" {
         return Err(format!(
@@ -1644,7 +1638,7 @@ pub async fn uninstall_tool(
 
         Ok(ToolUninstallResponse {
             success: true,
-            message: format!("Tool uninstalled successfully").to_string(),
+            message: "Tool uninstalled successfully".to_string(),
         })
     } else {
         Ok(ToolUninstallResponse {
