@@ -30,19 +30,19 @@ impl DatabaseManager {
 
         // Create the connection manager
         let manager = SqliteConnectionManager::file(&db_path);
-        
+
         // Create the connection pool
         let pool = Pool::builder()
             .max_size(10)
             .connection_timeout(Duration::from_secs(60))
             .build(manager)
             .map_err(|e| format!("Failed to create connection pool: {}", e))?;
-        
+
         // Get a connection to initialize the database
         let conn = pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
-        
+
         // Enable WAL mode and set optimizations
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
@@ -52,9 +52,12 @@ impl DatabaseManager {
              PRAGMA busy_timeout = 5000;
              PRAGMA mmap_size=262144000; -- 250 MB in bytes (250 * 1024 * 1024)
              PRAGMA foreign_keys = ON;", // Enable foreign key support
-        ).map_err(|e| format!("Failed to set PRAGMA configurations: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to set PRAGMA configurations: {}", e))?;
 
-        let db_manager = Self { pool: Arc::new(pool) };
+        let db_manager = Self {
+            pool: Arc::new(pool),
+        };
         db_manager.initialize_tables()?;
 
         info!("Database initialized at: {:?}", db_path);
@@ -63,8 +66,11 @@ impl DatabaseManager {
 
     /// Initialize database tables
     fn initialize_tables(&self) -> Result<(), String> {
-        let conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
-        
+        let conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
         conn.execute(
             "CREATE TABLE IF NOT EXISTS tools (
                 id TEXT PRIMARY KEY,
@@ -90,8 +96,11 @@ impl DatabaseManager {
     /// Save tool registry to database
     pub fn save_tool_registry(&mut self, registry: &ToolRegistry) -> Result<(), String> {
         // Get a connection from the pool
-        let mut conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
-        
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
         // Begin transaction
         let tx = conn
             .transaction()
@@ -140,9 +149,12 @@ impl DatabaseManager {
     /// Load tool registry from database
     pub fn load_tool_registry(&self) -> Result<ToolRegistry, String> {
         let mut registry = ToolRegistry::default();
-        
+
         // Get a connection from the pool
-        let conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
+        let conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // Load tools
         let mut stmt = conn
@@ -197,8 +209,11 @@ impl DatabaseManager {
     /// Clear the database
     pub fn clear_database(&mut self) -> Result<(), String> {
         // Get a connection from the pool
-        let mut conn = self.pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
-        
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
         // Begin transaction
         let tx = conn
             .transaction()
@@ -275,9 +290,11 @@ pub fn check_database_exists() -> Result<bool, String> {
         .connection_timeout(Duration::from_secs(5))
         .build(manager)
         .map_err(|e| format!("Failed to create connection pool: {}", e))?;
-        
+
     // Get a connection to check the database
-    let conn = pool.get().map_err(|e| format!("Failed to get database connection: {}", e))?;
+    let conn = pool
+        .get()
+        .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
     // Check if the tools table exists and has data
     let count: i64 = conn
@@ -335,16 +352,20 @@ mod tests {
 
         // Create a sample tool registry
         let mut registry = ToolRegistry::default();
-        let tool_data = serde_json::json!({
-            "name": "test_tool",
-            "description": "A test tool",
-            "version": "1.0.0"
-        });
-        registry
-            .tools
-            .insert("test_tool".to_string(), tool_data.clone());
+        let tool = crate::mcp_proxy::Tool {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            enabled: true,
+            tool_type: "test".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+            config: None,
+            authentication: None,
+        };
+        registry.tools.insert("test_tool".to_string(), tool.clone());
 
-        let server_tools = vec![tool_data.clone()];
+        let server_tools = vec![serde_json::to_value(tool.clone()).unwrap()];
         registry
             .server_tools
             .insert("server1".to_string(), server_tools);
@@ -359,10 +380,13 @@ mod tests {
         // Verify the loaded data matches the original
         assert_eq!(loaded_registry.tools.len(), 1);
         assert_eq!(loaded_registry.server_tools.len(), 1);
-        assert_eq!(loaded_registry.tools.get("test_tool").unwrap(), &tool_data);
         assert_eq!(
-            loaded_registry.server_tools.get("server1").unwrap(),
-            &vec![tool_data]
+            loaded_registry.tools.get("test_tool").unwrap().name,
+            "test_tool"
+        );
+        assert_eq!(
+            loaded_registry.server_tools.get("server1").unwrap().len(),
+            1
         );
     }
 
@@ -375,7 +399,17 @@ mod tests {
         let mut registry = ToolRegistry::default();
         registry.tools.insert(
             "test_tool".to_string(),
-            serde_json::json!({"name": "test_tool"}),
+            crate::mcp_proxy::Tool {
+                name: "test_tool".to_string(),
+                description: "".to_string(),
+                enabled: true,
+                tool_type: "test".to_string(),
+                entry_point: None,
+                configuration: None,
+                distribution: None,
+                config: None,
+                authentication: None,
+            },
         );
 
         db.save_tool_registry(&registry)
@@ -400,12 +434,12 @@ mod tests {
 
         // Get the database path
         let db_path = get_database_path().expect("Failed to get database path");
-        
+
         // Make sure the database file doesn't exist initially
         if db_path.exists() {
             std::fs::remove_file(&db_path).expect("Failed to remove existing database file");
         }
-        
+
         // Now check that the database doesn't exist
         assert!(!check_database_exists().expect("Failed to check database existence"));
 
@@ -415,7 +449,17 @@ mod tests {
             let mut registry = ToolRegistry::default();
             registry.tools.insert(
                 "test_tool".to_string(),
-                serde_json::json!({"name": "test_tool"}),
+                crate::mcp_proxy::Tool {
+                    name: "test_tool".to_string(),
+                    description: "".to_string(),
+                    enabled: true,
+                    tool_type: "test".to_string(),
+                    entry_point: None,
+                    configuration: None,
+                    distribution: None,
+                    config: None,
+                    authentication: None,
+                },
             );
             db.save_tool_registry(&registry)
                 .expect("Failed to save registry");

@@ -103,7 +103,7 @@ impl ToolRegistry {
 
         Ok(ToolRegistrationResponse {
             success: true,
-            message: format!("Tool registered successfully"),
+            message: "Tool registered successfully".to_string(),
             tool_id: Some(tool_id),
         })
     }

@@ -468,24 +468,24 @@ pub struct ToolRegistrationRequest {
 /// MCP tool registration response
 #[derive(Serialize)]
 pub struct ToolRegistrationResponse {
-    success: bool,
-    message: String,
-    tool_id: Option<String>,
+    pub success: bool,
+    pub message: String,
+    pub tool_id: Option<String>,
 }
 
 /// MCP tool execution request
 #[derive(Deserialize)]
 pub struct ToolExecutionRequest {
-    tool_id: String,
-    parameters: Value,
+    pub tool_id: String,
+    pub parameters: Value,
 }
 
 /// MCP tool execution response
 #[derive(Serialize)]
 pub struct ToolExecutionResponse {
-    success: bool,
-    result: Option<Value>,
-    error: Option<String>,
+    pub success: bool,
+    pub result: Option<Value>,
+    pub error: Option<String>,
 }
 
 /// MCP tool update request
@@ -508,9 +508,6 @@ pub struct ToolConfigUpdateRequest {
     tool_id: String,
     config: ToolConfig,
 }
-
-/// MCP tool config
-// Using the ToolConfig struct defined earlier
 
 /// MCP tool config update response
 #[derive(Serialize)]
@@ -794,13 +791,7 @@ async fn spawn_nodejs_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            error!(
-                "Configuration missing 'command' field or not a string for tool: {}",
-                tool_id
-            );
-            format!("Configuration missing 'command' field or not a string")
-        })?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     if command.contains("npx") || command.contains("node") {
         info!(
@@ -937,7 +928,7 @@ async fn spawn_python_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("Configuration missing 'command' field or not a string"))?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     info!("Using Python command: {}", command);
     cmd = Command::new(command);
@@ -1040,7 +1031,7 @@ async fn spawn_docker_process(
     let command = configuration
         .get("command")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("Configuration missing 'command' field or not a string"))?;
+        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
     if command != "docker" {
         return Err(format!(
@@ -1563,12 +1554,15 @@ pub async fn execute_proxy_tool(
 ) -> Result<ToolExecutionResponse, String> {
     // Extract server_id and tool_id from the proxy_id
     let parts: Vec<&str> = request.tool_id.split(':').collect();
+    println!("parts: {:?}", parts);
     if parts.len() != 2 {
         return Err("Invalid tool_id format. Expected 'server_id:tool_id'".to_string());
     }
 
     let server_id = parts[0];
+    println!("server_id: {}", server_id);
     let tool_id = parts[1];
+    println!("tool_id: {}", tool_id);
 
     // Execute the tool on the server
     let mut registry = mcp_state.tool_registry.write().await;
@@ -1782,55 +1776,12 @@ pub async fn uninstall_tool(
 
         Ok(ToolUninstallResponse {
             success: true,
-            message: format!("Tool uninstalled successfully").to_string(),
+            message: "Tool uninstalled successfully".to_string(),
         })
     } else {
         Ok(ToolUninstallResponse {
             success: false,
             message: format!("Tool with ID '{}' not found", request.tool_id),
-        })
-    }
-}
-
-/// Execute a registered tool
-pub async fn execute_tool(
-    mcp_state: &MCPState,
-    request: ToolExecutionRequest,
-) -> Result<ToolExecutionResponse, String> {
-    // Shortcut to execute_proxy_tool using a direct tool ID
-    let registry = mcp_state.tool_registry.read().await;
-
-    // Check if the tool exists (fixed unused variable warning)
-    if let Some(_tool) = registry.tools.get(&request.tool_id) {
-        // Check if the process is running
-        let process_running = registry
-            .processes
-            .get(&request.tool_id)
-            .is_some_and(|p| p.is_some());
-
-        if !process_running {
-            return Ok(ToolExecutionResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Tool with ID '{}' is not running", request.tool_id)),
-            });
-        }
-
-        drop(registry);
-
-        // Use the proxy format (server_id:tool_id)
-        let proxy_request = ToolExecutionRequest {
-            tool_id: format!("{}:main", request.tool_id),
-            parameters: request.parameters,
-        };
-
-        // Execute the tool through the proxy
-        execute_proxy_tool(mcp_state, proxy_request).await
-    } else {
-        Ok(ToolExecutionResponse {
-            success: false,
-            result: None,
-            error: Some(format!("Tool with ID '{}' not found", request.tool_id)),
         })
     }
 }

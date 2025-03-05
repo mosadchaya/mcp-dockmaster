@@ -26,6 +26,29 @@ const availableTools: RegistryTool[] = [
       }
     }
   },
+  // {
+  //   id: "hello-world",
+  //   name: "Hello World",
+  //   description: "A simple tool that says hello world",
+  //   publisher: {
+  //     id: "dcspark",
+  //     name: "dcspark",
+  //     url: "https://www.dcspark.com/",
+  //   },
+  //   isOfficial: true,
+  //   sourceUrl: "https://github.com/dcspark/mcp-server-hello-world",
+  //   distribution: {
+  //     type: "npm",
+  //     package: "@mcp-dockmaster/mcp-server-hello-world",
+  //   },
+  //   license: "MIT",
+  //   runtime: "node",
+  //   config: {
+  //     command: "node",
+  //     "args": ["--experimental-modules", "--no-warnings", "../../../libs/mcp-core/tests/it/resources/mcp-server-hello-world/build/index.js"],
+  //     "env": {}
+  //   }
+  // },
   {
     id: "brave-search-ref",
     name: "Brave Search",

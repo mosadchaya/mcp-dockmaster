@@ -13,6 +13,7 @@ use tray::create_tray;
 
 mod features;
 mod tray;
+
 mod commands {
     use std::{
         process::Command,
@@ -148,7 +149,6 @@ pub async fn run() {
             list_tools,
             list_all_server_tools,
             discover_tools,
-            execute_tool,
             execute_proxy_tool,
             update_tool_status,
             update_tool_config,

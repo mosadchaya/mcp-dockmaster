@@ -9,7 +9,10 @@
     "start": "nx run-many --target=start",
     "build": "nx run-many --target=build",
     "test": "nx run-many --target=test",
-    "lint": "nx run-many --target=lint"
+    "lint": "nx run-many --target=lint",
+    "test:mcp-core": "nx run --skipNxCache mcp-core:test",
+    "test:all-rust": "nx run-many --target=test --projects=mcp-core",
+    "test:all-ts": "nx run-many --target=test --projects=mcp-dockmaster,mcp-dockmaster-cli"
   },
   "devDependencies": {
     "nx": "18.1.2"
