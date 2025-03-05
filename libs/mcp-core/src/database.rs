@@ -352,7 +352,7 @@ mod tests {
 
         // Create a sample tool registry
         let mut registry = ToolRegistry::default();
-        let tool = Tool {
+        let tool = crate::mcp_proxy::Tool {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
