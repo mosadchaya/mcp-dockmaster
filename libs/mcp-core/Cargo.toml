@@ -19,7 +19,13 @@ thiserror = "2.0.12"
 env_logger = "0.11.6"
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 directories = "6.0.0"
+r2d2 = "0.8.10"
+r2d2_sqlite = { version = "0.26.0", features = ["bundled"] }
 
 [lib]
 name = "mcp_core"
-path = "src/lib.rs" 
+path = "src/lib.rs"   
+
+[dev-dependencies]
+serial_test = "3.0.0"
+tempfile = "3.10.1"     
