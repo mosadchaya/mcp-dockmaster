@@ -1,11 +1,7 @@
 use mcp_core::mcp_proxy::{self, MCPState, ToolExecutionRequest, ToolRegistry};
 use serde_json::json;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 
 #[cfg(test)]
 mod tests {
@@ -76,6 +72,111 @@ mod tests {
         // Verify result
         if !result.success {
             return Err(result.error.unwrap_or_else(|| "Unknown error".to_string()));
+        }
+
+        // Verify content matches expected
+        let result_value = result.result.ok_or("No result found")?;
+        let content = result_value
+            .get("content")
+            .and_then(|c| c.as_array())
+            .ok_or("Content is not an array")?;
+
+        if content.len() != 1 {
+            return Err(format!("Expected 1 content item, got {}", content.len()));
+        }
+
+        let first_content = &content[0];
+        let text = first_content
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or("Content text not found or not a string")?;
+
+        if text != "hello world" {
+            return Err(format!("Expected content 'hello world', got '{}'", text));
+        }
+
+        // Test hello_world_with_input
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", tool_id, "hello_world_with_input"),
+            parameters: json!({
+                "message": "custom message"
+            }),
+        };
+
+        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+
+        eprintln!(
+            "Tool execution result (with input): {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        );
+
+        if !result.success {
+            return Err(result.error.unwrap_or_else(|| "Unknown error".to_string()));
+        }
+
+        let result_value = result.result.ok_or("No result found")?;
+        let content = result_value
+            .get("content")
+            .and_then(|c| c.as_array())
+            .ok_or("Content is not an array")?;
+
+        if content.len() != 1 {
+            return Err(format!("Expected 1 content item, got {}", content.len()));
+        }
+
+        let first_content = &content[0];
+        let text = first_content
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or("Content text not found or not a string")?;
+
+        if text != "hello world custom message" {
+            return Err(format!(
+                "Expected content 'hello world custom message', got '{}'",
+                text
+            ));
+        }
+
+        // Test hello_world_with_config
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", tool_id, "hello_world_with_config"),
+            parameters: json!({
+                "config": "test-config"
+            }),
+        };
+
+        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+
+        eprintln!(
+            "Tool execution result (with config): {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        );
+
+        if !result.success {
+            return Err(result.error.unwrap_or_else(|| "Unknown error".to_string()));
+        }
+
+        let result_value = result.result.ok_or("No result found")?;
+        let content = result_value
+            .get("content")
+            .and_then(|c| c.as_array())
+            .ok_or("Content is not an array")?;
+
+        if content.len() != 1 {
+            return Err(format!("Expected 1 content item, got {}", content.len()));
+        }
+
+        let first_content = &content[0];
+        let text = first_content
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or("Content text not found or not a string")?;
+
+        if text != "hello configuration test-config" {
+            return Err(format!(
+                "Expected content 'hello configuration test-config', got '{}'",
+                text
+            ));
         }
 
         // Cleanup
