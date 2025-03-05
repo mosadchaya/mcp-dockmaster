@@ -1,4 +1,3 @@
-use crate::mcp_proxy::Tool;
 use crate::mcp_proxy::ToolRegistry;
 use directories::ProjectDirs;
 use log::info;

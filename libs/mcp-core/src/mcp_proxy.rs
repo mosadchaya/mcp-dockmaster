@@ -509,9 +509,6 @@ pub struct ToolConfigUpdateRequest {
     config: ToolConfig,
 }
 
-/// MCP tool config
-// Using the ToolConfig struct defined earlier
-
 /// MCP tool config update response
 #[derive(Serialize)]
 pub struct ToolConfigUpdateResponse {
