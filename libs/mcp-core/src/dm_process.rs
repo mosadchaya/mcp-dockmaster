@@ -23,7 +23,7 @@ impl DMProcess {
         tool_type: &ToolType,
         config: &ToolConfiguration,
         env_vars: Option<&HashMap<String, String>>,
-    ) -> MCPResult<Self> {
+    ) -> Result<Self, String> {
         match tool_type {
             ToolType::Node => Self::spawn_nodejs_process(tool_id, config, env_vars).await,
             ToolType::Python => Self::spawn_python_process(tool_id, config, env_vars).await,
@@ -31,27 +31,24 @@ impl DMProcess {
         }
     }
 
-    pub async fn kill(&mut self) -> MCPResult<()> {
+    pub async fn kill(&mut self) -> Result<(), String> {
         self.child
             .kill()
             .await
-            .map_err(|e| MCPError::ProcessError(e.to_string()))
+            .map_err(|e| format!("Failed to kill process: {}", e))
     }
 
     async fn spawn_nodejs_process(
         tool_id: &ToolId,
         config: &ToolConfiguration,
         env_vars: Option<&HashMap<String, String>>,
-    ) -> MCPResult<Self> {
+    ) -> Result<Self, String> {
         info!("Spawning Node.js process for tool ID: {}", tool_id);
 
         let command = &config.command;
         if !command.contains("npx") && !command.contains("node") {
             error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
-            return Err(MCPError::ProcessError(format!(
-                "Entry point file '{}' does not exist",
-                command
-            )));
+            return Err(format!("Entry point file '{}' does not exist", command));
         }
 
         info!(
@@ -84,7 +81,7 @@ impl DMProcess {
         tool_id: &ToolId,
         config: &ToolConfiguration,
         env_vars: Option<&HashMap<String, String>>,
-    ) -> MCPResult<Self> {
+    ) -> Result<Self, String> {
         info!("Spawning Python process for tool ID: {}", tool_id);
         info!("Using Python command: {}", config.command);
 
@@ -104,14 +101,14 @@ impl DMProcess {
         tool_id: &ToolId,
         config: &ToolConfiguration,
         env_vars: Option<&HashMap<String, String>>,
-    ) -> MCPResult<Self> {
+    ) -> Result<Self, String> {
         info!("Spawning Docker process for tool ID: {}", tool_id);
 
         if config.command != "docker" {
-            return Err(MCPError::ProcessError(format!(
+            return Err(format!(
                 "Expected 'docker' command for Docker runtime, got '{}'",
                 config.command
-            )));
+            ));
         }
 
         info!("Using Docker command");
@@ -143,7 +140,7 @@ impl DMProcess {
         mut cmd: Command,
         tool_id: &ToolId,
         env_vars: Option<&HashMap<String, String>>,
-    ) -> MCPResult<Self> {
+    ) -> Result<Self, String> {
         use std::process::Stdio;
 
         if let Some(env_map) = env_vars {
@@ -176,7 +173,7 @@ impl DMProcess {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| MCPError::ProcessError(format!("Failed to spawn process: {}", e)))?;
+            .map_err(|e| format!("Failed to spawn process: {}", e))?;
 
         // Capture stderr to a separate task that logs errors
         if let Some(stderr) = child.stderr.take() {
@@ -196,12 +193,12 @@ impl DMProcess {
 
         let stdin = child.stdin.take().ok_or_else(|| {
             let _ = child.kill();
-            MCPError::ProcessError("Failed to open stdin".to_string())
+            format!("Failed to open stdin")
         })?;
 
         let stdout = child.stdout.take().ok_or_else(|| {
             let _ = child.kill();
-            MCPError::ProcessError("Failed to open stdout".to_string())
+            format!("Failed to open stdout")
         })?;
 
         info!("Process spawned successfully with stdin and stdout pipes");

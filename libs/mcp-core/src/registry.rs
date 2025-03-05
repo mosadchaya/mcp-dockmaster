@@ -5,10 +5,7 @@ use serde_json::{json, Value};
 use tokio::process::Child;
 
 use crate::{
-    mcp_proxy::{
-        discover_server_tools, execute_server_tool, kill_process, spawn_docker_process,
-        spawn_nodejs_process, spawn_python_process,
-    },
+    mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process},
     mcp_state::MCPState,
     models::models::Tool,
     DatabaseManager, MCPError,
@@ -302,24 +299,8 @@ impl ToolRegistry {
         };
 
         // Spawn process based on tool type
-        let spawn_result = match tool_type.as_str() {
-            "node" => {
-                info!("Spawning Node.js process for tool: {}", tool_id);
-                spawn_nodejs_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            "python" => {
-                info!("Spawning Python process for tool: {}", tool_id);
-                spawn_python_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            "docker" => {
-                info!("Spawning Docker process for tool: {}", tool_id);
-                spawn_docker_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            _ => {
-                error!("Unsupported tool type: {}", tool_type);
-                return Err(format!("Unsupported tool type: {}", tool_type));
-            }
-        };
+        let spawn_result =
+            spawn_process(&config_value, tool_id, &tool_type, env_vars.as_ref()).await;
 
         match spawn_result {
             Ok((process, stdin, stdout)) => {

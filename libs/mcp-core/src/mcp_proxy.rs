@@ -2,11 +2,11 @@ use crate::mcp_state::MCPState;
 use crate::models::models::{
     DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
     ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
-    ToolExecutionResponse, ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
-    ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+    ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
+    ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::registry::ToolRegistry;
-use crate::{database, MCPError};
+use crate::{database, dm_process::DMProcess, MCPError};
 use log::{error, info, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -197,255 +197,11 @@ pub async fn execute_server_tool(
         .ok_or(MCPError::NoResultField)
 }
 
-/// Spawn a Node.js MCP server process
-pub async fn spawn_nodejs_process(
+/// Spawn an MCP server process using DMProcess
+pub async fn spawn_process(
     configuration: &Value,
     tool_id: &str,
-    env_vars: Option<&HashMap<String, String>>,
-) -> Result<
-    (
-        Child,
-        tokio::process::ChildStdin,
-        tokio::process::ChildStdout,
-    ),
-    String,
-> {
-    info!("Spawning Node.js process for tool ID: {}", tool_id);
-    info!("Configuration: {}", configuration);
-
-    let mut cmd;
-
-    let command = configuration
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
-
-    if command.contains("npx") || command.contains("node") {
-        info!(
-            "Using command to start process for tool {}: {}",
-            tool_id, command
-        );
-        cmd = Command::new(command);
-        // Add args if they exist
-        if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-            info!(
-                "Adding {} arguments to command for tool {}",
-                args.len(),
-                tool_id
-            );
-            for (i, arg) in args.iter().enumerate() {
-                if let Some(arg_str) = arg.as_str() {
-                    info!("Arg {}: {}", i, arg_str);
-                    cmd.arg(arg_str);
-                }
-            }
-        } else {
-            info!("No arguments found in configuration for tool {}", tool_id);
-        }
-
-        info!("Adding tool-id argument: {}", tool_id);
-        cmd.arg("--tool-id").arg(tool_id);
-
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-    } else {
-        // Otherwise, assume it's a file path that doesn't exist yet
-        error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
-        return Err(format!("Entry point file '{}' does not exist", command));
-    }
-
-    // Add environment variables if provided
-    if let Some(env_map) = env_vars {
-        info!(
-            "Setting {} environment variables for tool {}",
-            env_map.len(),
-            tool_id
-        );
-        for (key, value) in env_map {
-            info!(
-                "Setting environment variable for tool {}: {}={}",
-                tool_id, key, value
-            );
-            cmd.env(key, value);
-        }
-    } else {
-        info!("No environment variables provided for tool {}", tool_id);
-    }
-
-    // Log the command we're about to run
-    info!(
-        "Spawning process for tool {}: {:?} with args: {:?}",
-        tool_id,
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => {
-            info!("Successfully spawned process for tool {}", tool_id);
-            child
-        }
-        Err(e) => {
-            error!("Failed to spawn process for tool {}: {}", tool_id, e);
-            return Err(format!("Failed to spawn process: {}", e));
-        }
-    };
-
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
-    };
-
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
-}
-
-/// Spawn a Python MCP server process
-pub async fn spawn_python_process(
-    configuration: &Value,
-    tool_id: &str,
-    env_vars: Option<&HashMap<String, String>>,
-) -> Result<
-    (
-        Child,
-        tokio::process::ChildStdin,
-        tokio::process::ChildStdout,
-    ),
-    String,
-> {
-    let mut cmd;
-
-    let command = configuration
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
-
-    info!("Using Python command: {}", command);
-    cmd = Command::new(command);
-
-    // Add args if they exist
-    info!("Args: {:?}", configuration.get("args"));
-    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-        for arg in args {
-            if let Some(arg_str) = arg.as_str() {
-                cmd.arg(arg_str);
-            }
-        }
-    }
-
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Add environment variables if provided
-    if let Some(env_map) = env_vars {
-        for (key, value) in env_map {
-            info!("Setting environment variable: {}={}", key, value);
-            cmd.env(key, value);
-        }
-    }
-
-    // Log the command we're about to run
-    info!(
-        "Spawning Python process: {:?} with args: {:?}",
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(e) => {
-            error!("Failed to spawn Python process: {}", e);
-            return Err(format!("Failed to spawn Python process: {}", e));
-        }
-    };
-
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for Python process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
-    };
-
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for Python process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Python process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
-}
-
-/// Spawn a Docker MCP server process
-pub async fn spawn_docker_process(
-    configuration: &Value,
-    tool_id: &str,
+    tool_type: &str,
     env_vars: Option<&HashMap<String, String>>,
 ) -> Result<
     (
@@ -460,109 +216,31 @@ pub async fn spawn_docker_process(
         .and_then(|v| v.as_str())
         .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
-    if command != "docker" {
-        return Err(format!(
-            "Expected 'docker' command for Docker runtime, got '{}'",
-            command
-        ));
-    }
+    let args = configuration
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|args| {
+            args.iter()
+                .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
-    info!("Using Docker command");
-    let mut cmd = Command::new(command);
-
-    cmd.arg("run")
-        .arg("-i")
-        .arg("--name")
-        .arg(tool_id)
-        .arg("-a")
-        .arg("stdout")
-        .arg("-a")
-        .arg("stderr")
-        .arg("-a")
-        .arg("stdin");
-
-    // Add environment variables as Docker -e flags if provided
-    if let Some(env_map) = env_vars {
-        for (key, value) in env_map {
-            info!("Setting Docker environment variable: {}={}", key, value);
-            cmd.arg("-e").arg(format!("{}={}", key, value));
-        }
-    }
-
-    cmd.arg("--rm");
-
-    // Add args if they exist
-    info!("Args: {:?}", configuration.get("args"));
-    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-        for arg in args {
-            if let Some(arg_str) = arg.as_str() {
-                cmd.arg(arg_str);
-            }
-        }
-    }
-
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Log the command we're about to run
-    info!(
-        "Spawning Docker process: {:?} with args: {:?}",
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(e) => {
-            error!("Failed to spawn Docker process: {}", e);
-            return Err(format!("Failed to spawn Docker process: {}", e));
-        }
+    let config = ToolConfiguration {
+        command: command.to_string(),
+        args: Some(args),
     };
 
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for Docker process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
+    let tool_type = match tool_type {
+        "node" => ToolType::Node,
+        "python" => ToolType::Python,
+        "docker" => ToolType::Docker,
+        _ => return Err(format!("Unsupported tool type: {}", tool_type)),
     };
 
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for Docker process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Docker process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
+    let tool_id = ToolId::new(tool_id.to_string());
+    let dm_process = DMProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
 }
 
 /// Kill a running process
@@ -694,24 +372,13 @@ pub async fn register_tool(
     };
 
     // Spawn process based on tool type
-    let spawn_result = match request.tool_type.as_str() {
-        "node" => {
-            info!("Spawning Node.js process for tool: {}", request.tool_name);
-            spawn_nodejs_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        "python" => {
-            info!("Spawning Python process for tool: {}", request.tool_name);
-            spawn_python_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        "docker" => {
-            info!("Spawning Docker process for tool: {}", request.tool_name);
-            spawn_docker_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        _ => {
-            info!("Unsupported tool type: {}", request.tool_type);
-            return Err(format!("Unsupported tool type: {}", request.tool_type));
-        }
-    };
+    let spawn_result = spawn_process(
+        &config_value,
+        &tool_id,
+        &request.tool_type,
+        env_vars.as_ref(),
+    )
+    .await;
 
     match spawn_result {
         Ok((process, stdin, stdout)) => {
