@@ -1,5 +1,5 @@
 use crate::database;
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::process::Stdio;
@@ -73,6 +73,51 @@ impl ToolRegistry {
         }
     }
 
+    // Start a background task that periodically checks if processes are running
+    pub fn start_process_monitor(mcp_state: MCPState) {
+        info!("Starting process monitor task");
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Check every 30 seconds
+
+            loop {
+                interval.tick().await;
+
+                // Check all processes
+                let registry_clone = mcp_state.tool_registry.clone();
+                let tools_to_restart = {
+                    let registry = registry_clone.read().await;
+                    let mut to_restart = Vec::new();
+
+                    for (id, tool) in &registry.tools {
+                        if tool.enabled {
+                            // Check if process is running
+                            let process_running =
+                                registry.processes.get(id).is_some_and(|p| p.is_some());
+
+                            if !process_running {
+                                warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
+                                to_restart.push(id.clone());
+                            }
+                        }
+                    }
+
+                    to_restart
+                };
+
+                // Restart any processes that should be running but aren't
+                for tool_id in tools_to_restart {
+                    info!("Attempting to restart tool: {}", tool_id);
+                    let mut registry = mcp_state.tool_registry.write().await;
+                    if let Err(e) = registry.restart_tool(&tool_id).await {
+                        error!("Failed to restart tool {}: {}", tool_id, e);
+                    } else {
+                        info!("Successfully restarted tool: {}", tool_id);
+                    }
+                }
+            }
+        });
+    }
+
     /// Execute a tool on a server
     pub async fn execute_tool(
         &mut self,
@@ -107,7 +152,9 @@ impl ToolRegistry {
                 info!("Successfully loaded MCP state from database");
 
                 // Restart enabled tools
-                let tools_to_restart: Vec<String> = registry.tools.iter()
+                let tools_to_restart: Vec<String> = registry
+                    .tools
+                    .iter()
                     .filter_map(|(tool_id, tool_data)| {
                         if tool_data.enabled {
                             return Some(tool_id.clone());
@@ -115,9 +162,9 @@ impl ToolRegistry {
                         None
                     })
                     .collect();
-                
+
                 drop(registry); // Release the lock before restarting tools
-                
+
                 for tool_id in tools_to_restart {
                     let mut registry = mcp_state.tool_registry.write().await;
                     let _ = registry.restart_tool(&tool_id).await;
@@ -1104,16 +1151,21 @@ pub async fn register_tool(
     info!("Generated tool ID: {}", tool_id);
 
     // Create the tool configuration if provided
-    let configuration = request.configuration.as_ref().map(|config| {
-        ToolConfiguration {
-            command: config.get("command").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+    let configuration = request
+        .configuration
+        .as_ref()
+        .map(|config| ToolConfiguration {
+            command: config
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
             args: config.get("args").and_then(|v| v.as_array()).map(|args| {
                 args.iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
                     .collect()
             }),
-        }
-    });
+        });
 
     // Create the tool config with env variables if provided
     let mut tool_config = None;
@@ -1188,10 +1240,10 @@ pub async fn register_tool(
                 "args": config.args.clone().unwrap_or_default()
             })
         } else {
-            return Err("Configuration is required for tools".to_string())
+            return Err("Configuration is required for tools".to_string());
         }
     } else {
-        return Err("Configuration is required for tools".to_string())
+        return Err("Configuration is required for tools".to_string());
     };
 
     // Spawn process based on tool type
@@ -1333,10 +1385,13 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         if let Some(configuration) = &tool_struct.configuration {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("configuration".to_string(), json!({
-                    "command": configuration.command,
-                    "args": configuration.args
-                }));
+                obj.insert(
+                    "configuration".to_string(),
+                    json!({
+                        "command": configuration.command,
+                        "args": configuration.args
+                    }),
+                );
             }
         }
 
@@ -1374,9 +1429,9 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
             }
         }
 
-        // Add process status
+        // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.get(id).is_some_and(|p| p.is_some());
+            let process_running = registry.processes.contains_key(id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
@@ -1777,10 +1832,13 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         if let Some(configuration) = &tool_struct.configuration {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("configuration".to_string(), json!({
-                    "command": configuration.command,
-                    "args": configuration.args
-                }));
+                obj.insert(
+                    "configuration".to_string(),
+                    json!({
+                        "command": configuration.command,
+                        "args": configuration.args
+                    }),
+                );
             }
         }
 
@@ -1820,7 +1878,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.get(id).is_some_and(|p| p.is_some());
+            let process_running = registry.processes.contains_key(id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
