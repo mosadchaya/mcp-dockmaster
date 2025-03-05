@@ -21,3 +21,8 @@ pub fn init_logging() {
     
     log::info!("MCP Core library initialized");
 }
+
+#[cfg(test)]
+mod tests {
+    mod mcp_server_mockup_test;
+}
