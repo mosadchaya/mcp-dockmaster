@@ -1,8 +1,10 @@
 use mcp_core::error::{MCPError, MCPResult};
 use mcp_core::mcp_proxy::{self, MCPState, ToolRegistry};
 use serde_json::json;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use tokio::time::sleep;
@@ -11,37 +13,6 @@ use tokio::time::sleep;
 mod tests {
     use super::*;
 
-    /// A wrapper for the hello world MCP server
-    struct HelloWorldServer {
-        child: Child,
-    }
-
-    impl HelloWorldServer {
-        /// Start the hello world server
-        async fn new() -> MCPResult<Self> {
-            // Navigate to the hello world server directory and start it
-            let child = Command::new("npm")
-                .arg("run")
-                .arg("start")
-                .current_dir("libs/mcp-core/tests/it/resources/mcp-server-hello-world")
-                .stdin(std::process::Stdio::piped())
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .spawn()?;
-
-            // Return the server wrapper
-            Ok(Self { child })
-        }
-
-        /// Clean up resources
-        async fn cleanup(&mut self) -> MCPResult<()> {
-            if let Err(e) = self.child.kill().await {
-                eprintln!("Failed to kill hello world server: {}", e);
-            }
-            Ok(())
-        }
-    }
-
     #[tokio::test]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Initialize MCP state
@@ -49,8 +20,14 @@ mod tests {
             tool_registry: Arc::new(RwLock::new(ToolRegistry::default())),
         };
 
-        // Start the hello world server
-        let mut server = HelloWorldServer::new().await.map_err(|e| e.to_string())?;
+        // Get the absolute path to the script
+        let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
+        let script_path = current_dir
+            .join("tests/it/resources/mcp-server-hello-world/build/index.js")
+            .to_string_lossy()
+            .into_owned();
+
+        eprintln!("Script path: {}", script_path);
 
         // Create registration request
         let request = json!({
@@ -60,18 +37,20 @@ mod tests {
             "authentication": null,
             "configuration": {
                 "command": "node",
-                "args": ["build/index.js"]
+                "args": ["--experimental-modules", "--no-warnings", script_path]
             },
             "distribution": null
         });
+
+        eprintln!(
+            "Registering tool with configuration: {}",
+            serde_json::to_string_pretty(&request).unwrap()
+        );
 
         // Register tool
         let response =
             mcp_proxy::register_tool(&mcp_state, serde_json::from_value(request).unwrap()).await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
-
-        // Wait for initialization
-        sleep(Duration::from_secs(2)).await;
 
         // Execute tool
         let exec_request = json!({
@@ -88,7 +67,6 @@ mod tests {
         }
 
         // Cleanup
-        server.cleanup().await.map_err(|e| e.to_string())?;
         let mut registry = mcp_state.tool_registry.write().await;
         registry.kill_all_processes().await;
 
