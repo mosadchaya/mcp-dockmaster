@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
 use log::{error, info};
 use mcp_core::{init_logging, mcp_proxy, mcp_state::MCPState};
-use serde_json::{json, Value};
-use std::collections::HashMap;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

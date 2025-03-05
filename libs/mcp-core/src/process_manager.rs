@@ -11,13 +11,13 @@ use tokio::{
     time::Duration,
 };
 
-pub struct ProcessManager {
+pub struct DMProcess {
     pub stdin: ChildStdin,
     pub stdout: ChildStdout,
     pub child: Child,
 }
 
-impl ProcessManager {
+impl DMProcess {
     pub async fn new(
         tool_id: &ToolId,
         tool_type: &ToolType,
@@ -45,14 +45,36 @@ impl ProcessManager {
     ) -> MCPResult<Self> {
         info!("Spawning Node.js process for tool ID: {}", tool_id);
 
-        let mut cmd = Command::new(&config.command);
-
-        if let Some(args) = &config.args {
-            for arg in args {
-                cmd.arg(arg);
-            }
+        let command = &config.command;
+        if !command.contains("npx") && !command.contains("node") {
+            error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
+            return Err(MCPError::ProcessError(format!(
+                "Entry point file '{}' does not exist",
+                command
+            )));
         }
 
+        info!(
+            "Using command to start process for tool {}: {}",
+            tool_id, command
+        );
+        let mut cmd = Command::new(command);
+
+        if let Some(args) = &config.args {
+            info!(
+                "Adding {} arguments to command for tool {}",
+                args.len(),
+                tool_id
+            );
+            for (i, arg) in args.iter().enumerate() {
+                info!("Arg {}: {}", i, arg);
+                cmd.arg(arg);
+            }
+        } else {
+            info!("No arguments found in configuration for tool {}", tool_id);
+        }
+
+        info!("Adding tool-id argument: {}", tool_id);
         cmd.arg("--tool-id").arg(tool_id.as_str());
 
         Self::setup_process(cmd, tool_id, env_vars).await
@@ -64,10 +86,12 @@ impl ProcessManager {
         env_vars: Option<&HashMap<String, String>>,
     ) -> MCPResult<Self> {
         info!("Spawning Python process for tool ID: {}", tool_id);
+        info!("Using Python command: {}", config.command);
 
         let mut cmd = Command::new(&config.command);
 
         if let Some(args) = &config.args {
+            info!("Args: {:?}", args);
             for arg in args {
                 cmd.arg(arg);
             }
@@ -83,7 +107,16 @@ impl ProcessManager {
     ) -> MCPResult<Self> {
         info!("Spawning Docker process for tool ID: {}", tool_id);
 
-        let mut cmd = Command::new("docker");
+        if config.command != "docker" {
+            return Err(MCPError::ProcessError(format!(
+                "Expected 'docker' command for Docker runtime, got '{}'",
+                config.command
+            )));
+        }
+
+        info!("Using Docker command");
+        let mut cmd = Command::new(&config.command);
+
         cmd.arg("run")
             .arg("-i")
             .arg("--name")
@@ -97,6 +130,7 @@ impl ProcessManager {
             .arg("--rm");
 
         if let Some(args) = &config.args {
+            info!("Args: {:?}", args);
             for arg in args {
                 cmd.arg(arg);
             }
@@ -112,11 +146,21 @@ impl ProcessManager {
     ) -> MCPResult<Self> {
         use std::process::Stdio;
 
-        if let Some(vars) = env_vars {
-            for (key, value) in vars {
-                info!("Setting environment variable: {}={}", key, value);
+        if let Some(env_map) = env_vars {
+            info!(
+                "Setting {} environment variables for tool {}",
+                env_map.len(),
+                tool_id
+            );
+            for (key, value) in env_map {
+                info!(
+                    "Setting environment variable for tool {}: {}={}",
+                    tool_id, key, value
+                );
                 cmd.env(key, value);
             }
+        } else {
+            info!("No environment variables provided for tool {}", tool_id);
         }
 
         cmd.stdin(Stdio::piped())
@@ -124,18 +168,19 @@ impl ProcessManager {
             .stderr(Stdio::piped());
 
         info!(
-            "Spawning process: {:?} with args: {:?}",
+            "Spawning process for tool {}: {:?} with args: {:?}",
+            tool_id,
             cmd.as_std().get_program(),
             cmd.as_std().get_args().collect::<Vec<_>>()
         );
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| MCPError::ProcessError(e.to_string()))?;
+            .map_err(|e| MCPError::ProcessError(format!("Failed to spawn process: {}", e)))?;
 
-        // Handle stderr in a separate task
+        // Capture stderr to a separate task that logs errors
         if let Some(stderr) = child.stderr.take() {
-            let tool_id = tool_id.clone();
+            let tool_id_clone = tool_id.clone();
             tokio::spawn(async move {
                 let mut stderr_reader = tokio::io::BufReader::new(stderr);
                 let mut line = String::new();
@@ -143,22 +188,23 @@ impl ProcessManager {
                     if bytes_read == 0 {
                         break;
                     }
-                    error!("[{} stderr]: {}", tool_id, line.trim());
+                    info!("[{} stderr]: {}", tool_id_clone, line.trim());
                     line.clear();
                 }
             });
         }
 
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| MCPError::ProcessError("Failed to open stdin".to_string()))?;
+        let stdin = child.stdin.take().ok_or_else(|| {
+            let _ = child.kill();
+            MCPError::ProcessError("Failed to open stdin".to_string())
+        })?;
 
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| MCPError::ProcessError("Failed to open stdout".to_string()))?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            let _ = child.kill();
+            MCPError::ProcessError("Failed to open stdout".to_string())
+        })?;
 
+        info!("Process spawned successfully with stdin and stdout pipes");
         Ok(Self {
             stdin,
             stdout,

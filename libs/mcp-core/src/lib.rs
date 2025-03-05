@@ -3,14 +3,14 @@ pub mod http_server;
 pub mod mcp_proxy;
 pub mod mcp_state;
 pub mod models;
-pub mod process;
+pub mod process_manager;
 pub mod registry;
 
 // Re-export commonly used types and functions
 pub use database::DatabaseManager;
 pub use error::{MCPError, MCPResult};
 pub use models::*;
-pub use process::ProcessManager;
+pub use process_manager::DMProcess;
 // pub use registry::ToolRegistry;
 
 // Initialize logging
