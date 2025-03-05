@@ -1,8 +1,8 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    execute_tool, get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command,
-    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
-    update_tool_config, update_tool_status,
+    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
+    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
+    update_tool_status,
 };
 use log::{error, info};
 use mcp_core::mcp_proxy::{MCPState, ToolRegistry};

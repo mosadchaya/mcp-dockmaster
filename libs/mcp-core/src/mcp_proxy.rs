@@ -590,31 +590,31 @@ pub enum MCPError {
     NoResultField,
 }
 
-/// Discover tools available from an MCP server
-async fn discover_server_tools(
+/// Represents the type of response that can be returned from an MCP server command
+#[derive(Debug)]
+enum MCPResponseType {
+    /// Just an acknowledgement, no data needed
+    Acknowledgement,
+    /// Expect a result that contains tools or other data
+    Result,
+}
+
+/// Send a command to an MCP server and read the response
+async fn send_server_command(
     server_id: &str,
+    command: Value,
     registry: &mut ToolRegistry,
-) -> Result<Vec<Value>, String> {
+    timeout_secs: u64,
+) -> Result<String, MCPError> {
     // Get the stdin/stdout handles for the server
-    let (stdin, stdout) = match registry.process_ios.get_mut(server_id) {
-        Some(io) => io,
-        None => return Err(format!("Server {} not found or not running", server_id)),
-    };
-
-    info!("Discovering tools from server {}", server_id);
-
-    // According to MCP specification, the correct method is "tools/list"
-    // https://github.com/modelcontextprotocol/specification/blob/main/docs/specification/2024-11-05/server/tools.md
-    let discover_cmd = json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/list",
-        "params": {}
-    });
+    let (stdin, stdout) = registry
+        .process_ios
+        .get_mut(server_id)
+        .ok_or_else(|| MCPError::ServerNotFound(server_id.to_string()))?;
 
     // Send the command to the process
-    let cmd_str = serde_json::to_string(&discover_cmd)
-        .map_err(|e| format!("Failed to serialize command: {}", e))?
+    let cmd_str = serde_json::to_string(&command)
+        .map_err(|e| MCPError::SerializationError(e.to_string()))?
         + "\n";
 
     info!("Command: {}", cmd_str.trim());
@@ -623,53 +623,65 @@ async fn discover_server_tools(
     stdin
         .write_all(cmd_str.as_bytes())
         .await
-        .map_err(|e| format!("Failed to write to process stdin: {}", e))?;
+        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
     stdin
         .flush()
         .await
-        .map_err(|e| format!("Failed to flush stdin: {}", e))?;
+        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
 
     // Read the response with a timeout
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
 
     let read_result = tokio::time::timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(timeout_secs),
         reader.read_line(&mut response_line),
     )
     .await;
 
     match read_result {
-        Ok(Ok(0)) => return Err("Server process closed connection".to_string()),
+        Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
         Ok(Ok(_)) => info!(
             "Received response from server {}: {}",
             server_id,
             response_line.trim()
         ),
-        Ok(Err(e)) => return Err(format!("Failed to read from process stdout: {}", e)),
-        Err(_) => {
-            return Err(format!(
-                "Timeout waiting for response from server {}",
-                server_id
-            ))
-        }
+        Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
+        Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
     }
 
     if response_line.is_empty() {
-        return Err("No response from process".to_string());
+        return Err(MCPError::NoResponse);
     }
 
+    Ok(response_line)
+}
+
+/// Parse a response from an MCP server
+async fn parse_server_response(
+    response_line: &str,
+    response_type: MCPResponseType,
+) -> Result<Value, MCPError> {
     // Parse the response
-    let response: Value = match serde_json::from_str(&response_line) {
-        Ok(json) => json,
-        Err(e) => return Err(format!("Failed to parse response as JSON: {}", e)),
-    };
+    let response: Value =
+        serde_json::from_str(response_line).map_err(|e| MCPError::JsonParseError(e.to_string()))?;
 
     // Check for error in the response
     if let Some(error) = response.get("error") {
-        return Err(format!("Server returned error: {:?}", error));
+        return Err(MCPError::ToolExecutionError(error.to_string()));
     }
 
+    match response_type {
+        MCPResponseType::Acknowledgement => Ok(response),
+        MCPResponseType::Result => response
+            .get("result")
+            .cloned()
+            .ok_or(MCPError::NoResultField),
+    }
+}
+
+/// Extract tools from a server response
+fn extract_tools_from_response(response: Value) -> Result<Vec<Value>, String> {
     // According to MCP spec, tools should be in the result field
     if let Some(result) = response.get("result") {
         // MCP returns tools directly in the result field as array
@@ -701,8 +713,62 @@ async fn discover_server_tools(
 
     // If initialization hasn't completed yet or tools are not supported,
     // return an empty array as fallback
-    info!("No tools found in response: {}", response_line.trim());
+    info!("No tools found in response");
     Ok(Vec::new())
+}
+
+/// Initialize a connection to an MCP server
+async fn initialize_server_connection(
+    server_id: &str,
+    registry: &mut ToolRegistry,
+) -> Result<(), String> {
+    info!("Initializing connection to server {}", server_id);
+
+    let initialize_cmd = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+
+    // Since initialization is a notification, we don't expect a specific result
+    match send_server_command(server_id, initialize_cmd, registry, 10).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Discover tools available from an MCP server
+async fn discover_server_tools(
+    server_id: &str,
+    registry: &mut ToolRegistry,
+) -> Result<Vec<Value>, String> {
+    info!("Discovering tools from server {}", server_id);
+
+    // According to MCP specification, the correct method is "tools/list"
+    // https://github.com/modelcontextprotocol/specification/blob/main/docs/specification/2024-11-05/server/tools.md
+    let discover_cmd = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    let response_line = match send_server_command(server_id, discover_cmd, registry, 10).await {
+        Ok(response) => response,
+        Err(e) => return Err(e.to_string()),
+    };
+
+    // Parse the response
+    let response: Value = match serde_json::from_str(&response_line) {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to parse response as JSON: {}", e)),
+    };
+
+    // Check for error in the response
+    if let Some(error) = response.get("error") {
+        return Err(format!("Server returned error: {:?}", error));
+    }
+
+    extract_tools_from_response(response)
 }
 
 /// Execute a tool on an MCP server
@@ -712,11 +778,6 @@ async fn execute_server_tool(
     parameters: Value,
     registry: &mut ToolRegistry,
 ) -> Result<Value, MCPError> {
-    let (stdin, stdout) = registry
-        .process_ios
-        .get_mut(server_id)
-        .ok_or_else(|| MCPError::ServerNotFound(server_id.to_string()))?;
-
     let execute_cmd = json!({
         "jsonrpc": "2.0",
         "id": format!("execute_{}_{}", server_id, tool_name),
@@ -724,50 +785,9 @@ async fn execute_server_tool(
         "params": { "name": tool_name, "arguments": parameters }
     });
 
-    let cmd_str = serde_json::to_string(&execute_cmd)
-        .map_err(|e| MCPError::SerializationError(e.to_string()))?
-        + "\n";
+    let response_line = send_server_command(server_id, execute_cmd, registry, 30).await?;
 
-    stdin
-        .write_all(cmd_str.as_bytes())
-        .await
-        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
-    stdin
-        .flush()
-        .await
-        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
-
-    let mut reader = tokio::io::BufReader::new(&mut *stdout);
-    let mut response_line = String::new();
-
-    let read_result = tokio::time::timeout(
-        Duration::from_secs(30),
-        reader.read_line(&mut response_line),
-    )
-    .await;
-
-    match read_result {
-        Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
-        Ok(Ok(_)) => {}
-        Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
-        Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
-    }
-
-    if response_line.is_empty() {
-        return Err(MCPError::NoResponse);
-    }
-
-    let response: Value = serde_json::from_str(&response_line)
-        .map_err(|e| MCPError::JsonParseError(e.to_string()))?;
-
-    if let Some(error) = response.get("error") {
-        return Err(MCPError::ToolExecutionError(error.to_string()));
-    }
-
-    response
-        .get("result")
-        .cloned()
-        .ok_or(MCPError::NoResultField)
+    parse_server_response(&response_line, MCPResponseType::Result).await
 }
 
 /// Spawn a Node.js MCP server process
@@ -1303,6 +1323,7 @@ pub async fn register_tool(
             info!("Attempting to discover tools from server {}", tool_id);
             let discover_result = tokio::time::timeout(Duration::from_secs(15), async {
                 let mut registry = mcp_state.tool_registry.write().await;
+                let _ = initialize_server_connection(&tool_id, &mut registry).await;
                 discover_server_tools(&tool_id, &mut registry).await
             })
             .await;
