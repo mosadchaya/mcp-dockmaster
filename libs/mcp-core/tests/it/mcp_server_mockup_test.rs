@@ -60,16 +60,12 @@ mod tests {
         );
 
         // Execute tool
-        let result = mcp_proxy::execute_tool(
-            &mcp_state,
-            ToolExecutionRequest {
-                tool_id: tool_id,
-                parameters: json!({
-                    "method": "hello_world"
-                }),
-            },
-        )
-        .await?;
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", tool_id, "hello_world"),
+            parameters: json!({}),
+        };
+
+        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
 
         // Print the execution result
         eprintln!(

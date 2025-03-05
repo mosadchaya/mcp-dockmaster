@@ -1,11 +1,11 @@
-use tauri::State;
 use mcp_core::mcp_proxy::{
-    MCPState, ToolRegistrationRequest, ToolRegistrationResponse, ToolExecutionRequest, 
-    ToolExecutionResponse, ToolUpdateRequest, ToolUpdateResponse, ToolConfigUpdateRequest, 
-    ToolConfigUpdateResponse, ToolUninstallRequest, ToolUninstallResponse, DiscoverServerToolsRequest, 
-    DiscoverServerToolsResponse
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, MCPState, ToolConfigUpdateRequest,
+    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolRegistrationRequest,
+    ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest,
+    ToolUpdateResponse,
 };
 use serde_json::Value;
+use tauri::State;
 
 /// Register a new tool with the MCP server
 #[tauri::command]
@@ -71,15 +71,6 @@ pub async fn uninstall_tool(
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
     mcp_core::mcp_proxy::uninstall_tool(state.inner(), request).await
-}
-
-/// Execute a registered tool
-#[tauri::command]
-pub async fn execute_tool(
-    state: State<'_, MCPState>,
-    request: ToolExecutionRequest,
-) -> Result<ToolExecutionResponse, String> {
-    mcp_core::mcp_proxy::execute_tool(state.inner(), request).await
 }
 
 /// Get all server data in a single function to avoid multiple locks

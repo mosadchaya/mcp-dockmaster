@@ -1654,49 +1654,6 @@ pub async fn uninstall_tool(
     }
 }
 
-/// Execute a registered tool
-pub async fn execute_tool(
-    mcp_state: &MCPState,
-    request: ToolExecutionRequest,
-) -> Result<ToolExecutionResponse, String> {
-    // Shortcut to execute_proxy_tool using a direct tool ID
-    let registry = mcp_state.tool_registry.read().await;
-
-    // Check if the tool exists (fixed unused variable warning)
-    if let Some(_) = registry.tools.get(&request.tool_id) {
-        // Check if the process is running
-        let process_running = registry
-            .processes
-            .get(&request.tool_id)
-            .is_some_and(|p| p.is_some());
-
-        if !process_running {
-            return Ok(ToolExecutionResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Tool with ID '{}' is not running", request.tool_id)),
-            });
-        }
-
-        drop(registry);
-
-        // Use the proxy format (server_id:tool_id)
-        let proxy_request = ToolExecutionRequest {
-            tool_id: format!("{}:main", request.tool_id),
-            parameters: request.parameters,
-        };
-
-        // Execute the tool through the proxy
-        execute_proxy_tool(mcp_state, proxy_request).await
-    } else {
-        Ok(ToolExecutionResponse {
-            success: false,
-            result: None,
-            error: Some(format!("Tool with ID '{}' not found", request.tool_id)),
-        })
-    }
-}
-
 /// Get all server data in a single function to avoid multiple locks
 pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> {
     // Acquire a single read lock for all operations
