@@ -1,5 +1,5 @@
 use crate::database;
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::process::Stdio;
@@ -12,10 +12,48 @@ use tokio::{
     time::Duration,
 };
 
+/// Tool configuration for command and arguments
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolConfiguration {
+    pub command: String,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+}
+
+/// Tool config for environment variables and optional command
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolConfig {
+    #[serde(default)]
+    pub env: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+}
+
+/// Tool definition with all properties
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Tool {
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+    pub tool_type: String,
+    #[serde(default)]
+    pub entry_point: Option<String>,
+    #[serde(default)]
+    pub configuration: Option<ToolConfiguration>,
+    #[serde(default)]
+    pub distribution: Option<Value>,
+    #[serde(default)]
+    pub config: Option<ToolConfig>,
+    #[serde(default)]
+    pub authentication: Option<Value>,
+}
+
 /// Holds information about registered tools and their processes
 #[derive(Default)]
 pub struct ToolRegistry {
-    pub tools: HashMap<String, Value>,
+    pub tools: HashMap<String, Tool>,
     pub processes: HashMap<String, Option<Child>>,
     pub server_tools: HashMap<String, Vec<Value>>,
     pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
@@ -33,6 +71,51 @@ impl ToolRegistry {
                 }
             }
         }
+    }
+
+    // Start a background task that periodically checks if processes are running
+    pub fn start_process_monitor(mcp_state: MCPState) {
+        info!("Starting process monitor task");
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Check every 30 seconds
+
+            loop {
+                interval.tick().await;
+
+                // Check all processes
+                let registry_clone = mcp_state.tool_registry.clone();
+                let tools_to_restart = {
+                    let registry = registry_clone.read().await;
+                    let mut to_restart = Vec::new();
+
+                    for (id, tool) in &registry.tools {
+                        if tool.enabled {
+                            // Check if process is running
+                            let process_running =
+                                registry.processes.get(id).is_some_and(|p| p.is_some());
+
+                            if !process_running {
+                                warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
+                                to_restart.push(id.clone());
+                            }
+                        }
+                    }
+
+                    to_restart
+                };
+
+                // Restart any processes that should be running but aren't
+                for tool_id in tools_to_restart {
+                    info!("Attempting to restart tool: {}", tool_id);
+                    let mut registry = mcp_state.tool_registry.write().await;
+                    if let Err(e) = registry.restart_tool(&tool_id).await {
+                        error!("Failed to restart tool {}: {}", tool_id, e);
+                    } else {
+                        info!("Successfully restarted tool: {}", tool_id);
+                    }
+                }
+            }
+        });
     }
 
     /// Execute a tool on a server
@@ -67,27 +150,6 @@ impl ToolRegistry {
                 let mut registry = mcp_state.tool_registry.write().await;
                 *registry = registry_data;
                 info!("Successfully loaded MCP state from database");
-
-                // Restart enabled tools
-                let tools_to_restart: Vec<String> = registry
-                    .tools
-                    .iter()
-                    .filter_map(|(tool_id, tool_data)| {
-                        if let Some(enabled) = tool_data.get("enabled").and_then(|v| v.as_bool()) {
-                            if enabled {
-                                return Some(tool_id.clone());
-                            }
-                        }
-                        None
-                    })
-                    .collect();
-
-                drop(registry); // Release the lock before restarting tools
-
-                for tool_id in tools_to_restart {
-                    let mut registry = mcp_state.tool_registry.write().await;
-                    let _ = registry.restart_tool(&tool_id).await;
-                }
             }
             Err(e) => {
                 // Explicitly close the database connection
@@ -152,17 +214,8 @@ impl ToolRegistry {
         // Check if the tool exists
         let tool_info = if let Some(tool) = self.tools.get(tool_id) {
             // Extract necessary information
-            let tool_type = tool
-                .get("tool_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let entry_point = tool
-                .get("entry_point")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            let tool_type = tool.tool_type.clone();
+            let entry_point = tool.entry_point.clone().unwrap_or_default();
 
             info!(
                 "Found tool {}: type={}, entry_point={}",
@@ -212,10 +265,7 @@ impl ToolRegistry {
         }
 
         // Check if the tool is enabled
-        let is_enabled = tool_data
-            .get("enabled")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let is_enabled = tool_data.enabled;
 
         if !is_enabled {
             info!("Tool {} is disabled, not restarting", tool_id);
@@ -228,42 +278,20 @@ impl ToolRegistry {
         );
 
         // Extract environment variables from the tool configuration
-        let env_vars = if let Some(config) = tool_data.get("config") {
-            if let Some(env) = config.get("env") {
-                // Convert the JSON env vars to a HashMap<String, String>
-                let mut env_map = HashMap::new();
-                if let Some(env_obj) = env.as_object() {
-                    for (key, value) in env_obj {
-                        // Extract the value as a string
-                        let value_str = match value {
-                            Value::String(s) => s.clone(),
-                            Value::Number(n) => n.to_string(),
-                            Value::Bool(b) => b.to_string(),
-                            _ => {
-                                // For objects, check if it has a description field (which means it's a template)
-                                if let Value::Object(obj) = value {
-                                    if obj.contains_key("description") {
-                                        // This is a template, so we don't have a value yet
-                                        continue;
-                                    }
-                                }
-                                // For other types, convert to JSON string
-                                value.to_string()
-                            }
-                        };
-                        info!(
-                            "Setting environment variable for tool {}: {}={}",
-                            tool_id, key, value_str
-                        );
-                        env_map.insert(key.clone(), value_str);
-                    }
-                }
+        let env_vars = if let Some(config) = &tool_data.config {
+            if let Some(env_map) = &config.env {
                 info!(
                     "Extracted {} environment variables for tool {}",
                     env_map.len(),
                     tool_id
                 );
-                Some(env_map)
+                for (key, value) in env_map {
+                    info!(
+                        "Setting environment variable for tool {}: {}={}",
+                        tool_id, key, value
+                    );
+                }
+                Some(env_map.clone())
             } else {
                 info!("No environment variables found for tool {}", tool_id);
                 None
@@ -274,10 +302,13 @@ impl ToolRegistry {
         };
 
         // Get the configuration from the tool data
-        let config_value = if let Some(configuration) = tool_data.get("configuration") {
+        let config_value = if let Some(configuration) = &tool_data.configuration {
             // Use the configuration directly
             info!("Using configuration from tool data for {}", tool_id);
-            configuration.clone()
+            json!({
+                "command": configuration.command,
+                "args": configuration.args
+            })
         } else if !entry_point.is_empty() {
             // If no configuration but entry_point exists, create a simple config
             info!(
@@ -287,13 +318,13 @@ impl ToolRegistry {
             json!({
                 "command": entry_point
             })
-        } else if let Some(config) = tool_data.get("config") {
+        } else if let Some(config) = &tool_data.config {
             // Try to use config if it exists
-            if let Some(command) = config.get("command") {
+            if let Some(command) = &config.command {
                 info!("Using command from config for {}: {}", tool_id, command);
                 json!({
                     "command": command,
-                    "args": config.get("args").unwrap_or(&json!([]))
+                    "args": config.args.clone().unwrap_or_default()
                 })
             } else {
                 error!("Missing command in configuration for tool {}", tool_id);
@@ -367,6 +398,54 @@ impl ToolRegistry {
             }
         }
     }
+
+    pub async fn init_mcp_server(mcp_state: MCPState) {
+        info!("Starting background initialization of MCP services");
+
+        // Use the existing initialize_mcp_state function which handles loading from DB and restarting tools
+        let initialized_state = ToolRegistry::init_mcp_state().await;
+
+        // Copy the initialized data to our existing state
+        {
+            let initialized_registry = initialized_state.tool_registry.read().await;
+            let mut current_registry = mcp_state.tool_registry.write().await;
+
+            // Copy the tools data
+            current_registry.tools = initialized_registry.tools.clone();
+
+            // For processes, we need special handling
+            // Since we can't directly copy the processes, we'll use the restart_tool method on the registry
+            // to respawn processes for tools that were running
+            let tool_ids_to_restart: Vec<String> = initialized_registry
+                .tools
+                .iter()
+                .filter_map(|(tool_id, metadata)| {
+                    if metadata.enabled {
+                        info!("Found enabled tool: {}", tool_id);
+                        Some(tool_id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Release the read lock before proceeding
+            drop(initialized_registry);
+
+            // Now restart each tool
+            for tool_id in tool_ids_to_restart {
+                info!("Respawning process for tool: {}", tool_id);
+                match current_registry.restart_tool(&tool_id).await {
+                    Ok(()) => {
+                        info!("Successfully spawned process for tool: {}", tool_id);
+                    }
+                    Err(e) => {
+                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Shared state for MCP tools
@@ -431,10 +510,7 @@ pub struct ToolConfigUpdateRequest {
 }
 
 /// MCP tool config
-#[derive(Deserialize)]
-pub struct ToolConfig {
-    env: HashMap<String, String>,
-}
+// Using the ToolConfig struct defined earlier
 
 /// MCP tool config update response
 #[derive(Serialize)]
@@ -1097,48 +1173,29 @@ pub async fn register_tool(
     let tool_id = format!("tool_{}", registry.tools.len() + 1);
     info!("Generated tool ID: {}", tool_id);
 
-    // Store the tool definition
-    let mut tool_definition = json!({
-        "name": request.tool_name,
-        "description": request.description,
-        "enabled": true, // Default to enabled
-        "tool_type": request.tool_type,
-        "configuration": request.configuration,
-        "distribution": request.distribution,
-    });
+    // Create the tool configuration if provided
+    let configuration = request
+        .configuration
+        .as_ref()
+        .map(|config| ToolConfiguration {
+            command: config
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+            args: config.get("args").and_then(|v| v.as_array()).map(|args| {
+                args.iter()
+                    .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
+                    .collect()
+            }),
+        });
 
-    // Add authentication if provided
+    // Create the tool config with env variables if provided
+    let mut tool_config = None;
     if let Some(auth) = &request.authentication {
-        // Check if authentication contains environment variables
         if let Some(env) = auth.get("env") {
-            // Store as config.env
-            if let Some(obj) = tool_definition.as_object_mut() {
-                obj.insert(
-                    "config".to_string(),
-                    json!({
-                        "env": env
-                    }),
-                );
-            }
-        } else {
-            // Store as authentication
-            if let Some(obj) = tool_definition.as_object_mut() {
-                obj.insert("authentication".to_string(), auth.clone());
-            }
-        }
-    }
-
-    registry.tools.insert(tool_id.clone(), tool_definition);
-
-    // Create a default empty tools list
-    registry.server_tools.insert(tool_id.clone(), Vec::new());
-
-    // Extract environment variables if they exist
-    let env_vars = if let Some(auth) = &request.authentication {
-        if let Some(env) = auth.get("env") {
-            // Convert the JSON env vars to a HashMap<String, String>
-            let mut env_map = HashMap::new();
             if let Some(env_obj) = env.as_object() {
+                let mut env_map = HashMap::new();
                 for (key, value) in env_obj {
                     // Extract the value as a string
                     let value_str = match value {
@@ -1159,23 +1216,58 @@ pub async fn register_tool(
                     };
                     env_map.insert(key.clone(), value_str);
                 }
+                tool_config = Some(ToolConfig {
+                    env: Some(env_map),
+                    command: None,
+                    args: None,
+                });
             }
-            Some(env_map)
-        } else {
-            None
         }
+    }
+
+    // Create the Tool struct
+    let tool = Tool {
+        name: request.tool_name.clone(),
+        description: request.description.clone(),
+        enabled: true, // Default to enabled
+        tool_type: request.tool_type.clone(),
+        entry_point: None,
+        configuration,
+        distribution: request.distribution.clone(),
+        config: tool_config,
+        authentication: request.authentication.clone(),
+    };
+
+    registry.tools.insert(tool_id.clone(), tool.clone());
+
+    // Create a default empty tools list
+    registry.server_tools.insert(tool_id.clone(), Vec::new());
+
+    // Extract environment variables from the tool config
+    let env_vars = if let Some(config) = &tool.config {
+        config.env.clone()
     } else {
         None
     };
 
-    // Ensure configuration exists before passing to spawn process
-    let config = match &request.configuration {
-        Some(config) => config,
-        None => return Err("Configuration is required for tools".to_string()),
-    };
-
     // Create the config_value for the spawn functions
-    let config_value = config.clone();
+    let config_value = if let Some(configuration) = &tool.configuration {
+        json!({
+            "command": configuration.command,
+            "args": configuration.args
+        })
+    } else if let Some(config) = &tool.config {
+        if let Some(command) = &config.command {
+            json!({
+                "command": command,
+                "args": config.args.clone().unwrap_or_default()
+            })
+        } else {
+            return Err("Configuration is required for tools".to_string());
+        }
+    } else {
+        return Err("Configuration is required for tools".to_string());
+    };
 
     // Spawn process based on tool type
     let spawn_result = match request.tool_type.as_str() {
@@ -1297,16 +1389,72 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
     let registry = mcp_state.tool_registry.read().await;
     let mut tools = Vec::new();
 
-    for (id, tool_value) in registry.tools.iter() {
-        // Clone the value so we can modify it
-        let mut tool = tool_value.clone();
+    for (id, tool_struct) in registry.tools.iter() {
+        // Convert the Tool struct to a Value
+        let mut tool_value = json!({
+            "name": tool_struct.name,
+            "description": tool_struct.description,
+            "enabled": tool_struct.enabled,
+            "tool_type": tool_struct.tool_type,
+            "id": id,
+        });
 
-        // Ensure the tool has an ID field
-        if let Some(obj) = tool.as_object_mut() {
-            obj.insert("id".to_string(), json!(id));
+        // Add optional fields if they exist
+        if let Some(entry_point) = &tool_struct.entry_point {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("entry_point".to_string(), json!(entry_point));
+            }
+        }
 
-            // Add process status
-            let process_running = registry.processes.get(id).is_some_and(|p| p.is_some());
+        if let Some(configuration) = &tool_struct.configuration {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert(
+                    "configuration".to_string(),
+                    json!({
+                        "command": configuration.command,
+                        "args": configuration.args
+                    }),
+                );
+            }
+        }
+
+        if let Some(distribution) = &tool_struct.distribution {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("distribution".to_string(), distribution.clone());
+            }
+        }
+
+        if let Some(config) = &tool_struct.config {
+            if let Some(obj) = tool_value.as_object_mut() {
+                let mut config_json = json!({});
+                if let Some(env) = &config.env {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("env".to_string(), json!(env));
+                    }
+                }
+                if let Some(command) = &config.command {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("command".to_string(), json!(command));
+                    }
+                }
+                if let Some(args) = &config.args {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("args".to_string(), json!(args));
+                    }
+                }
+                obj.insert("config".to_string(), config_json);
+            }
+        }
+
+        if let Some(authentication) = &tool_struct.authentication {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("authentication".to_string(), authentication.clone());
+            }
+        }
+
+        // Add process status - check the processes map
+        if let Some(obj) = tool_value.as_object_mut() {
+            let process_running = registry.processes.contains_key(id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
@@ -1317,7 +1465,7 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
 
-        tools.push(tool);
+        tools.push(tool_value);
     }
     Ok(tools)
 }
@@ -1453,18 +1601,8 @@ pub async fn update_tool_status(
 
         if let Some(tool) = registry.tools.get(&request.tool_id) {
             // Extract and clone the necessary values
-            let tool_type = tool
-                .get("tool_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let entry_point = tool
-                .get("entry_point")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
+            let tool_type = tool.tool_type.clone();
+            let entry_point = tool.entry_point.clone().unwrap_or_default();
             let process_running = registry
                 .processes
                 .get(&request.tool_id)
@@ -1490,9 +1628,7 @@ pub async fn update_tool_status(
 
         // Update the enabled status in the tool definition
         if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-            if let Some(obj) = tool.as_object_mut() {
-                obj.insert("enabled".to_string(), json!(request.enabled));
-            }
+            tool.enabled = request.enabled;
         }
 
         // Drop the write lock before trying to restart the tool
@@ -1548,10 +1684,7 @@ pub async fn update_tool_config(
     let (tool_exists, is_enabled) = {
         let registry = mcp_state.tool_registry.read().await;
         let tool = registry.tools.get(&request.tool_id);
-        let enabled = tool
-            .and_then(|t| t.get("enabled"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let enabled = tool.map(|t| t.enabled).unwrap_or(false);
         (tool.is_some(), enabled)
     };
 
@@ -1571,22 +1704,30 @@ pub async fn update_tool_config(
 
     // Update the configuration in the tool definition
     if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-        if let Some(obj) = tool.as_object_mut() {
-            // Create or update the config object
-            let config = obj.entry("config").or_insert(json!({}));
+        // Create or update the config object
+        if tool.config.is_none() {
+            tool.config = Some(ToolConfig {
+                env: Some(HashMap::new()),
+                command: None,
+                args: None,
+            });
+        }
 
-            if let Some(config_obj) = config.as_object_mut() {
-                // Create or update the env object
-                let env = config_obj.entry("env").or_insert(json!({}));
+        if let Some(config) = &mut tool.config {
+            // Create or update the env object
+            if config.env.is_none() {
+                config.env = Some(HashMap::new());
+            }
 
-                if let Some(env_obj) = env.as_object_mut() {
-                    // Update each environment variable
-                    for (key, value) in &request.config.env {
+            if let Some(env_map) = &mut config.env {
+                // Update each environment variable
+                if let Some(req_env) = &request.config.env {
+                    for (key, value) in req_env {
                         info!(
                             "Setting environment variable for tool {}: {}={}",
                             request.tool_id, key, value
                         );
-                        env_obj.insert(key.clone(), json!(value));
+                        env_map.insert(key.clone(), value.clone());
                     }
                 }
             }
@@ -1655,22 +1796,72 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
     // 1. Get registered servers
     let mut servers = Vec::new();
-    for (id, tool_value) in registry.tools.iter() {
-        // Clone the value so we can modify it
-        let mut tool = tool_value.clone();
+    for (id, tool_struct) in registry.tools.iter() {
+        // Convert the Tool struct to a Value
+        let mut tool_value = json!({
+            "name": tool_struct.name,
+            "description": tool_struct.description,
+            "enabled": tool_struct.enabled,
+            "tool_type": tool_struct.tool_type,
+            "id": id,
+        });
 
-        // Ensure the tool has an ID field
-        if let Some(obj) = tool.as_object_mut() {
-            obj.insert("id".to_string(), json!(id));
+        // Add optional fields if they exist
+        if let Some(entry_point) = &tool_struct.entry_point {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("entry_point".to_string(), json!(entry_point));
+            }
+        }
 
-            // Add process status - check both the processes map and the tool data
-            let process_running_in_map = registry.processes.get(id).is_some_and(|p| p.is_some());
-            let process_running_in_data = tool_value
-                .get("process_running")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            let process_running = process_running_in_map || process_running_in_data;
+        if let Some(configuration) = &tool_struct.configuration {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert(
+                    "configuration".to_string(),
+                    json!({
+                        "command": configuration.command,
+                        "args": configuration.args
+                    }),
+                );
+            }
+        }
 
+        if let Some(distribution) = &tool_struct.distribution {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("distribution".to_string(), distribution.clone());
+            }
+        }
+
+        if let Some(config) = &tool_struct.config {
+            if let Some(obj) = tool_value.as_object_mut() {
+                let mut config_json = json!({});
+                if let Some(env) = &config.env {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("env".to_string(), json!(env));
+                    }
+                }
+                if let Some(command) = &config.command {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("command".to_string(), json!(command));
+                    }
+                }
+                if let Some(args) = &config.args {
+                    if let Some(config_obj) = config_json.as_object_mut() {
+                        config_obj.insert("args".to_string(), json!(args));
+                    }
+                }
+                obj.insert("config".to_string(), config_json);
+            }
+        }
+
+        if let Some(authentication) = &tool_struct.authentication {
+            if let Some(obj) = tool_value.as_object_mut() {
+                obj.insert("authentication".to_string(), authentication.clone());
+            }
+        }
+
+        // Add process status - check the processes map
+        if let Some(obj) = tool_value.as_object_mut() {
+            let process_running = registry.processes.contains_key(id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
@@ -1681,7 +1872,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
 
-        servers.push(tool);
+        servers.push(tool_value);
     }
 
     // 2. Get all server tools

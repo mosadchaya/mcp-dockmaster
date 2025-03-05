@@ -1,11 +1,10 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
-    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
-    update_tool_status,
+    execute_tool, get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command,
+    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
+    update_tool_config, update_tool_status,
 };
 use log::{error, info};
-use mcp_core::http_server::start_http_server;
 use mcp_core::mcp_proxy::{MCPState, ToolRegistry};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent};
@@ -67,56 +66,31 @@ fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     }
 }
 
-async fn init_mcp_services() -> MCPState {
-    // Initialize MCP state from database
-    let mcp_state = MCPState::default();
-    let http_state = Arc::new(RwLock::new(mcp_state.clone()));
+fn init_services(
+    app_handle: tauri::AppHandle,
+    http_state: Arc<RwLock<MCPState>>,
+    mcp_state: MCPState,
+) {
+    tokio::spawn(async move {
+        mcp_core::http_server::start_http_server(http_state).await;
+        mcp_core::mcp_proxy::ToolRegistry::init_mcp_server(mcp_state).await;
 
-    info!("Starting MCP HTTP server...");
-    start_http_server(http_state).await;
-    info!("MCP HTTP server started");
+        // Start the process monitor
+        // ToolRegistry::start_process_monitor(mcp_state.clone());
+        // info!("Process monitor started");
 
-    mcp_state
-}
+        // Set the initialization complete flag
+        commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
 
-/// Initialize MCP services in the background after the UI has started
-async fn init_mcp_services_background(mcp_state: MCPState) {
-    info!("Starting background initialization of MCP services...");
+        info!("Background initialization of MCP services completed");
 
-    // Use the existing initialize_mcp_state function which handles loading from DB and restarting tools
-    let initialized_state = ToolRegistry::init_mcp_state().await;
-
-    // Copy the initialized data to our existing state
-    {
-        let initialized_registry = initialized_state.tool_registry.read().await;
-        let mut current_registry = mcp_state.tool_registry.write().await;
-
-        // Copy the tools and server_tools data
-        current_registry.tools = initialized_registry.tools.clone();
-        current_registry.server_tools = initialized_registry.server_tools.clone();
-
-        // Mark processes as running in the tool data if they are running in the initialized state
-        for (tool_id, process_opt) in &initialized_registry.processes {
-            let is_running = process_opt.is_some();
-            if is_running {
-                // Update the tool data to mark it as running
-                if let Some(tool_data) = current_registry.tools.get_mut(tool_id) {
-                    if let Some(obj) = tool_data.as_object_mut() {
-                        // Set a flag in the tool data to indicate it's running
-                        obj.insert("process_running".to_string(), serde_json::json!(true));
-                    }
-                }
-
-                // Also update the processes map with None to indicate it's running
-                current_registry.processes.insert(tool_id.clone(), None);
-            }
+        // Emit an event to notify the frontend that initialization is complete
+        if let Err(e) = app_handle.emit("mcp-initialization-complete", ()) {
+            error!("Failed to emit initialization complete event: {}", e);
+        } else {
+            info!("Emitted initialization complete event");
         }
-    }
-
-    // Set the initialization complete flag
-    commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
-
-    info!("Background initialization of MCP services completed");
+    });
 }
 
 #[cfg(target_os = "macos")]
@@ -151,8 +125,8 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = init_mcp_services().await;
-    let mcp_state_clone = mcp_state.clone();
+    let mcp_state = MCPState::default();
+    let http_state = Arc::new(RwLock::new(mcp_state.clone()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -162,16 +136,7 @@ pub async fn run() {
 
             // Start background initialization after the UI has started
             let app_handle = app.handle().clone();
-            tokio::spawn(async move {
-                init_mcp_services_background(mcp_state_clone).await;
-
-                // Emit an event to notify the frontend that initialization is complete
-                if let Err(e) = app_handle.emit("mcp-initialization-complete", ()) {
-                    error!("Failed to emit initialization complete event: {}", e);
-                } else {
-                    info!("Emitted initialization complete event");
-                }
-            });
+            init_services(app_handle, http_state, mcp_state);
 
             Ok(())
         })
