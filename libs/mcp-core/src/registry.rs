@@ -128,16 +128,13 @@ impl ToolRegistry {
     pub async fn restart_all_tools(&mut self) -> MCPResult<Vec<MCPResult<()>>> {
         // Collect tool IDs first
         let tool_ids: Vec<_> = self.tools.keys().cloned().collect();
-        
+
         // Process each tool sequentially to avoid borrow checker issues
         let mut results = Vec::new();
         for id in tool_ids {
-            let result = tokio::time::timeout(
-                Duration::from_secs(30),
-                self.restart_tool(&id)
-            )
-            .await
-            .unwrap_or_else(|_| Err(MCPError::TimeoutError(id.to_string())));
+            let result = tokio::time::timeout(Duration::from_secs(30), self.restart_tool(&id))
+                .await
+                .unwrap_or_else(|_| Err(MCPError::TimeoutError(id.to_string())));
             results.push(result);
         }
 
@@ -205,6 +202,8 @@ impl ToolRegistry {
 
 #[cfg(test)]
 mod tests {
+    use crate::{ToolConfiguration, ToolType};
+
     use super::*;
 
     #[tokio::test]
