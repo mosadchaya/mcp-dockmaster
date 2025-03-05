@@ -1415,12 +1415,15 @@ pub async fn execute_proxy_tool(
 ) -> Result<ToolExecutionResponse, String> {
     // Extract server_id and tool_id from the proxy_id
     let parts: Vec<&str> = request.tool_id.split(':').collect();
+    println!("parts: {:?}", parts);
     if parts.len() != 2 {
         return Err("Invalid tool_id format. Expected 'server_id:tool_id'".to_string());
     }
 
     let server_id = parts[0];
+    println!("server_id: {}", server_id);
     let tool_id = parts[1];
+    println!("tool_id: {}", tool_id);
 
     // Execute the tool on the server
     let mut registry = mcp_state.tool_registry.write().await;

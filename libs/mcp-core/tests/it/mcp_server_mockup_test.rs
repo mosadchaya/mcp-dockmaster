@@ -1,7 +1,5 @@
-use mcp_core::error::{MCPError, MCPResult};
-use mcp_core::mcp_proxy::{self, MCPState, ToolRegistry};
+use mcp_core::mcp_proxy::{self, MCPState, ToolExecutionRequest, ToolRegistry};
 use serde_json::json;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -52,14 +50,32 @@ mod tests {
             mcp_proxy::register_tool(&mcp_state, serde_json::from_value(request).unwrap()).await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
+        eprintln!("Received tool_id from registration: {}", tool_id);
+
+        // List all available tools
+        let all_tools = mcp_proxy::list_all_server_tools(&mcp_state).await?;
+        eprintln!(
+            "Available tools: {}",
+            serde_json::to_string_pretty(&all_tools).unwrap()
+        );
+
         // Execute tool
-        let exec_request = json!({
-            "tool_id": tool_id,
-            "parameters": {"name": "Test"}
-        });
-        let result =
-            mcp_proxy::execute_tool(&mcp_state, serde_json::from_value(exec_request).unwrap())
-                .await?;
+        let result = mcp_proxy::execute_tool(
+            &mcp_state,
+            ToolExecutionRequest {
+                tool_id: tool_id,
+                parameters: json!({
+                    "method": "hello_world"
+                }),
+            },
+        )
+        .await?;
+
+        // Print the execution result
+        eprintln!(
+            "Tool execution result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        );
 
         // Verify result
         if !result.success {
