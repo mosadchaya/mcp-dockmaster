@@ -1,4 +1,4 @@
-use crate::mcp_proxy::ToolRegistry;
+use crate::mcp_proxy::LegacyToolRegistry;
 use directories::ProjectDirs;
 use log::info;
 use rusqlite::{params, Connection};
@@ -62,7 +62,7 @@ impl DatabaseManager {
     }
 
     /// Save tool registry to database
-    pub fn save_tool_registry(&mut self, registry: &ToolRegistry) -> Result<(), String> {
+    pub fn save_tool_registry(&mut self, registry: &LegacyToolRegistry) -> Result<(), String> {
         // Begin transaction
         let tx = self
             .conn
@@ -80,7 +80,7 @@ impl DatabaseManager {
 
             tx.execute(
                 "INSERT INTO tools (id, data) VALUES (?1, ?2)",
-                params![tool_id, tool_json],
+                params![tool_id.to_string(), tool_json],
             )
             .map_err(|e| format!("Failed to insert tool: {}", e))?;
         }
@@ -96,7 +96,7 @@ impl DatabaseManager {
 
             tx.execute(
                 "INSERT INTO server_tools (server_id, tool_data) VALUES (?1, ?2)",
-                params![server_id, tools_json],
+                params![server_id.to_string(), tools_json],
             )
             .map_err(|e| format!("Failed to insert server tools: {}", e))?;
         }
@@ -110,8 +110,8 @@ impl DatabaseManager {
     }
 
     /// Load tool registry from database
-    pub fn load_tool_registry(&self) -> Result<ToolRegistry, String> {
-        let mut registry = ToolRegistry::default();
+    pub fn load_tool_registry(&self) -> Result<LegacyToolRegistry, String> {
+        let mut registry = LegacyToolRegistry::default();
 
         // Load tools
         let mut stmt = self
@@ -132,6 +132,7 @@ impl DatabaseManager {
 
         for tool_result in tool_rows {
             let (id, data) = tool_result.map_err(|e| format!("Failed to read tool row: {}", e))?;
+            // Store the data with string ID
             registry.tools.insert(id, data);
         }
 
@@ -155,6 +156,7 @@ impl DatabaseManager {
         for server_result in server_rows {
             let (server_id, tools) =
                 server_result.map_err(|e| format!("Failed to read server tools row: {}", e))?;
+            // Store with string ID
             registry.server_tools.insert(server_id, tools);
         }
 

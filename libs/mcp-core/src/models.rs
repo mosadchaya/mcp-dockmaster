@@ -1,3 +1,4 @@
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -36,7 +37,25 @@ impl fmt::Display for ToolId {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+impl ToSql for ToolId {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(self.0.clone()))
+    }
+}
+
+impl FromSql for ToolId {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value {
+            ValueRef::Text(s) => {
+                let s = std::str::from_utf8(s).map_err(|_| FromSqlError::InvalidType)?;
+                Ok(ToolId::new(s.to_string()))
+            }
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ToolConfiguration {
     pub command: String,
     pub args: Option<Vec<String>>,
@@ -134,7 +153,7 @@ pub struct DiscoverServerToolsResponse {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ToolMetadata {
     pub name: String,
     pub description: String,
@@ -143,4 +162,4 @@ pub struct ToolMetadata {
     pub configuration: Option<ToolConfiguration>,
     pub process_running: bool,
     pub tool_count: usize,
-} 
+}        

@@ -3,7 +3,7 @@ use tauri::{Manager, RunEvent, Emitter};
 use tokio::sync::RwLock;
 use log::{info, error};
 use mcp_core::http_server::start_http_server;
-use mcp_core::mcp_proxy::{MCPState, ToolRegistry};
+use mcp_core::registry::{MCPState, ToolRegistry};
 use crate::features::mcp_proxy::{register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_all_server_data, save_mcp_state_command, load_mcp_state_command, check_database_exists_command, clear_database_command, restart_tool_command};
 use tray::create_tray;
 
@@ -92,10 +92,8 @@ async fn init_mcp_services_background(mcp_state: MCPState) {
             if is_running {
                 // Update the tool data to mark it as running
                 if let Some(tool_data) = current_registry.tools.get_mut(tool_id) {
-                    if let Some(obj) = tool_data.as_object_mut() {
-                        // Set a flag in the tool data to indicate it's running
-                        obj.insert("process_running".to_string(), serde_json::json!(true));
-                    }
+                    // Set the process_running flag directly on the ToolMetadata struct
+                    tool_data.process_running = true;
                 }
                 
                 // Also update the processes map with None to indicate it's running

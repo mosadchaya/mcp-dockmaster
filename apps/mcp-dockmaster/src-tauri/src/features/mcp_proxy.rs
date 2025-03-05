@@ -1,6 +1,7 @@
 use tauri::State;
+use mcp_core::registry::MCPState;
 use mcp_core::mcp_proxy::{
-    MCPState, ToolRegistrationRequest, ToolRegistrationResponse, ToolExecutionRequest, 
+    ToolRegistrationRequest, ToolRegistrationResponse, ToolExecutionRequest, 
     ToolExecutionResponse, ToolUpdateRequest, ToolUpdateResponse, ToolConfigUpdateRequest, 
     ToolConfigUpdateResponse, ToolUninstallRequest, ToolUninstallResponse, DiscoverServerToolsRequest, 
     DiscoverServerToolsResponse
