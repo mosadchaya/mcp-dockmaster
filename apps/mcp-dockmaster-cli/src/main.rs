@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use mcp_core::{init_logging, MCPState, mcp_proxy};
+use mcp_core::{init_logging, mcp_proxy::{self, MCPState}};
 use serde_json::{json, Value};
 use log::{info, error};
 use std::collections::HashMap;
