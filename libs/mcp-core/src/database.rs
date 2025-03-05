@@ -132,7 +132,10 @@ impl DatabaseManager {
 
         for tool_result in tool_rows {
             let (id, data) = tool_result.map_err(|e| format!("Failed to read tool row: {}", e))?;
-            registry.tools.insert(id, data);
+            // Deserialize the Value into a Tool struct
+            let tool: crate::mcp_proxy::Tool = serde_json::from_value(data)
+                .map_err(|e| format!("Failed to deserialize tool data: {}", e))?;
+            registry.tools.insert(id, tool);
         }
 
         // Load server tools
