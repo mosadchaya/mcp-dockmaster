@@ -1,5 +1,5 @@
 use crate::error::{MCPError, MCPResult};
-use crate::models::{ToolConfiguration, ToolId, ToolType};
+use crate::models::models::{ToolConfiguration, ToolId, ToolType};
 use log::{error, info};
 use serde_json::json;
 use std::collections::HashMap;
@@ -218,4 +218,4 @@ impl ProcessManager {
             Err(_) => Err(MCPError::TimeoutError("Response timeout".to_string())),
         }
     }
-} 
+}

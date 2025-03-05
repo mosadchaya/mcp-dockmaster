@@ -1,11 +1,11 @@
 use crate::error::{MCPError, MCPResult};
-use crate::models::{ToolId, ToolMetadata, ToolRegistrationRequest, ToolRegistrationResponse};
+use crate::models::models::{
+    ToolId, ToolMetadata, ToolRegistrationRequest, ToolRegistrationResponse,
+};
 use crate::process::ProcessManager;
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use tokio::time::Duration;
 
 #[derive(Default)]
@@ -13,11 +13,6 @@ pub struct ToolRegistry {
     pub tools: HashMap<ToolId, ToolMetadata>,
     pub processes: HashMap<ToolId, Option<ProcessManager>>,
     pub server_tools: HashMap<ToolId, Vec<Value>>,
-}
-
-#[derive(Clone, Default)]
-pub struct MCPState {
-    pub tool_registry: Arc<RwLock<ToolRegistry>>,
 }
 
 impl ToolRegistry {
@@ -202,7 +197,7 @@ impl ToolRegistry {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ToolConfiguration, ToolType};
+    use crate::models::models::{ToolConfiguration, ToolType};
 
     use super::*;
 

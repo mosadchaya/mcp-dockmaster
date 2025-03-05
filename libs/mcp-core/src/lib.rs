@@ -2,6 +2,7 @@ pub mod database;
 pub mod error;
 pub mod http_server;
 pub mod mcp_proxy;
+pub mod mcp_state;
 pub mod models;
 pub mod process;
 pub mod registry;
@@ -11,7 +12,7 @@ pub use database::DatabaseManager;
 pub use error::{MCPError, MCPResult};
 pub use models::*;
 pub use process::ProcessManager;
-pub use registry::{MCPState, ToolRegistry};
+pub use registry::ToolRegistry;
 
 // Initialize logging
 pub fn init_logging() {
