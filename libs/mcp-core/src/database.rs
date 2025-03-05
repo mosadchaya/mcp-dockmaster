@@ -399,7 +399,7 @@ mod tests {
         let mut registry = ToolRegistry::default();
         registry.tools.insert(
             "test_tool".to_string(),
-            Tool {
+            crate::mcp_proxy::Tool {
                 name: "test_tool".to_string(),
                 description: "".to_string(),
                 enabled: true,
@@ -449,7 +449,7 @@ mod tests {
             let mut registry = ToolRegistry::default();
             registry.tools.insert(
                 "test_tool".to_string(),
-                Tool {
+                crate::mcp_proxy::Tool {
                     name: "test_tool".to_string(),
                     description: "".to_string(),
                     enabled: true,
