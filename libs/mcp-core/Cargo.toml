@@ -22,4 +22,7 @@ directories = "6.0.0"
 
 [lib]
 name = "mcp_core"
-path = "src/lib.rs" 
+path = "src/lib.rs"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full", "test-util"] } 

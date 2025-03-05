@@ -1,0 +1,35 @@
+{
+  "name": "@dcspark/mcp-server-hello-world",
+  "version": "0.1.0",
+  "description": "A Model Context Protocol server example with hello world methods",
+  "license": "MIT",
+  "author": "DC Spark <hello@dcspark.io>",
+  "bugs": "https://github.com/dcspark/mcp-server-hello-world/issues",
+  "homepage": "https://github.com/dcspark/mcp-server-hello-world",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dcspark/mcp-server-hello-world.git"
+  },
+  "type": "module",
+  "bin": {
+    "mcp-server-hello-world": "build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "test": "npm run build && TEST_MODE=true node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.8.2",
+    "tsx": "^4.7.0"
+  }
+}

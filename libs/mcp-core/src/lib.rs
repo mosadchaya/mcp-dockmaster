@@ -18,11 +18,6 @@ pub fn init_logging() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_secs()
         .init();
-    
-    log::info!("MCP Core library initialized");
-}
 
-#[cfg(test)]
-mod tests {
-    mod mcp_server_mockup_test;
+    log::info!("MCP Core library initialized");
 }

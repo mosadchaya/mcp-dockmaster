@@ -69,7 +69,9 @@ impl ToolRegistry {
                 info!("Successfully loaded MCP state from database");
 
                 // Restart enabled tools
-                let tools_to_restart: Vec<String> = registry.tools.iter()
+                let tools_to_restart: Vec<String> = registry
+                    .tools
+                    .iter()
                     .filter_map(|(tool_id, tool_data)| {
                         if let Some(enabled) = tool_data.get("enabled").and_then(|v| v.as_bool()) {
                             if enabled {
@@ -79,9 +81,9 @@ impl ToolRegistry {
                         None
                     })
                     .collect();
-                
+
                 drop(registry); // Release the lock before restarting tools
-                
+
                 for tool_id in tools_to_restart {
                     let mut registry = mcp_state.tool_registry.write().await;
                     let _ = registry.restart_tool(&tool_id).await;
@@ -387,24 +389,24 @@ pub struct ToolRegistrationRequest {
 /// MCP tool registration response
 #[derive(Serialize)]
 pub struct ToolRegistrationResponse {
-    success: bool,
-    message: String,
-    tool_id: Option<String>,
+    pub success: bool,
+    pub message: String,
+    pub tool_id: Option<String>,
 }
 
 /// MCP tool execution request
 #[derive(Deserialize)]
 pub struct ToolExecutionRequest {
-    tool_id: String,
-    parameters: Value,
+    pub tool_id: String,
+    pub parameters: Value,
 }
 
 /// MCP tool execution response
 #[derive(Serialize)]
 pub struct ToolExecutionResponse {
-    success: bool,
-    result: Option<Value>,
-    error: Option<String>,
+    pub success: bool,
+    pub result: Option<Value>,
+    pub error: Option<String>,
 }
 
 /// MCP tool update request
