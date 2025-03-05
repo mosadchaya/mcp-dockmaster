@@ -1,8 +1,11 @@
-use mcp_core::mcp_proxy::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, MCPState, ToolConfigUpdateRequest,
-    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolRegistrationRequest,
-    ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest,
-    ToolUpdateResponse,
+use mcp_core::{
+    mcp_state::MCPState,
+    models::models::{
+        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolConfigUpdateRequest,
+        ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
+        ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
+        ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+    },
 };
 use serde_json::Value;
 use tauri::State;

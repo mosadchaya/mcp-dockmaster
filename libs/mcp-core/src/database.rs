@@ -1,4 +1,3 @@
-use crate::mcp_proxy::ToolRegistry;
 use directories::ProjectDirs;
 use log::info;
 use r2d2::Pool;
@@ -9,6 +8,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+
+use crate::models::models::Tool;
+use crate::registry::ToolRegistry;
 
 /// Database manager for persisting application state
 pub struct DatabaseManager {
@@ -175,7 +177,7 @@ impl DatabaseManager {
         for tool_result in tool_rows {
             let (id, data) = tool_result.map_err(|e| format!("Failed to read tool row: {}", e))?;
             // Deserialize the Value into a Tool struct
-            let tool: crate::mcp_proxy::Tool = serde_json::from_value(data)
+            let tool: Tool = serde_json::from_value(data)
                 .map_err(|e| format!("Failed to deserialize tool data: {}", e))?;
             registry.tools.insert(id, tool);
         }
@@ -352,7 +354,7 @@ mod tests {
 
         // Create a sample tool registry
         let mut registry = ToolRegistry::default();
-        let tool = crate::mcp_proxy::Tool {
+        let tool = Tool {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
@@ -399,7 +401,7 @@ mod tests {
         let mut registry = ToolRegistry::default();
         registry.tools.insert(
             "test_tool".to_string(),
-            crate::mcp_proxy::Tool {
+            Tool {
                 name: "test_tool".to_string(),
                 description: "".to_string(),
                 enabled: true,
@@ -449,7 +451,7 @@ mod tests {
             let mut registry = ToolRegistry::default();
             registry.tools.insert(
                 "test_tool".to_string(),
-                crate::mcp_proxy::Tool {
+                Tool {
                     name: "test_tool".to_string(),
                     description: "".to_string(),
                     enabled: true,

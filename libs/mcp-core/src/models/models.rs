@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -36,29 +37,29 @@ impl fmt::Display for ToolId {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct ToolConfiguration {
-    pub command: String,
-    pub args: Option<Vec<String>>,
-    pub env: Option<HashMap<String, String>>,
-}
+// #[derive(Debug, Clone, Default, Deserialize)]
+// pub struct ToolConfiguration {
+//     pub command: String,
+//     pub args: Option<Vec<String>>,
+//     pub env: Option<HashMap<String, String>>,
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolRegistrationRequest {
-    pub tool_name: String,
-    pub description: String,
-    pub authentication: Option<serde_json::Value>,
-    pub tool_type: ToolType,
-    pub configuration: Option<ToolConfiguration>,
-    pub distribution: Option<serde_json::Value>,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToolRegistrationRequest {
+//     pub tool_name: String,
+//     pub description: String,
+//     pub authentication: Option<serde_json::Value>,
+//     pub tool_type: ToolType,
+//     pub configuration: Option<ToolConfiguration>,
+//     pub distribution: Option<serde_json::Value>,
+// }
 
-#[derive(Debug, Serialize)]
-pub struct ToolRegistrationResponse {
-    pub success: bool,
-    pub message: String,
-    pub tool_id: Option<ToolId>,
-}
+// #[derive(Debug, Serialize)]
+// pub struct ToolRegistrationResponse {
+//     pub success: bool,
+//     pub message: String,
+//     pub tool_id: Option<ToolId>,
+// }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -69,41 +70,41 @@ pub enum ToolType {
     Docker,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolExecutionRequest {
-    pub tool_id: ToolId,
-    pub parameters: serde_json::Value,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToolExecutionRequest {
+//     pub tool_id: ToolId,
+//     pub parameters: serde_json::Value,
+// }
 
-#[derive(Debug, Serialize)]
-pub struct ToolExecutionResponse {
-    pub success: bool,
-    pub result: Option<serde_json::Value>,
-    pub error: Option<String>,
-}
+// #[derive(Debug, Serialize)]
+// pub struct ToolExecutionResponse {
+//     pub success: bool,
+//     pub result: Option<serde_json::Value>,
+//     pub error: Option<String>,
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolUpdateRequest {
-    pub tool_id: ToolId,
-    pub enabled: bool,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToolUpdateRequest {
+//     pub tool_id: ToolId,
+//     pub enabled: bool,
+// }
 
-#[derive(Debug, Serialize)]
-pub struct ToolUpdateResponse {
-    pub success: bool,
-    pub message: String,
-}
+// #[derive(Debug, Serialize)]
+// pub struct ToolUpdateResponse {
+//     pub success: bool,
+//     pub message: String,
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolConfigUpdateRequest {
-    pub tool_id: ToolId,
-    pub config: ToolConfig,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToolConfigUpdateRequest {
+//     pub tool_id: ToolId,
+//     pub config: ToolConfig,
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolConfig {
-    pub env: HashMap<String, String>,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToolConfig {
+//     pub env: HashMap<String, String>,
+// }
 
 #[derive(Debug, Serialize)]
 pub struct ToolConfigUpdateResponse {
@@ -111,36 +112,163 @@ pub struct ToolConfigUpdateResponse {
     pub message: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ToolUninstallRequest {
-    pub tool_id: ToolId,
+// #[derive(Debug, Deserialize)]
+// pub struct ToolUninstallRequest {
+//     pub tool_id: ToolId,
+// }
+
+// #[derive(Debug, Serialize)]
+// pub struct ToolUninstallResponse {
+//     pub success: bool,
+//     pub message: String,
+// }
+
+// #[derive(Debug, Deserialize)]
+// pub struct DiscoverServerToolsRequest {
+//     pub server_id: ToolId,
+// }
+
+// #[derive(Debug, Serialize)]
+// pub struct DiscoverServerToolsResponse {
+//     pub success: bool,
+//     pub tools: Option<Vec<serde_json::Value>>,
+//     pub error: Option<String>,
+// }
+
+// #[derive(Debug, Clone, Default)]
+// pub struct ToolMetadata {
+//     pub name: String,
+//     pub description: String,
+//     pub tool_type: ToolType,
+//     pub enabled: bool,
+//     pub configuration: Option<ToolConfiguration>,
+//     pub process_running: bool,
+//     pub tool_count: usize,
+// }
+
+// From mcp_proxy.rs
+
+/// Tool configuration for command and arguments
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolConfiguration {
+    pub command: String,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize)]
+/// Tool config for environment variables and optional command
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolConfig {
+    #[serde(default)]
+    pub env: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+}
+
+/// Tool definition with all properties
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Tool {
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+    pub tool_type: String,
+    #[serde(default)]
+    pub entry_point: Option<String>,
+    #[serde(default)]
+    pub configuration: Option<ToolConfiguration>,
+    #[serde(default)]
+    pub distribution: Option<Value>,
+    #[serde(default)]
+    pub config: Option<ToolConfig>,
+    #[serde(default)]
+    pub authentication: Option<Value>,
+}
+
+// TODO: Add these to the ToolRegistry struct
+//     pub tools: HashMap<ToolId, ToolMetadata>,
+//     pub processes: HashMap<ToolId, Option<ProcessManager>>,
+//     pub server_tools: HashMap<ToolId, Vec<Value>>,
+
+/// MCP tool registration request
+#[derive(Deserialize)]
+pub struct ToolRegistrationRequest {
+    pub tool_name: String,
+    pub description: String,
+    pub authentication: Option<Value>,
+    pub tool_type: String, // "node", "python", "docker"
+    pub configuration: Option<Value>,
+    pub distribution: Option<Value>,
+}
+
+/// MCP tool registration response
+#[derive(Serialize)]
+pub struct ToolRegistrationResponse {
+    pub success: bool,
+    pub message: String,
+    pub tool_id: Option<String>,
+}
+
+/// MCP tool execution request
+#[derive(Deserialize)]
+pub struct ToolExecutionRequest {
+    pub tool_id: String,
+    pub parameters: Value,
+}
+
+/// MCP tool execution response
+#[derive(Serialize)]
+pub struct ToolExecutionResponse {
+    pub success: bool,
+    pub result: Option<Value>,
+    pub error: Option<String>,
+}
+
+/// MCP tool update request
+#[derive(Deserialize)]
+pub struct ToolUpdateRequest {
+    pub tool_id: String,
+    pub enabled: bool,
+}
+
+/// MCP tool update response
+#[derive(Serialize)]
+pub struct ToolUpdateResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// MCP tool config update request
+#[derive(Deserialize)]
+pub struct ToolConfigUpdateRequest {
+    pub tool_id: String,
+    pub config: ToolConfig,
+}
+
+/// MCP tool uninstall request
+#[derive(Deserialize)]
+pub struct ToolUninstallRequest {
+    pub tool_id: String,
+}
+
+/// MCP tool uninstall response
+#[derive(Serialize)]
 pub struct ToolUninstallResponse {
     pub success: bool,
     pub message: String,
 }
 
-#[derive(Debug, Deserialize)]
+/// MCP server discovery request
+#[derive(Deserialize)]
 pub struct DiscoverServerToolsRequest {
-    pub server_id: ToolId,
+    pub server_id: String,
 }
 
-#[derive(Debug, Serialize)]
+/// MCP server discovery response
+#[derive(Serialize)]
 pub struct DiscoverServerToolsResponse {
     pub success: bool,
-    pub tools: Option<Vec<serde_json::Value>>,
+    pub tools: Option<Vec<Value>>,
     pub error: Option<String>,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct ToolMetadata {
-    pub name: String,
-    pub description: String,
-    pub tool_type: ToolType,
-    pub enabled: bool,
-    pub configuration: Option<ToolConfiguration>,
-    pub process_running: bool,
-    pub tool_count: usize,
-} 

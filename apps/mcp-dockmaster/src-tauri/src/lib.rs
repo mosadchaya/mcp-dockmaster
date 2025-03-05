@@ -1,11 +1,11 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    execute_tool, get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command,
-    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
-    update_tool_config, update_tool_status,
+    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
+    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
+    update_tool_status,
 };
 use log::{error, info};
-use mcp_core::mcp_proxy::{MCPState, ToolRegistry};
+use mcp_core::{mcp_state::MCPState, registry::ToolRegistry};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::RwLock;
@@ -73,7 +73,7 @@ fn init_services(
 ) {
     tokio::spawn(async move {
         mcp_core::http_server::start_http_server(http_state).await;
-        mcp_core::mcp_proxy::ToolRegistry::init_mcp_server(mcp_state).await;
+        mcp_core::registry::ToolRegistry::init_mcp_server(mcp_state).await;
 
         // Start the process monitor
         // ToolRegistry::start_process_monitor(mcp_state.clone());

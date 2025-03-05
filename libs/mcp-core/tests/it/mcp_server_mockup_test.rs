@@ -1,10 +1,14 @@
-use mcp_core::mcp_proxy::{self, MCPState, ToolExecutionRequest, ToolRegistry};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[cfg(test)]
 mod tests {
+    use mcp_core::{
+        mcp_proxy, mcp_state::MCPState, models::models::ToolExecutionRequest,
+        registry::ToolRegistry,
+    };
+
     use super::*;
 
     #[tokio::test]

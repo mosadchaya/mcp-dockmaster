@@ -1,5 +1,7 @@
-use crate::error::{MCPError, MCPResult};
-use crate::models::models::{ToolConfiguration, ToolId, ToolType};
+use crate::{
+    error::{MCPError, MCPResult},
+    models::models::{ToolConfiguration, ToolId, ToolType},
+};
 use log::{error, info};
 use serde_json::json;
 use std::collections::HashMap;
