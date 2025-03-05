@@ -150,25 +150,6 @@ impl ToolRegistry {
                 let mut registry = mcp_state.tool_registry.write().await;
                 *registry = registry_data;
                 info!("Successfully loaded MCP state from database");
-
-                // Restart enabled tools
-                let tools_to_restart: Vec<String> = registry
-                    .tools
-                    .iter()
-                    .filter_map(|(tool_id, tool_data)| {
-                        if tool_data.enabled {
-                            return Some(tool_id.clone());
-                        }
-                        None
-                    })
-                    .collect();
-
-                drop(registry); // Release the lock before restarting tools
-
-                for tool_id in tools_to_restart {
-                    let mut registry = mcp_state.tool_registry.write().await;
-                    let _ = registry.restart_tool(&tool_id).await;
-                }
             }
             Err(e) => {
                 // Explicitly close the database connection
@@ -414,6 +395,54 @@ impl ToolRegistry {
             Err(e) => {
                 error!("Failed to spawn process for tool {}: {}", tool_id, e);
                 Err(format!("Failed to spawn process: {}", e))
+            }
+        }
+    }
+
+    pub async fn init_mcp_server(mcp_state: MCPState) {
+        info!("Starting background initialization of MCP services");
+
+        // Use the existing initialize_mcp_state function which handles loading from DB and restarting tools
+        let initialized_state = ToolRegistry::init_mcp_state().await;
+
+        // Copy the initialized data to our existing state
+        {
+            let initialized_registry = initialized_state.tool_registry.read().await;
+            let mut current_registry = mcp_state.tool_registry.write().await;
+
+            // Copy the tools data
+            current_registry.tools = initialized_registry.tools.clone();
+
+            // For processes, we need special handling
+            // Since we can't directly copy the processes, we'll use the restart_tool method on the registry
+            // to respawn processes for tools that were running
+            let tool_ids_to_restart: Vec<String> = initialized_registry
+                .tools
+                .iter()
+                .filter_map(|(tool_id, metadata)| {
+                    if metadata.enabled {
+                        info!("Found enabled tool: {}", tool_id);
+                        Some(tool_id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Release the read lock before proceeding
+            drop(initialized_registry);
+
+            // Now restart each tool
+            for tool_id in tool_ids_to_restart {
+                info!("Respawning process for tool: {}", tool_id);
+                match current_registry.restart_tool(&tool_id).await {
+                    Ok(()) => {
+                        info!("Successfully spawned process for tool: {}", tool_id);
+                    }
+                    Err(e) => {
+                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                    }
+                }
             }
         }
     }
