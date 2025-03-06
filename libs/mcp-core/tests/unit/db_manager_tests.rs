@@ -58,14 +58,13 @@ mod tests {
         // Verify the loaded data matches the original
         assert_eq!(loaded_tool.name, "test_tool");
         assert_eq!(loaded_tool.description, "A test tool");
-        assert_eq!(loaded_tool.enabled, true);
+        assert!(loaded_tool.enabled);
     }
 
     #[test]
     #[serial]
     fn test_get_all_tools() {
         // Create a unique database path for this test
-        use std::path::PathBuf;
         use tempfile::tempdir;
 
         let temp_dir = tempdir().expect("Failed to create temp dir");
