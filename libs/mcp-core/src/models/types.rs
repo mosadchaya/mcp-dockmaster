@@ -57,6 +57,18 @@ pub struct ToolConfiguration {
     pub command: String,
     #[serde(default)]
     pub args: Option<Vec<String>>,
+    #[serde(default)]
+    pub env: Option<HashMap<String, ToolEnvironment>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolEnvironment {
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub required: bool,
 }
 
 /// Tool config for environment variables and optional command
