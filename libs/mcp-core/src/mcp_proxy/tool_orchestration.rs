@@ -37,10 +37,10 @@ pub async fn discover_server_tools(
             
             // If there's a result but we couldn't find tools array, try to use the entire result
             info!("No tools array found, using entire result as fallback");
-            return Ok(vec![result]);
+            Ok(vec![result])
         },
         Err(e) => {
-            return Err(format!("Failed to discover tools: {}", e));
+            Err(format!("Failed to discover tools: {}", e))
         }
     }
 }
