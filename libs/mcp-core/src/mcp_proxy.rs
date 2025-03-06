@@ -27,7 +27,6 @@ use tokio::{
 ///
 /// It focuses on I/O with child processes and doesn't directly manage
 /// which tools are in the database or which tools are enabled.
-
 /// Discover tools available from an MCP server
 pub async fn discover_server_tools(
     server_id: &str,
