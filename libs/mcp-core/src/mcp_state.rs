@@ -5,7 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use crate::mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process};
+use crate::mcp_proxy::tool_orchestration::{discover_server_tools, execute_server_tool};
+use crate::mcp_proxy::process_lifecycle::{kill_process, spawn_process};
 use crate::process_manager::ProcessManager;
 use crate::registry::ToolRegistry;
 use crate::MCPError;

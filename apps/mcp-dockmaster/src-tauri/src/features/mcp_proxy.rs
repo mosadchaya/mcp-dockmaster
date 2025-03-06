@@ -16,19 +16,19 @@ pub async fn register_tool(
     state: State<'_, MCPState>,
     request: ToolRegistrationRequest,
 ) -> Result<ToolRegistrationResponse, String> {
-    mcp_core::mcp_proxy::register_tool(state.inner(), request).await
+    mcp_core::mcp_proxy::registration::register_tool(state.inner(), request).await
 }
 
 /// List all registered tools
 #[tauri::command]
 pub async fn list_tools(state: State<'_, MCPState>) -> Result<Vec<Value>, String> {
-    mcp_core::mcp_proxy::list_tools(state.inner()).await
+    mcp_core::mcp_proxy::registration::list_tools(state.inner()).await
 }
 
 /// List all available tools from all running MCP servers
 #[tauri::command]
 pub async fn list_all_server_tools(state: State<'_, MCPState>) -> Result<Vec<Value>, String> {
-    mcp_core::mcp_proxy::list_all_server_tools(state.inner()).await
+    mcp_core::mcp_proxy::tool_orchestration::list_all_server_tools(state.inner()).await
 }
 
 /// Discover tools from a specific MCP server
@@ -37,7 +37,7 @@ pub async fn discover_tools(
     state: State<'_, MCPState>,
     request: DiscoverServerToolsRequest,
 ) -> Result<DiscoverServerToolsResponse, String> {
-    mcp_core::mcp_proxy::discover_tools(state.inner(), request).await
+    mcp_core::mcp_proxy::tool_orchestration::discover_tools(state.inner(), request).await
 }
 
 /// Execute a tool from an MCP server
@@ -46,7 +46,7 @@ pub async fn execute_proxy_tool(
     state: State<'_, MCPState>,
     request: ToolExecutionRequest,
 ) -> Result<ToolExecutionResponse, String> {
-    mcp_core::mcp_proxy::execute_proxy_tool(state.inner(), request).await
+    mcp_core::mcp_proxy::tool_orchestration::execute_proxy_tool(state.inner(), request).await
 }
 
 /// Update a tool's status (enabled/disabled)
@@ -55,7 +55,7 @@ pub async fn update_tool_status(
     state: State<'_, MCPState>,
     request: ToolUpdateRequest,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core::mcp_proxy::update_tool_status(state.inner(), request).await
+    mcp_core::mcp_proxy::registration::update_tool_status(state.inner(), request).await
 }
 
 /// Update a tool's configuration (environment variables)
@@ -64,7 +64,7 @@ pub async fn update_tool_config(
     state: State<'_, MCPState>,
     request: ToolConfigUpdateRequest,
 ) -> Result<ToolConfigUpdateResponse, String> {
-    mcp_core::mcp_proxy::update_tool_config(state.inner(), request).await
+    mcp_core::mcp_proxy::registration::update_tool_config(state.inner(), request).await
 }
 
 /// Uninstall a registered tool
@@ -73,13 +73,13 @@ pub async fn uninstall_tool(
     state: State<'_, MCPState>,
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
-    mcp_core::mcp_proxy::uninstall_tool(state.inner(), request).await
+    mcp_core::mcp_proxy::registration::uninstall_tool(state.inner(), request).await
 }
 
 /// Get all server data in a single function to avoid multiple locks
 #[tauri::command]
 pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, String> {
-    mcp_core::mcp_proxy::get_all_server_data(state.inner()).await
+    mcp_core::mcp_proxy::registration::get_all_server_data(state.inner()).await
 }
 
 /// Save the MCP state to the database
@@ -101,13 +101,13 @@ pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String
 /// Check if the database exists and has data
 #[tauri::command]
 pub async fn check_database_exists_command() -> Result<bool, String> {
-    mcp_core::mcp_proxy::check_database_exists_command().await
+    mcp_core::mcp_proxy::registration::check_database_exists_command().await
 }
 
 /// Clear all data from the database
 #[tauri::command]
 pub async fn clear_database_command() -> Result<String, String> {
-    mcp_core::mcp_proxy::clear_database_command().await
+    mcp_core::mcp_proxy::registration::clear_database_command().await
 }
 
 /// Restart a tool by its ID
@@ -116,5 +116,5 @@ pub async fn restart_tool_command(
     state: State<'_, MCPState>,
     tool_id: String,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core::mcp_proxy::restart_tool_command(state.inner(), tool_id).await
+    mcp_core::mcp_proxy::registration::restart_tool_command(state.inner(), tool_id).await
 }
