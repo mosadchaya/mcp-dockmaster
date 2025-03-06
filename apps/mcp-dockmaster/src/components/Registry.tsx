@@ -13,6 +13,7 @@ interface RegistryTool {
   id: string;
   name: string;
   description: string;
+  fullDescription: string;
   publisher: {
     id: string;
     name: string;
