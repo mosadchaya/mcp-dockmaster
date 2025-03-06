@@ -50,6 +50,9 @@ pub enum MCPError {
     #[error("Invalid tool ID format: {0}")]
     InvalidToolId(String),
 
+    #[error("Unknown error: {0}")]
+    UnknownError(String),
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

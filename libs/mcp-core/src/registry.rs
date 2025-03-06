@@ -8,7 +8,7 @@ use crate::{
     mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process},
     mcp_state::MCPState,
     models::models::Tool,
-    DBManager, MCPError,
+    DBManager, models::error::MCPError,
 };
 
 pub struct ToolRegistry {
@@ -244,14 +244,19 @@ impl ToolRegistry {
 
         // Update the state with the new registry
         {
-            let mut current_registry = mcp_state.tool_registry.write().await;
-            *current_registry = registry;
-
+            // For backward compatibility, we need to handle this differently
+            // This code will be removed in a future version
+            #[allow(deprecated)]
+            let _tool_repository = mcp_state.tool_repository.clone();
+            
+            // Create a mutable registry for restarting tools
+            let mut mut_registry = registry;
+            
             // Restart enabled tools
             for (tool_id, metadata) in tools {
                 if metadata.enabled {
                     info!("Found enabled tool: {}", tool_id);
-                    match current_registry.restart_tool(&tool_id).await {
+                    match mut_registry.restart_tool(&tool_id).await {
                         Ok(()) => {
                             info!("Successfully spawned process for tool: {}", tool_id);
                         }
@@ -276,11 +281,22 @@ impl ToolRegistry {
             loop {
                 interval.tick().await;
 
-                let registry_clone = mcp_state.tool_registry.clone();
-                let mut registry = registry_clone.write().await;
+                // For backward compatibility, we need to handle this differently
+                // This code will be removed in a future version
+                #[allow(deprecated)]
+                let _tool_repository = mcp_state.tool_repository.clone();
+                
+                // Create a new registry instance for this check
+                let mut registry_instance = match Self::new() {
+                    Ok(registry) => registry,
+                    Err(e) => {
+                        error!("Failed to create registry: {}", e);
+                        continue;
+                    }
+                };
 
                 // Get all tools from database
-                let tools = match registry.get_all_tools() {
+                let tools = match registry_instance.get_all_tools() {
                     Ok(tools) => tools,
                     Err(e) => {
                         error!("Failed to get tools from database: {}", e);
@@ -293,11 +309,11 @@ impl ToolRegistry {
                     if tool.enabled {
                         // Check if process is running
                         let process_running =
-                            registry.processes.get(&id).is_some_and(|p| p.is_some());
+                            registry_instance.processes.get(&id).is_some_and(|p| p.is_some());
 
                         if !process_running {
                             warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
-                            if let Err(e) = registry.restart_tool(&id).await {
+                            if let Err(e) = registry_instance.restart_tool(&id).await {
                                 error!("Failed to restart tool {}: {}", id, e);
                             } else {
                                 info!("Successfully restarted tool: {}", id);
