@@ -1,8 +1,8 @@
+use log::{error, info, warn};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use log::{error, info, warn};
-use serde_json::{json, Value};
 use tokio::sync::RwLock;
 
 use crate::mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process};
@@ -20,6 +20,12 @@ pub struct MCPState {
     pub tool_registry: Arc<RwLock<ToolRegistry>>,
     pub process_manager: Arc<RwLock<ProcessManager>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
+}
+
+impl Default for MCPState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MCPState {
@@ -82,7 +88,10 @@ impl MCPState {
         // Check if the process is already running
         let process_running = {
             let process_manager = self.process_manager.read().await;
-            process_manager.processes.get(tool_id).is_some_and(|p| p.is_some())
+            process_manager
+                .processes
+                .get(tool_id)
+                .is_some_and(|p| p.is_some())
         };
 
         if process_running {
@@ -187,7 +196,9 @@ impl MCPState {
                 info!("Successfully spawned process for tool: {}", tool_id);
                 {
                     let mut process_manager = self.process_manager.write().await;
-                    process_manager.processes.insert(tool_id.to_string(), Some(process));
+                    process_manager
+                        .processes
+                        .insert(tool_id.to_string(), Some(process));
                     process_manager
                         .process_ios
                         .insert(tool_id.to_string(), (stdin, stdout));
@@ -250,10 +261,12 @@ impl MCPState {
                 interval.tick().await;
 
                 // Get all tools from database
-                let tools = match {
+                let tools_result = {
                     let registry = self.tool_registry.read().await;
                     registry.get_all_tools()
-                } {
+                };
+
+                let tools = match tools_result {
                     Ok(tools) => tools,
                     Err(e) => {
                         error!("Failed to get tools from database: {}", e);
@@ -267,7 +280,10 @@ impl MCPState {
                         // Check if process is running
                         let process_running = {
                             let process_manager = self.process_manager.read().await;
-                            process_manager.processes.get(&id_str).is_some_and(|p| p.is_some())
+                            process_manager
+                                .processes
+                                .get(&id_str)
+                                .is_some_and(|p| p.is_some())
                         };
 
                         if !process_running {

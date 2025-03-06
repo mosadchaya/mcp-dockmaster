@@ -178,7 +178,7 @@ impl SpawnedProcess {
         // Capture stderr to a separate task that logs errors
         if let Some(stderr) = child.stderr.take() {
             let tool_id_clone = tool_id.clone();
-            tokio::spawn(async move {
+            std::mem::drop(tokio::spawn(async move {
                 let mut stderr_reader = tokio::io::BufReader::new(stderr);
                 let mut line = String::new();
                 while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
@@ -188,17 +188,17 @@ impl SpawnedProcess {
                     info!("[{} stderr]: {}", tool_id_clone, line.trim());
                     line.clear();
                 }
-            });
+            }));
         }
 
         let stdin = child.stdin.take().ok_or_else(|| {
-            let _ = child.kill();
-            format!("Failed to open stdin")
+            std::mem::drop(child.kill());
+            "Failed to open stdin".to_string()
         })?;
 
         let stdout = child.stdout.take().ok_or_else(|| {
-            let _ = child.kill();
-            format!("Failed to open stdout")
+            std::mem::drop(child.kill());
+            "Failed to open stdout".to_string()
         })?;
 
         info!("Process spawned successfully with stdin and stdout pipes");
