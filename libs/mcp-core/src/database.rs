@@ -17,9 +17,14 @@ pub struct DBManager {
 }
 
 impl DBManager {
-    /// Initialize the database manager
+    /// Initialize the database manager with the default database path
     pub fn new() -> Result<Self, String> {
         let db_path = get_database_path()?;
+        Self::with_path(db_path)
+    }
+
+    /// Initialize the database manager with a custom database path
+    pub fn with_path(db_path: PathBuf) -> Result<Self, String> {
 
         // Ensure the parent directory exists
         if let Some(parent) = db_path.parent() {

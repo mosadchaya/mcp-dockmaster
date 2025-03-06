@@ -55,12 +55,11 @@ mod commands {
 
 fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<MCPState>() {
-        let tool_registry = state.tool_registry.clone();
+        let mcp_state = state.clone();
 
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
-                let mut registry = tool_registry.write().await;
-                registry.kill_all_processes().await;
+                mcp_state.kill_all_processes().await;
             });
         }
     }

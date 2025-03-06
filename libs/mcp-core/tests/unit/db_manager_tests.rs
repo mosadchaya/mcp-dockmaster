@@ -64,7 +64,15 @@ mod tests {
     #[test]
     #[serial]
     fn test_get_all_tools() {
-        let (db, _temp) = setup_temp_db();
+        // Create a unique database path for this test
+        use std::path::PathBuf;
+        use tempfile::tempdir;
+        
+        let temp_dir = tempdir().expect("Failed to create temp dir");
+        let db_path = temp_dir.path().join("test_get_all_tools.db");
+        
+        // Initialize database with custom path
+        let db = DBManager::with_path(db_path).expect("Failed to create database");
 
         // Create sample tools
         let tool1 = Tool {
