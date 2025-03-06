@@ -8,7 +8,7 @@ use crate::{
     mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process},
     mcp_state::MCPState,
     models::models::Tool,
-    DBManager, MCPError,
+    DBManager, models::error::MCPError,
 };
 
 pub struct ToolRegistry {

@@ -1,6 +1,6 @@
 use crate::models::models::{ToolConfiguration, ToolId, ToolType};
 use crate::registry::ToolRegistry;
-use crate::{dm_process::DMProcess, MCPError};
+use crate::{dm_process::DMProcess, models::error::MCPError};
 use log::info;
 use serde_json::{json, Value};
 use std::collections::HashMap;

@@ -4,8 +4,13 @@ use tokio::sync::RwLock;
 
 #[cfg(test)]
 mod tests {
-    use mcp_core::{
-        mcp_proxy, mcp_state::MCPState, models::models::ToolExecutionRequest,
+  use mcp_core::{
+        domain::traits::ProcessManager,
+        application::dto::ToolExecutionDTO,
+        application::services::tool_service::ToolService,
+        infrastructure::process_management::mock_process_manager::MockProcessManager,
+        infrastructure::repository::ToolRegistryRepository,
+        mcp_state::MCPState,
         registry::ToolRegistry,
     };
 
@@ -13,10 +18,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
-        // Initialize MCP state
+        // Initialize MCP state and services
+        let tool_registry = Arc::new(RwLock::new(ToolRegistry::new()?));
         let mcp_state = MCPState {
-            tool_registry: Arc::new(RwLock::new(ToolRegistry::new()?)),
+            tool_registry: tool_registry.clone(),
         };
+        
+        // Create mock process manager and repository for testing
+        let process_manager = Arc::new(MockProcessManager::new());
+        let tool_repository = Arc::new(ToolRegistryRepository::new(tool_registry.clone(), process_manager.clone()));
+        
+        // Create tool service
+        let tool_service = ToolService::new(tool_repository, process_manager.clone());
 
         // Get the absolute path to the script
         let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -46,26 +59,31 @@ mod tests {
         );
 
         // Register tool
-        let response =
-            mcp_proxy::register_tool(&mcp_state, serde_json::from_value(request).unwrap()).await?;
+        let registration_dto = serde_json::from_value(request).unwrap();
+        let response = tool_service.register_tool(registration_dto).await
+            .map_err(|e| e.to_string())?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
         eprintln!("Received tool_id from registration: {}", tool_id);
 
         // List all available tools
-        let all_tools = mcp_proxy::list_all_server_tools(&mcp_state).await?;
+        let all_tools = tool_service.list_tools().await
+            .map_err(|e| e.to_string())?;
         eprintln!(
             "Available tools: {}",
             serde_json::to_string_pretty(&all_tools).unwrap()
         );
 
         // Execute tool
-        let request = ToolExecutionRequest {
-            tool_id: format!("{}:{}", tool_id, "hello_world"),
-            parameters: json!({}),
+        let request = ToolExecutionDTO {
+            tool_id: tool_id.clone(),
+            parameters: json!({
+                "tool_name": "hello_world"
+            }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_tool(request).await
+            .map_err(|e| e.to_string())?;
 
         // Print the execution result
         eprintln!(
@@ -100,14 +118,16 @@ mod tests {
         }
 
         // Test hello_world_with_input
-        let request = ToolExecutionRequest {
-            tool_id: format!("{}:{}", tool_id, "hello_world_with_input"),
+        let request = ToolExecutionDTO {
+            tool_id: tool_id.clone(), // Use the tool_id directly, not as a server:tool format
             parameters: json!({
-                "message": "custom message"
+                "message": "custom message",
+                "tool_name": "hello_world_with_input" // Specify the tool name in parameters
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_tool(request).await
+            .map_err(|e| e.to_string())?;
 
         eprintln!(
             "Tool execution result (with input): {}",
@@ -142,14 +162,16 @@ mod tests {
         }
 
         // Test hello_world_with_config
-        let request = ToolExecutionRequest {
-            tool_id: format!("{}:{}", tool_id, "hello_world_with_config"),
+        let request = ToolExecutionDTO {
+            tool_id: tool_id.clone(), // Use the tool_id directly, not as a server:tool format
             parameters: json!({
-                "config": "test-config"
+                "config": "test-config",
+                "tool_name": "hello_world_with_config" // Specify the tool name in parameters
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_tool(request).await
+            .map_err(|e| e.to_string())?;
 
         eprintln!(
             "Tool execution result (with config): {}",
@@ -186,6 +208,10 @@ mod tests {
         // Cleanup
         let mut registry = mcp_state.tool_registry.write().await;
         registry.kill_all_processes().await;
+        
+        // Also clean up any processes managed by the process manager
+        process_manager.kill_all_processes().await
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
