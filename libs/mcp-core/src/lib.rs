@@ -1,5 +1,6 @@
 pub mod database;
 pub mod dm_process;
+pub mod domain;
 pub mod http_server;
 pub mod mcp_proxy;
 pub mod mcp_state;

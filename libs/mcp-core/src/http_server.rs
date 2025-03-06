@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::domain::services::ToolService;
 use crate::mcp_state::MCPState;
 
 #[derive(Deserialize)]
@@ -37,11 +38,26 @@ pub struct JsonRpcError {
     data: Option<Value>,
 }
 
-pub async fn start_http_server(state: Arc<RwLock<MCPState>>) {
+#[derive(Clone)]
+pub struct HttpState {
+    pub mcp_state: Arc<RwLock<MCPState>>,
+    pub tool_service: Arc<ToolService>,
+}
+
+pub async fn start_http_server(mcp_state: Arc<RwLock<MCPState>>) {
+    // Create the tool service
+    let tool_service = Arc::new(ToolService::new(mcp_state.clone()));
+    
+    // Create the HTTP state
+    let http_state = Arc::new(HttpState {
+        mcp_state: mcp_state.clone(),
+        tool_service,
+    });
+
     let app = Router::new()
         .route("/mcp-proxy", post(handle_mcp_request))
         .route("/health", get(health_check))
-        .layer(Extension(state));
+        .layer(Extension(http_state));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("MCP HTTP server starting on {}", addr);
@@ -59,16 +75,71 @@ async fn health_check() -> impl IntoResponse {
 }
 
 async fn handle_mcp_request(
-    Extension(state): Extension<Arc<RwLock<MCPState>>>,
+    Extension(state): Extension<Arc<HttpState>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
+    let tool_service = &state.tool_service;
+
     let result = match request.method.as_str() {
-        "tools/list" => handle_list_tools(state).await,
+        "tools/list" => {
+            match tool_service.list_tools().await {
+                Ok(tools) => Ok(json!({ "tools": tools })),
+                Err(e) => Err(json!({"code": -32603, "message": e}))
+            }
+        }
         "tools/call" => {
             if let Some(params) = request.params {
-                handle_invoke_tool(state, params).await
+                // Extract tool name and arguments from params
+                let tool_name = match params.get("name").and_then(|v| v.as_str()) {
+                    Some(name) => name,
+                    None => {
+                        return Json(JsonRpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            id: request.id,
+                            result: None,
+                            error: Some(JsonRpcError {
+                                code: -32602,
+                                message: "Missing name in parameters".to_string(),
+                                data: None,
+                            }),
+                        });
+                    }
+                };
+
+                let arguments = match params.get("arguments") {
+                    Some(args) => args.clone(),
+                    None => json!({}),
+                };
+
+                // Call the domain service to execute the tool
+                match tool_service.execute_proxy_tool(crate::models::models::ToolExecutionRequest {
+                    tool_id: tool_name.to_string(),
+                    parameters: arguments,
+                }).await {
+                    Ok(response) => {
+                        if response.success {
+                            Ok(json!({
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": response.result.unwrap_or(json!("No result")).to_string()
+                                    }
+                                ]
+                            }))
+                        } else {
+                            Err(json!({
+                                "code": -32000,
+                                "message": response.error.unwrap_or_else(|| "Unknown error".to_string())
+                            }))
+                        }
+                    },
+                    Err(e) => Err(json!({
+                        "code": -32000,
+                        "message": format!("Tool execution error: {}", e)
+                    })),
+                }
             } else {
                 Err(json!({
                     "code": -32602,
@@ -76,27 +147,19 @@ async fn handle_mcp_request(
                 }))
             }
         }
-        "prompts/list" => handle_list_prompts().await,
-        "resources/list" => handle_list_resources().await,
+        "prompts/list" => Ok(json!({ "prompts": [] })),
+        "resources/list" => Ok(json!({ "resources": [] })),
         "resources/read" => {
-            if let Some(params) = request.params {
-                handle_read_resource(params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Invalid params - missing parameters for resource reading"
-                }))
-            }
+            Err(json!({
+                "code": -32601,
+                "message": "Resource reading not implemented yet"
+            }))
         }
         "prompts/get" => {
-            if let Some(params) = request.params {
-                handle_get_prompt(params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Invalid params - missing parameters for prompt retrieval"
-                }))
-            }
+            Err(json!({
+                "code": -32601,
+                "message": "Prompt retrieval not implemented yet"
+            }))
         }
         _ => Err(json!({
             "code": -32601,
@@ -137,150 +200,4 @@ async fn handle_mcp_request(
     }
 }
 
-async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
-    let mcp_state = state.read().await;
-    let registry = mcp_state.tool_registry.read().await;
-
-    let mut all_tools = Vec::new();
-
-    for (server_id, tools) in &registry.server_tools {
-        for tool in tools {
-            let mut tool_info = serde_json::Map::new();
-
-            if let Some(obj) = tool.as_object() {
-                for (key, value) in obj {
-                    tool_info.insert(key.clone(), value.clone());
-                }
-            }
-
-            tool_info.insert("server_id".to_string(), json!(server_id));
-
-            // let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("main");
-            // let tool_name = tool.get("name").and_then(|v| v.as_str()).unwrap_or("tool_name");
-
-            // let proxy_id = format!("{}:{}", server_id, tool_id);
-
-            // tool_info.insert("name".to_string(), json!(tool_name));
-
-            if !tool_info.contains_key("description") {
-                tool_info.insert("description".to_string(), json!("Tool from server"));
-            }
-
-            if !tool_info.contains_key("inputSchema") {
-                tool_info.insert(
-                    "inputSchema".to_string(),
-                    json!({
-                        "type": "object",
-                        "properties": {}
-                    }),
-                );
-            }
-
-            all_tools.push(json!(tool_info));
-        }
-    }
-
-    Ok(json!({
-        "tools": all_tools
-    }))
-}
-
-async fn handle_list_prompts() -> Result<Value, Value> {
-    Ok(json!({
-        "prompts": []
-    }))
-}
-
-async fn handle_list_resources() -> Result<Value, Value> {
-    Ok(json!({
-        "resources": []
-    }))
-}
-
-async fn handle_read_resource(_params: Value) -> Result<Value, Value> {
-    Err(json!({
-        "code": -32601,
-        "message": "Resource reading not implemented yet"
-    }))
-}
-
-async fn handle_get_prompt(_params: Value) -> Result<Value, Value> {
-    Err(json!({
-        "code": -32601,
-        "message": "Prompt retrieval not implemented yet"
-    }))
-}
-
-async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
-    let tool_name = match params.get("name").and_then(|v| v.as_str()) {
-        Some(name) => name,
-        None => {
-            return Err(json!({
-                "code": -32602,
-                "message": "Missing name in parameters"
-            }))
-        }
-    };
-
-    let arguments = match params.get("arguments") {
-        Some(args) => args.clone(),
-        None => json!({}),
-    };
-
-    let mcp_state = state.read().await;
-    let mut registry = mcp_state.tool_registry.write().await;
-
-    // Find which server has the requested tool
-    let mut server_id = None;
-
-    for (sid, tools) in &registry.server_tools {
-        for tool in tools {
-            if let Some(tool_id) = tool.get("id").and_then(|v| v.as_str()) {
-                if tool_id == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
-                }
-            }
-
-            // Also check by name if id doesn't match
-            if let Some(name) = tool.get("name").and_then(|v| v.as_str()) {
-                if name == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
-                }
-            }
-        }
-
-        if server_id.is_some() {
-            break;
-        }
-    }
-
-    let server_id = match server_id {
-        Some(id) => id,
-        None => {
-            return Err(json!({
-                "code": -32602,
-                "message": format!("No server found with tool: {}", tool_name)
-            }))
-        }
-    };
-
-    match registry
-        .execute_tool(&server_id, tool_name, arguments)
-        .await
-    {
-        Ok(result) => Ok(json!({
-            "content": [
-                {
-                    "type": "text",
-                    "text": result.to_string()
-                }
-            ]
-        })),
-        Err(e) => Err(json!({
-            "code": -32000,
-            "message": format!("Tool execution error: {}", e)
-        })),
-    }
-}
+// Handler functions removed - domain logic moved to domain/services.rs
