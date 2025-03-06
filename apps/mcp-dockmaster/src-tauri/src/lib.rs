@@ -125,7 +125,7 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = MCPState::default();
+    let mcp_state = MCPState::new();
     let http_state = Arc::new(RwLock::new(mcp_state.clone()));
 
     tauri::Builder::default()
@@ -172,18 +172,18 @@ pub async fn run() {
                     // Create a deep clone that's fully owned
                     let state_owned = state.inner().clone();
 
-                    // Spawn a task to save state and then cleanup
-                    std::thread::spawn(move || {
-                        // Create a new runtime for this thread
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                                log::error!("Failed to save MCP state: {}", e);
-                            } else {
-                                log::info!("MCP state saved successfully");
-                            }
-                        });
-                    });
+                    // // Spawn a task to save state and then cleanup
+                    // std::thread::spawn(move || {
+                    //     // Create a new runtime for this thread
+                    //     let rt = tokio::runtime::Runtime::new().unwrap();
+                    //     rt.block_on(async {
+                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
+                    //             log::error!("Failed to save MCP state: {}", e);
+                    //         } else {
+                    //             log::info!("MCP state saved successfully");
+                    //         }
+                    //     });
+                    // });
                 }
 
                 // Cleanup processes
@@ -195,17 +195,17 @@ pub async fn run() {
                     // Create a deep clone that's fully owned
                     let state_owned = state.inner().clone();
 
-                    // Use a separate thread to avoid blocking the main thread
-                    std::thread::spawn(move || {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                                log::error!("Failed to save MCP state: {}", e);
-                            } else {
-                                log::info!("MCP state saved successfully");
-                            }
-                        });
-                    });
+                    // // Use a separate thread to avoid blocking the main thread
+                    // std::thread::spawn(move || {
+                    //     let rt = tokio::runtime::Runtime::new().unwrap();
+                    //     rt.block_on(async {
+                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
+                    //             log::error!("Failed to save MCP state: {}", e);
+                    //         } else {
+                    //             log::info!("MCP state saved successfully");
+                    //         }
+                    //     });
+                    // });
                 }
 
                 // Cleanup processes

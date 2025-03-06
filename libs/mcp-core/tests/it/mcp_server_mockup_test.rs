@@ -15,7 +15,7 @@ mod tests {
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Initialize MCP state
         let mcp_state = MCPState {
-            tool_registry: Arc::new(RwLock::new(ToolRegistry::default())),
+            tool_registry: Arc::new(RwLock::new(ToolRegistry::new()?)),
         };
 
         // Get the absolute path to the script

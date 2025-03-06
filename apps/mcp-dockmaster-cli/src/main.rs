@@ -80,12 +80,6 @@ enum Commands {
         tool_id: String,
     },
 
-    /// Save the current state to the database
-    Save,
-
-    /// Load state from the database
-    Load,
-
     /// Clear the database
     Clear,
 }
@@ -99,7 +93,7 @@ async fn main() {
     let cli = Cli::parse();
 
     // Initialize MCP state
-    let mcp_state = MCPState::default();
+    let mcp_state = MCPState::new();
 
     // Handle commands
     match cli.command {
@@ -257,34 +251,6 @@ async fn main() {
                 Err(e) => {
                     error!("Error restarting tool: {}", e);
                     println!("Error restarting tool: {}", e);
-                }
-            }
-        }
-        Commands::Save => {
-            info!("Saving MCP state to database");
-
-            // Save the state using the direct function
-            match mcp_proxy::save_mcp_state_command(&mcp_state).await {
-                Ok(message) => {
-                    println!("{}", message);
-                }
-                Err(e) => {
-                    error!("Error saving state: {}", e);
-                    println!("Error saving state: {}", e);
-                }
-            }
-        }
-        Commands::Load => {
-            info!("Loading MCP state from database");
-
-            // Load the state using the direct function
-            match mcp_proxy::load_mcp_state_command(&mcp_state).await {
-                Ok(message) => {
-                    println!("{}", message);
-                }
-                Err(e) => {
-                    error!("Error loading state: {}", e);
-                    println!("Error loading state: {}", e);
                 }
             }
         }

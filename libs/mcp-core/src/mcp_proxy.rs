@@ -7,13 +7,12 @@ use crate::models::models::{
 };
 use crate::registry::ToolRegistry;
 use crate::{database, dm_process::DMProcess, MCPError};
-use log::{error, info, warn};
+use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::process::Stdio;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
-    process::{Child, Command},
+    process::Child,
     time::Duration,
 };
 
@@ -272,7 +271,7 @@ pub async fn register_tool(
     let mut registry = mcp_state.tool_registry.write().await;
 
     // Generate a simple tool ID (in production, use UUIDs)
-    let tool_id = format!("tool_{}", registry.tools.len() + 1);
+    let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
     info!("Generated tool ID: {}", tool_id);
 
     // Create the tool configuration if provided
@@ -340,7 +339,8 @@ pub async fn register_tool(
         authentication: request.authentication.clone(),
     };
 
-    registry.tools.insert(tool_id.clone(), tool.clone());
+    // Save the tool in the registry
+    registry.save_tool(&tool_id, &tool)?;
 
     // Create a default empty tools list
     registry.server_tools.insert(tool_id.clone(), Vec::new());
@@ -480,7 +480,10 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
     let registry = mcp_state.tool_registry.read().await;
     let mut tools = Vec::new();
 
-    for (id, tool_struct) in registry.tools.iter() {
+    // Get all tools from the registry
+    let tool_map = registry.get_all_tools()?;
+
+    for (id, tool_struct) in tool_map {
         // Convert the Tool struct to a Value
         let mut tool_value = json!({
             "name": tool_struct.name,
@@ -545,13 +548,13 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(id);
+            let process_running = registry.processes.contains_key(&id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
             let server_tool_count = registry
                 .server_tools
-                .get(id)
+                .get(&id)
                 .map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
@@ -690,7 +693,7 @@ pub async fn update_tool_status(
     let tool_info = {
         let registry = mcp_state.tool_registry.read().await;
 
-        if let Some(tool) = registry.tools.get(&request.tool_id) {
+        if let Ok(tool) = registry.get_tool(&request.tool_id) {
             // Extract and clone the necessary values
             let tool_type = tool.tool_type.clone();
             let entry_point = tool.entry_point.clone().unwrap_or_default();
@@ -715,12 +718,16 @@ pub async fn update_tool_status(
 
     // Now handle the process based on the enabled status
     let result = {
-        let mut registry = mcp_state.tool_registry.write().await;
+        let registry = mcp_state.tool_registry.write().await;
 
-        // Update the enabled status in the tool definition
-        if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-            tool.enabled = request.enabled;
-        }
+        // Get the current tool data
+        let mut tool = registry.get_tool(&request.tool_id)?;
+
+        // Update the enabled status
+        tool.enabled = request.enabled;
+
+        // Save the updated tool
+        registry.save_tool(&request.tool_id, &tool)?;
 
         // Drop the write lock before trying to restart the tool
         drop(registry);
@@ -739,14 +746,6 @@ pub async fn update_tool_status(
             success: false,
             message: e,
         });
-    }
-
-    // Save the updated state to the database
-    if let Err(e) = ToolRegistry::save_mcp_state(mcp_state).await {
-        error!("Failed to save MCP state after updating tool status: {}", e);
-        // Continue even if saving fails
-    } else {
-        info!("Successfully saved MCP state after updating tool status");
     }
 
     // Return success
@@ -774,9 +773,10 @@ pub async fn update_tool_config(
     // First, check if the tool exists
     let (tool_exists, is_enabled) = {
         let registry = mcp_state.tool_registry.read().await;
-        let tool = registry.tools.get(&request.tool_id);
-        let enabled = tool.map(|t| t.enabled).unwrap_or(false);
-        (tool.is_some(), enabled)
+        match registry.get_tool(&request.tool_id) {
+            Ok(tool) => (true, tool.enabled),
+            Err(_) => (false, false),
+        }
     };
 
     // If the tool doesn't exist, return an error
@@ -791,53 +791,42 @@ pub async fn update_tool_config(
     info!("Tool '{}' found, enabled: {}", request.tool_id, is_enabled);
 
     // Update the tool configuration
-    let mut registry = mcp_state.tool_registry.write().await;
+    let registry = mcp_state.tool_registry.write().await;
 
-    // Update the configuration in the tool definition
-    if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-        // Create or update the config object
-        if tool.config.is_none() {
-            tool.config = Some(ToolConfig {
-                env: Some(HashMap::new()),
-                command: None,
-                args: None,
-            });
+    // Get the current tool data
+    let mut tool = registry.get_tool(&request.tool_id)?;
+
+    // Create or update the config object
+    if tool.config.is_none() {
+        tool.config = Some(ToolConfig {
+            env: Some(HashMap::new()),
+            command: None,
+            args: None,
+        });
+    }
+
+    if let Some(config) = &mut tool.config {
+        // Create or update the env object
+        if config.env.is_none() {
+            config.env = Some(HashMap::new());
         }
 
-        if let Some(config) = &mut tool.config {
-            // Create or update the env object
-            if config.env.is_none() {
-                config.env = Some(HashMap::new());
-            }
-
-            if let Some(env_map) = &mut config.env {
-                // Update each environment variable
-                if let Some(req_env) = &request.config.env {
-                    for (key, value) in req_env {
-                        info!(
-                            "Setting environment variable for tool {}: {}={}",
-                            request.tool_id, key, value
-                        );
-                        env_map.insert(key.clone(), value.clone());
-                    }
+        if let Some(env_map) = &mut config.env {
+            // Update each environment variable
+            if let Some(req_env) = &request.config.env {
+                for (key, value) in req_env {
+                    info!(
+                        "Setting environment variable for tool {}: {}={}",
+                        request.tool_id, key, value
+                    );
+                    env_map.insert(key.clone(), value.clone());
                 }
             }
         }
     }
 
-    // Release the registry lock before saving state
-    drop(registry);
-
-    // Save the updated state to the database
-    if let Err(e) = ToolRegistry::save_mcp_state(mcp_state).await {
-        error!("Failed to save MCP state after updating tool config: {}", e);
-        // Continue even if saving fails
-    } else {
-        info!(
-            "Successfully saved MCP state after updating tool config for tool: {}",
-            request.tool_id
-        );
-    }
+    // Save the updated tool
+    registry.save_tool(&request.tool_id, &tool)?;
 
     // Return success
     Ok(ToolConfigUpdateResponse {
@@ -853,6 +842,14 @@ pub async fn uninstall_tool(
 ) -> Result<ToolUninstallResponse, String> {
     let mut registry = mcp_state.tool_registry.write().await;
 
+    // First check if the tool exists
+    if registry.get_tool(&request.tool_id).is_err() {
+        return Ok(ToolUninstallResponse {
+            success: false,
+            message: format!("Tool with ID '{}' not found", request.tool_id),
+        });
+    }
+
     // Kill the process if it's running
     if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
         if let Err(e) = kill_process(process).await {
@@ -863,21 +860,23 @@ pub async fn uninstall_tool(
         }
     }
 
-    // Remove the tool and process from the registry
-    if registry.tools.remove(&request.tool_id).is_some() {
-        registry.processes.remove(&request.tool_id);
-        registry.server_tools.remove(&request.tool_id);
+    // Remove the process and IOs from the registry
+    registry.processes.remove(&request.tool_id);
+    registry.process_ios.remove(&request.tool_id);
+    registry.server_tools.remove(&request.tool_id);
 
-        Ok(ToolUninstallResponse {
-            success: true,
-            message: "Tool uninstalled successfully".to_string(),
-        })
-    } else {
-        Ok(ToolUninstallResponse {
+    // Delete the tool using registry's delete_tool method
+    if let Err(e) = registry.delete_tool(&request.tool_id) {
+        return Ok(ToolUninstallResponse {
             success: false,
-            message: format!("Tool with ID '{}' not found", request.tool_id),
-        })
+            message: format!("Failed to delete tool: {}", e),
+        });
     }
+
+    Ok(ToolUninstallResponse {
+        success: true,
+        message: "Tool uninstalled successfully".to_string(),
+    })
 }
 
 /// Get all server data in a single function to avoid multiple locks
@@ -887,7 +886,9 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
     // 1. Get registered servers
     let mut servers = Vec::new();
-    for (id, tool_struct) in registry.tools.iter() {
+    let tool_map = registry.get_all_tools()?;
+
+    for (id, tool_struct) in tool_map {
         // Convert the Tool struct to a Value
         let mut tool_value = json!({
             "name": tool_struct.name,
@@ -952,13 +953,13 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(id);
+            let process_running = registry.processes.contains_key(&id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
             let server_tool_count = registry
                 .server_tools
-                .get(id)
+                .get(&id)
                 .map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
@@ -999,43 +1000,15 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
     }))
 }
 
-/// Save the current MCP state to the database
-pub async fn save_mcp_state_command(mcp_state: &MCPState) -> Result<String, String> {
-    match ToolRegistry::save_mcp_state(mcp_state).await {
-        Ok(_) => Ok("MCP state saved successfully".to_string()),
-        Err(e) => Err(format!("Failed to save MCP state: {}", e)),
-    }
-}
-
-/// Load MCP state from the database
-pub async fn load_mcp_state_command(mcp_state: &MCPState) -> Result<String, String> {
-    match database::DatabaseManager::new() {
-        Ok(db_manager) => {
-            match db_manager.load_tool_registry() {
-                Ok(registry) => {
-                    // Update the tool registry with loaded data
-                    let mut state_registry = mcp_state.tool_registry.write().await;
-                    state_registry.tools = registry.tools;
-                    state_registry.server_tools = registry.server_tools;
-                    // Note: processes and process_ios are not persisted
-
-                    Ok("MCP state loaded successfully".to_string())
-                }
-                Err(e) => Err(format!("Failed to load tool registry: {}", e)),
-            }
-        }
-        Err(e) => Err(format!("Failed to initialize database: {}", e)),
-    }
-}
-
 /// Check if the database exists and has data
 pub async fn check_database_exists_command() -> Result<bool, String> {
-    database::check_database_exists()
+    let db_manager = database::DBManager::new()?;
+    db_manager.check_exists()
 }
 
 /// Clear all data from the database
 pub async fn clear_database_command() -> Result<String, String> {
-    let mut db_manager = database::DatabaseManager::new()?;
+    let mut db_manager = database::DBManager::new()?;
     match db_manager.clear_database() {
         Ok(_) => Ok("Database cleared successfully".to_string()),
         Err(e) => Err(format!("Failed to clear database: {}", e)),
@@ -1052,7 +1025,7 @@ pub async fn restart_tool_command(
     // Check if the tool exists
     let tool_exists = {
         let registry = mcp_state.tool_registry.read().await;
-        registry.tools.contains_key(&tool_id)
+        registry.get_tool(&tool_id).is_ok()
     };
 
     if !tool_exists {

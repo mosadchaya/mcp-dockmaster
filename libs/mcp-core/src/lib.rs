@@ -7,7 +7,7 @@ pub mod models;
 pub mod registry;
 
 // Re-export commonly used types and functions
-pub use database::DatabaseManager;
+pub use database::DBManager;
 pub use dm_process::DMProcess;
 pub use error::{MCPError, MCPResult};
 pub use models::*;
