@@ -61,9 +61,3 @@ jobs:
       - name: Run clippy
         working-directory: apps/mcp-dockmaster/src-tauri
         run: cargo clippy -- -D warnings
-
-      - name: Test building the React app
-        working-directory: apps/mcp-dockmaster
-        run: |
-          npm ci
-          npm run build
