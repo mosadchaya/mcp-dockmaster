@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::{info};
 use serde_json::{json, Value};
 use crate::mcp_state::MCPState;
 use crate::models::types::{

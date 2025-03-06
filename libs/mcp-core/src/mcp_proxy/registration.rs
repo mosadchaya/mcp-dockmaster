@@ -364,7 +364,7 @@ pub async fn update_tool_status(
 
     // Update the tool status
     let result = {
-        let mut registry = mcp_state.tool_registry.write().await;
+        let registry = mcp_state.tool_registry.write().await;
         let mut tool = tool_info.0.clone();
         tool.enabled = request.enabled;
         registry.save_tool(&request.tool_id, &tool)
@@ -451,24 +451,26 @@ pub async fn update_tool_config(
     if let Some(config) = &mut updated_tool.config {
         // Update environment variables
         if let Some(env) = &mut config.env {
-            for (key, value) in &request.env {
-                env.insert(key.clone(), value.clone());
+            if let Some(request_env) = &request.config.env {
+                for (key, value) in request_env {
+                    env.insert(key.clone(), value.clone());
+                }
             }
         } else {
-            config.env = Some(request.env.clone());
+            config.env = request.config.env.clone();
         }
     } else {
         // Create a new config if none exists
         updated_tool.config = Some(ToolConfig {
-            env: Some(request.env.clone()),
-            command: None,
-            args: None,
+            env: request.config.env.clone(),
+            command: request.config.command.clone(),
+            args: request.config.args.clone(),
         });
     }
 
     // Save the updated tool
     {
-        let mut registry = mcp_state.tool_registry.write().await;
+        let registry = mcp_state.tool_registry.write().await;
         registry.save_tool(&request.tool_id, &updated_tool)?;
     }
 
@@ -481,8 +483,8 @@ pub async fn update_tool_config(
             .is_some_and(|p| p.is_some())
     };
 
-    // If the process is running and restart is requested, restart it
-    if process_running && request.restart {
+    // If the process is running, restart it (always restart when config changes)
+    if process_running {
         // Kill the process
         {
             let mut process_manager = mcp_state.process_manager.write().await;
@@ -569,7 +571,7 @@ pub async fn uninstall_tool(
 
     // Remove the tool from the registry
     {
-        let mut registry = mcp_state.tool_registry.write().await;
+        let registry = mcp_state.tool_registry.write().await;
         registry.delete_tool(&request.tool_id)?;
     }
 
@@ -587,12 +589,14 @@ pub async fn uninstall_tool(
 
 /// Check if the database exists and has data
 pub async fn check_database_exists_command() -> Result<bool, String> {
-    crate::database::check_database_exists()
+    let db_manager = crate::database::DBManager::new()?;
+    db_manager.check_exists()
 }
 
 /// Clear all data from the database
 pub async fn clear_database_command() -> Result<String, String> {
-    match crate::database::clear_database() {
+    let mut db_manager = crate::database::DBManager::new()?;
+    match db_manager.clear_database() {
         Ok(_) => Ok("Database cleared successfully".to_string()),
         Err(e) => Err(format!("Failed to clear database: {}", e)),
     }

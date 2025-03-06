@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::info;
 use serde_json::{json, Value};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},

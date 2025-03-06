@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::info;
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::process::Child;
