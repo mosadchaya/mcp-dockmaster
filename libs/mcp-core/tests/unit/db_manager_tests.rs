@@ -67,10 +67,10 @@ mod tests {
         // Create a unique database path for this test
         use std::path::PathBuf;
         use tempfile::tempdir;
-        
+
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let db_path = temp_dir.path().join("test_get_all_tools.db");
-        
+
         // Initialize database with custom path
         let db = DBManager::with_path(db_path).expect("Failed to create database");
 
@@ -139,15 +139,5 @@ mod tests {
         // Verify the database is empty
         let tools = db.get_all_tools().expect("Failed to get all tools");
         assert!(tools.is_empty());
-    }
-
-    // Skip this test for now as r2d2 handles errors differently
-    // We've verified the other functionality works correctly
-    #[test]
-    #[serial]
-    #[ignore]
-    fn test_error_handling() {
-        // This test is skipped because r2d2 connection pooling handles errors differently
-        // than direct Connection approach. The core functionality is tested in other tests.
     }
 }
