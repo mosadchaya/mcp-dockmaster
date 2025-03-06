@@ -11,13 +11,13 @@ use tokio::{
     time::Duration,
 };
 
-pub struct DMProcess {
+pub struct SpawnedProcess {
     pub stdin: ChildStdin,
     pub stdout: ChildStdout,
     pub child: Child,
 }
 
-impl DMProcess {
+impl SpawnedProcess {
     pub async fn new(
         tool_id: &ToolId,
         tool_type: &ToolType,

@@ -6,7 +6,7 @@ use crate::models::types::{
     ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::registry::ToolRegistry;
-use crate::{database, dm_process::DMProcess, MCPError};
+use crate::{database, spawned_process::SpawnedProcess, MCPError};
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -281,7 +281,7 @@ pub async fn spawn_process(
     };
 
     let tool_id = ToolId::new(tool_id.to_string());
-    let dm_process = DMProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    let dm_process = SpawnedProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
     Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
 }
 
