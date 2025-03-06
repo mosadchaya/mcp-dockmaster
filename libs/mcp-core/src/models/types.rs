@@ -82,11 +82,12 @@ pub struct Tool {
     #[serde(default)]
     pub configuration: Option<ToolConfiguration>,
     #[serde(default)]
-    pub distribution: Option<Value>,
+    pub distribution: Option<Distribution>,
     #[serde(default)]
     pub config: Option<ToolConfig>,
     #[serde(default)]
-    pub authentication: Option<Value>,
+    #[serde(rename = "authentication")]
+    pub env_configs: Option<EnvConfigs>,
 }
 
 // TODO: Add these to the ToolRegistry struct
@@ -99,7 +100,8 @@ pub struct Tool {
 pub struct ToolRegistrationRequest {
     pub tool_name: String,
     pub description: String,
-    pub authentication: Option<Value>,
+    #[serde(rename = "authentication")]
+    pub env_configs: Option<Value>,
     pub tool_type: String, // "node", "python", "docker"
     pub configuration: Option<Value>,
     pub distribution: Option<Value>,
@@ -174,4 +176,18 @@ pub struct DiscoverServerToolsResponse {
     pub success: bool,
     pub tools: Option<Vec<Value>>,
     pub error: Option<String>,
+}
+
+/// Distribution information for a tool
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Distribution {
+    pub r#type: String,
+    pub package: String,
+}
+
+/// Environment configuration for a tool
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnvConfigs {
+    #[serde(default)]
+    pub env: Option<HashMap<String, String>>,
 }

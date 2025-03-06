@@ -45,7 +45,7 @@ mod tests {
             configuration: None,
             distribution: None,
             config: None,
-            authentication: None,
+            env_configs: None,
         };
 
         // Save the tool
@@ -83,7 +83,7 @@ mod tests {
             configuration: None,
             distribution: None,
             config: None,
-            authentication: None,
+            env_configs: None,
         };
 
         let tool2 = Tool {
@@ -95,7 +95,7 @@ mod tests {
             configuration: None,
             distribution: None,
             config: None,
-            authentication: None,
+            env_configs: None,
         };
 
         // Save the tools
@@ -126,7 +126,7 @@ mod tests {
             configuration: None,
             distribution: None,
             config: None,
-            authentication: None,
+            env_configs: None,
         };
 
         db.save_tool("test_tool", &tool)

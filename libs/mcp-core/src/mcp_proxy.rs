@@ -1,6 +1,6 @@
 use crate::mcp_state::MCPState;
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, EnvConfigs, Tool, ToolConfig,
     ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
     ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
     ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
@@ -385,7 +385,7 @@ pub async fn register_tool(
 
     // Create the tool config with env variables if provided
     let mut tool_config = None;
-    if let Some(auth) = &request.authentication {
+    if let Some(auth) = &request.env_configs {
         if let Some(env) = auth.get("env") {
             if let Some(env_obj) = env.as_object() {
                 let mut env_map = HashMap::new();
@@ -426,9 +426,9 @@ pub async fn register_tool(
         tool_type: request.tool_type.clone(),
         entry_point: None,
         configuration,
-        distribution: request.distribution.clone(),
+        distribution: request.distribution.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(Distribution { r#type: "".to_string(), package: "".to_string() })),
         config: tool_config,
-        authentication: request.authentication.clone(),
+        env_configs: request.env_configs.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
     };
 
     // Save the tool in the registry
@@ -609,7 +609,7 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         if let Some(distribution) = &tool_struct.distribution {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("distribution".to_string(), distribution.clone());
+                obj.insert("distribution".to_string(), serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null));
             }
         }
 
@@ -635,9 +635,9 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
             }
         }
 
-        if let Some(authentication) = &tool_struct.authentication {
+        if let Some(env_configs) = &tool_struct.env_configs {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("authentication".to_string(), authentication.clone());
+                obj.insert("authentication".to_string(), serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null));
             }
         }
 
@@ -1054,7 +1054,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         if let Some(distribution) = &tool_struct.distribution {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("distribution".to_string(), distribution.clone());
+                obj.insert("distribution".to_string(), serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null));
             }
         }
 
@@ -1080,9 +1080,9 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
             }
         }
 
-        if let Some(authentication) = &tool_struct.authentication {
+        if let Some(env_configs) = &tool_struct.env_configs {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("authentication".to_string(), authentication.clone());
+                obj.insert("authentication".to_string(), serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null));
             }
         }
 
