@@ -1,15 +1,15 @@
+use crate::app_context::AppContext;
 use crate::models::models::{
     DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
     ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
     ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
     ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
-use crate::app_context::AppContext;
 use crate::{database, dm_process::DMProcess, MCPError};
-use std::sync::Arc;
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     process::Child,
@@ -253,7 +253,7 @@ pub async fn kill_process(process: &mut Child) -> Result<(), String> {
 
 /// Register a new tool with the MCP server
 pub async fn register_tool(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: ToolRegistrationRequest,
 ) -> Result<ToolRegistrationResponse, String> {
     info!("Starting registration of tool: {}", request.tool_name);
@@ -481,7 +481,7 @@ pub async fn register_tool(
 }
 
 /// List all registered tools
-pub async fn list_tools(ctx: &Arc<AppContext>) -> Result<Vec<Value>, String> {
+pub async fn list_tools(ctx: &AppContext) -> Result<Vec<Value>, String> {
     let mut tools = Vec::new();
 
     // Get all tools from the context
@@ -572,7 +572,7 @@ pub async fn list_tools(ctx: &Arc<AppContext>) -> Result<Vec<Value>, String> {
 }
 
 /// List all available tools from all running MCP servers
-pub async fn list_all_server_tools(ctx: &Arc<AppContext>) -> Result<Vec<Value>, String> {
+pub async fn list_all_server_tools(ctx: &AppContext) -> Result<Vec<Value>, String> {
     let mut all_tools = Vec::new();
 
     let server_tools = ctx.server_tools.read().await;
@@ -605,13 +605,15 @@ pub async fn list_all_server_tools(ctx: &Arc<AppContext>) -> Result<Vec<Value>, 
 
 /// Discover tools from a specific MCP server
 pub async fn discover_tools(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: DiscoverServerToolsRequest,
 ) -> Result<DiscoverServerToolsResponse, String> {
     // Check if the server exists and is running
     let server_running = {
         let processes = ctx.processes.read().await;
-        processes.get(&request.server_id).is_some_and(|p| p.is_some())
+        processes
+            .get(&request.server_id)
+            .is_some_and(|p| p.is_some())
     };
 
     if !server_running {
@@ -630,7 +632,7 @@ pub async fn discover_tools(
         Ok(tools) => {
             // Store the discovered tools
             let mut server_tools = ctx.server_tools.write().await;
-        server_tools.insert(request.server_id.clone(), tools.clone());
+            server_tools.insert(request.server_id.clone(), tools.clone());
 
             Ok(DiscoverServerToolsResponse {
                 success: true,
@@ -648,7 +650,7 @@ pub async fn discover_tools(
 
 /// Execute a tool from an MCP server
 pub async fn execute_proxy_tool(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: ToolExecutionRequest,
 ) -> Result<ToolExecutionResponse, String> {
     // Extract server_id and tool_id from the proxy_id
@@ -664,14 +666,7 @@ pub async fn execute_proxy_tool(
     println!("tool_id: {}", tool_id);
 
     // Execute the tool on the server
-    match execute_server_tool(
-        server_id,
-        tool_id,
-        request.parameters.clone(),
-        ctx,
-    )
-    .await
-    {
+    match execute_server_tool(server_id, tool_id, request.parameters.clone(), ctx).await {
         Ok(result) => Ok(ToolExecutionResponse {
             success: true,
             result: Some(result),
@@ -687,7 +682,7 @@ pub async fn execute_proxy_tool(
 
 /// Update a tool's status (enabled/disabled)
 pub async fn update_tool_status(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: ToolUpdateRequest,
 ) -> Result<ToolUpdateResponse, String> {
     // First, check if the tool exists and get the necessary information
@@ -756,7 +751,7 @@ pub async fn update_tool_status(
 
 /// Update a tool's configuration (environment variables)
 pub async fn update_tool_config(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: ToolConfigUpdateRequest,
 ) -> Result<ToolConfigUpdateResponse, String> {
     info!("Updating configuration for tool: {}", request.tool_id);
@@ -822,7 +817,7 @@ pub async fn update_tool_config(
 
 /// Uninstall a registered tool
 pub async fn uninstall_tool(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
     // First check if the tool exists
@@ -873,7 +868,7 @@ pub async fn uninstall_tool(
 }
 
 /// Get all server data in a single function to avoid multiple locks
-pub async fn get_all_server_data(ctx: &Arc<AppContext>) -> Result<Value, String> {
+pub async fn get_all_server_data(ctx: &AppContext) -> Result<Value, String> {
     // 1. Get registered servers
     let mut servers = Vec::new();
     let tool_map = ctx.get_all_tools()?;
@@ -1011,7 +1006,7 @@ pub async fn clear_database_command() -> Result<String, String> {
 
 /// Restart a tool by its ID
 pub async fn restart_tool_command(
-    ctx: &Arc<AppContext>,
+    ctx: &AppContext,
     tool_id: String,
 ) -> Result<ToolUpdateResponse, String> {
     info!("Received request to restart tool: {}", tool_id);

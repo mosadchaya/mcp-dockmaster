@@ -10,21 +10,23 @@ use crate::{
     DBManager, MCPError,
 };
 
+#[derive(Clone)]
 pub struct AppContext {
-    pub processes: RwLock<HashMap<String, Option<Child>>>,
-    pub server_tools: RwLock<HashMap<String, Vec<Value>>>,
-    pub process_ios: RwLock<HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>>,
-    db: DBManager,
+    pub processes: Arc<RwLock<HashMap<String, Option<Child>>>>,
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
+    pub process_ios:
+        Arc<RwLock<HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>>>,
+    db: Arc<DBManager>,
 }
 
 impl AppContext {
     pub fn new() -> Result<Self, String> {
         let db = DBManager::new()?;
         Ok(Self {
-            processes: RwLock::new(HashMap::new()),
-            server_tools: RwLock::new(HashMap::new()),
-            process_ios: RwLock::new(HashMap::new()),
-            db,
+            processes: Arc::new(RwLock::new(HashMap::new())),
+            server_tools: Arc::new(RwLock::new(HashMap::new())),
+            process_ios: Arc::new(RwLock::new(HashMap::new())),
+            db: Arc::new(db),
         })
     }
 

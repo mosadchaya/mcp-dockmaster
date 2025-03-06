@@ -5,10 +5,9 @@ use crate::features::mcp_proxy::{
     update_tool_status,
 };
 use log::{error, info};
-use mcp_core::{mcp_state::MCPState, registry::ToolRegistry};
+use mcp_core::AppContext;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent};
-use tokio::sync::RwLock;
 use tray::create_tray;
 
 mod features;
@@ -53,27 +52,21 @@ mod commands {
     }
 }
 
-fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
-    if let Some(state) = app_handle.try_state::<MCPState>() {
-        let tool_registry = state.tool_registry.clone();
-
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                let mut registry = tool_registry.write().await;
-                registry.kill_all_processes().await;
-            });
-        }
+fn cleanup_mcp_processes(app_handle: tauri::AppHandle) {
+    if let Ok(runtime_handle) = tokio::runtime::Handle::try_current() {
+        runtime_handle.spawn(async move {
+            if let Some(state) = app_handle.try_state::<AppContext>() {
+                let app_context = state.clone();
+                app_context.kill_all_processes().await;
+            }
+        });
     }
 }
 
-fn init_services(
-    app_handle: tauri::AppHandle,
-    http_state: Arc<RwLock<MCPState>>,
-    mcp_state: MCPState,
-) {
+fn init_services(app_handle: tauri::AppHandle, app_context: Arc<AppContext>) {
     tokio::spawn(async move {
-        mcp_core::http_server::start_http_server(http_state).await;
-        mcp_core::mcp_proxy::init_mcp_server(mcp_state).await;
+        mcp_core::http_server::start_http_server(app_context.clone()).await;
+        mcp_core::mcp_proxy::init_mcp_server(app_context).await;
 
         // Set the initialization complete flag
         commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -121,18 +114,17 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = MCPState::new();
-    let http_state = Arc::new(RwLock::new(mcp_state.clone()));
+    let app_context = Arc::new(AppContext::new().expect("Failed to create AppContext"));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(mcp_state.clone())
-        .setup(|app| {
+        .manage(app_context.clone())
+        .setup(move |app| {
             create_tray(app.handle())?;
 
             // Start background initialization after the UI has started
             let app_handle = app.handle().clone();
-            init_services(app_handle, http_state, mcp_state);
+            init_services(app_handle, app_context.clone());
 
             Ok(())
         })
@@ -163,49 +155,12 @@ pub async fn run() {
                 // First, prevent exit to handle cleanup
                 api.prevent_exit();
 
-                // Clone the entire state to avoid lifetime issues
-                if let Some(state) = app_handle.try_state::<MCPState>() {
-                    // Create a deep clone that's fully owned
-                    let state_owned = state.inner().clone();
-
-                    // // Spawn a task to save state and then cleanup
-                    // std::thread::spawn(move || {
-                    //     // Create a new runtime for this thread
-                    //     let rt = tokio::runtime::Runtime::new().unwrap();
-                    //     rt.block_on(async {
-                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                    //             log::error!("Failed to save MCP state: {}", e);
-                    //         } else {
-                    //             log::info!("MCP state saved successfully");
-                    //         }
-                    //     });
-                    // });
-                }
-
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
+                cleanup_mcp_processes(app_handle.clone());
             }
             RunEvent::Exit { .. } => {
-                // Clone the entire state to avoid lifetime issues
-                if let Some(state) = app_handle.try_state::<MCPState>() {
-                    // Create a deep clone that's fully owned
-                    let state_owned = state.inner().clone();
-
-                    // // Use a separate thread to avoid blocking the main thread
-                    // std::thread::spawn(move || {
-                    //     let rt = tokio::runtime::Runtime::new().unwrap();
-                    //     rt.block_on(async {
-                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                    //             log::error!("Failed to save MCP state: {}", e);
-                    //         } else {
-                    //             log::info!("MCP state saved successfully");
-                    //         }
-                    //     });
-                    // });
-                }
-
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
+                cleanup_mcp_processes(app_handle.clone());
                 std::process::exit(0);
             }
             #[cfg(target_os = "macos")]
