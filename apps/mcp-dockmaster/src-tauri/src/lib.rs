@@ -1,11 +1,11 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    execute_tool, get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command,
-    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
-    update_tool_config, update_tool_status,
+    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
+    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
+    update_tool_status,
 };
 use log::{error, info};
-use mcp_core::mcp_proxy::{MCPState, ToolRegistry};
+use mcp_core::{mcp_state::MCPState, registry::ToolRegistry};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::RwLock;
@@ -73,11 +73,7 @@ fn init_services(
 ) {
     tokio::spawn(async move {
         mcp_core::http_server::start_http_server(http_state).await;
-        mcp_core::mcp_proxy::ToolRegistry::init_mcp_server(mcp_state).await;
-
-        // Start the process monitor
-        // ToolRegistry::start_process_monitor(mcp_state.clone());
-        // info!("Process monitor started");
+        mcp_core::mcp_proxy::init_mcp_server(mcp_state).await;
 
         // Set the initialization complete flag
         commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -125,7 +121,7 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = MCPState::default();
+    let mcp_state = MCPState::new();
     let http_state = Arc::new(RwLock::new(mcp_state.clone()));
 
     tauri::Builder::default()
@@ -172,18 +168,18 @@ pub async fn run() {
                     // Create a deep clone that's fully owned
                     let state_owned = state.inner().clone();
 
-                    // Spawn a task to save state and then cleanup
-                    std::thread::spawn(move || {
-                        // Create a new runtime for this thread
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                                log::error!("Failed to save MCP state: {}", e);
-                            } else {
-                                log::info!("MCP state saved successfully");
-                            }
-                        });
-                    });
+                    // // Spawn a task to save state and then cleanup
+                    // std::thread::spawn(move || {
+                    //     // Create a new runtime for this thread
+                    //     let rt = tokio::runtime::Runtime::new().unwrap();
+                    //     rt.block_on(async {
+                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
+                    //             log::error!("Failed to save MCP state: {}", e);
+                    //         } else {
+                    //             log::info!("MCP state saved successfully");
+                    //         }
+                    //     });
+                    // });
                 }
 
                 // Cleanup processes
@@ -195,17 +191,17 @@ pub async fn run() {
                     // Create a deep clone that's fully owned
                     let state_owned = state.inner().clone();
 
-                    // Use a separate thread to avoid blocking the main thread
-                    std::thread::spawn(move || {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                                log::error!("Failed to save MCP state: {}", e);
-                            } else {
-                                log::info!("MCP state saved successfully");
-                            }
-                        });
-                    });
+                    // // Use a separate thread to avoid blocking the main thread
+                    // std::thread::spawn(move || {
+                    //     let rt = tokio::runtime::Runtime::new().unwrap();
+                    //     rt.block_on(async {
+                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
+                    //             log::error!("Failed to save MCP state: {}", e);
+                    //         } else {
+                    //             log::info!("MCP state saved successfully");
+                    //         }
+                    //     });
+                    // });
                 }
 
                 // Cleanup processes

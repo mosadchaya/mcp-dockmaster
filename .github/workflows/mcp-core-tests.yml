@@ -49,7 +49,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install mcp-hello-world node dependencies
-        run: cd libs/mcp-core/tests/it/resources/mcp-server-hello-world && npm i && cd -
+        run: cd libs/mcp-core/tests/integration/resources/mcp-server-hello-world && npm i && cd -
 
       - name: Run mcp-core tests
         run: npm run test:mcp-core

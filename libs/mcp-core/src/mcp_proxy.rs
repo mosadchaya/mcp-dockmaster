@@ -1,597 +1,23 @@
-use crate::database;
-use log::{error, info, warn};
-use serde::{Deserialize, Serialize};
+use crate::mcp_state::MCPState;
+use crate::models::models::{
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
+    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
+    ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
+    ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+};
+use crate::registry::ToolRegistry;
+use crate::{database, dm_process::DMProcess, MCPError};
+use log::{error, info};
 use serde_json::{json, Value};
-use std::process::Stdio;
-use std::{collections::HashMap, sync::Arc};
-use thiserror::Error;
+use std::collections::HashMap;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
-    process::{Child, Command},
-    sync::RwLock,
+    process::Child,
     time::Duration,
 };
 
-/// Tool configuration for command and arguments
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolConfiguration {
-    pub command: String,
-    #[serde(default)]
-    pub args: Option<Vec<String>>,
-}
-
-/// Tool config for environment variables and optional command
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolConfig {
-    #[serde(default)]
-    pub env: Option<HashMap<String, String>>,
-    #[serde(default)]
-    pub command: Option<String>,
-    #[serde(default)]
-    pub args: Option<Vec<String>>,
-}
-
-/// Tool definition with all properties
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Tool {
-    pub name: String,
-    pub description: String,
-    pub enabled: bool,
-    pub tool_type: String,
-    #[serde(default)]
-    pub entry_point: Option<String>,
-    #[serde(default)]
-    pub configuration: Option<ToolConfiguration>,
-    #[serde(default)]
-    pub distribution: Option<Value>,
-    #[serde(default)]
-    pub config: Option<ToolConfig>,
-    #[serde(default)]
-    pub authentication: Option<Value>,
-}
-
-/// Holds information about registered tools and their processes
-#[derive(Default)]
-pub struct ToolRegistry {
-    pub tools: HashMap<String, Tool>,
-    pub processes: HashMap<String, Option<Child>>,
-    pub server_tools: HashMap<String, Vec<Value>>,
-    pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
-}
-
-impl ToolRegistry {
-    /// Kill all running processes
-    pub async fn kill_all_processes(&mut self) {
-        for (tool_id, process_opt) in self.processes.iter_mut() {
-            if let Some(process) = process_opt {
-                if let Err(e) = process.kill().await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                } else {
-                    info!("Killed process for tool {}", tool_id);
-                }
-            }
-        }
-    }
-
-    // Start a background task that periodically checks if processes are running
-    pub fn start_process_monitor(mcp_state: MCPState) {
-        info!("Starting process monitor task");
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Check every 30 seconds
-
-            loop {
-                interval.tick().await;
-
-                // Check all processes
-                let registry_clone = mcp_state.tool_registry.clone();
-                let tools_to_restart = {
-                    let registry = registry_clone.read().await;
-                    let mut to_restart = Vec::new();
-
-                    for (id, tool) in &registry.tools {
-                        if tool.enabled {
-                            // Check if process is running
-                            let process_running =
-                                registry.processes.get(id).is_some_and(|p| p.is_some());
-
-                            if !process_running {
-                                warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
-                                to_restart.push(id.clone());
-                            }
-                        }
-                    }
-
-                    to_restart
-                };
-
-                // Restart any processes that should be running but aren't
-                for tool_id in tools_to_restart {
-                    info!("Attempting to restart tool: {}", tool_id);
-                    let mut registry = mcp_state.tool_registry.write().await;
-                    if let Err(e) = registry.restart_tool(&tool_id).await {
-                        error!("Failed to restart tool {}: {}", tool_id, e);
-                    } else {
-                        info!("Successfully restarted tool: {}", tool_id);
-                    }
-                }
-            }
-        });
-    }
-
-    /// Execute a tool on a server
-    pub async fn execute_tool(
-        &mut self,
-        server_id: &str,
-        tool_id: &str,
-        parameters: Value,
-    ) -> Result<Value, MCPError> {
-        execute_server_tool(server_id, tool_id, parameters, self).await
-    }
-
-    /// Initialize the MCP state from the database
-    pub async fn init_mcp_state() -> MCPState {
-        let mcp_state = MCPState::default();
-
-        let db_manager = match database::DatabaseManager::new() {
-            Ok(manager) => manager,
-            Err(e) => {
-                error!("Failed to initialize database: {}", e);
-                return mcp_state;
-            }
-        };
-
-        // Load the tool registry
-        match db_manager.load_tool_registry() {
-            Ok(registry_data) => {
-                // Explicitly close the database connection
-                let _ = db_manager.close();
-
-                // Update the mcp_state.tool_registry with the loaded data
-                let mut registry = mcp_state.tool_registry.write().await;
-                *registry = registry_data;
-                info!("Successfully loaded MCP state from database");
-            }
-            Err(e) => {
-                // Explicitly close the database connection
-                let _ = db_manager.close();
-
-                error!("Failed to load MCP state from database: {}", e);
-            }
-        }
-
-        mcp_state
-    }
-
-    /// Save the current MCP state to the database
-    pub async fn save_mcp_state(mcp_state: &MCPState) -> Result<(), String> {
-        // First, get a clone of the registry data to avoid holding the lock for too long
-        let registry_data = {
-            let registry = mcp_state.tool_registry.read().await;
-
-            // Create clones of the data we need to save
-            let tools_clone = registry.tools.clone();
-            let server_tools_clone = registry.server_tools.clone();
-
-            // Create a temporary registry with just the data we need
-            ToolRegistry {
-                tools: tools_clone,
-                server_tools: server_tools_clone,
-                processes: HashMap::new(),
-                process_ios: HashMap::new(),
-            }
-        };
-
-        // Now save the cloned data to the database
-        match database::DatabaseManager::new() {
-            Ok(mut db_manager) => {
-                let result = db_manager.save_tool_registry(&registry_data);
-
-                // Explicitly close the database connection
-                let _ = db_manager.close();
-
-                match result {
-                    Ok(_) => {
-                        info!("Successfully saved MCP state to database");
-                        Ok(())
-                    }
-                    Err(e) => {
-                        error!("Failed to save tool registry: {}", e);
-                        Err(e)
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to initialize database for saving: {}", e);
-                Err(e)
-            }
-        }
-    }
-
-    /// Restart a tool by its ID
-    pub async fn restart_tool(&mut self, tool_id: &str) -> Result<(), String> {
-        info!("Attempting to restart tool: {}", tool_id);
-
-        // Check if the tool exists
-        let tool_info = if let Some(tool) = self.tools.get(tool_id) {
-            // Extract necessary information
-            let tool_type = tool.tool_type.clone();
-            let entry_point = tool.entry_point.clone().unwrap_or_default();
-
-            info!(
-                "Found tool {}: type={}, entry_point={}",
-                tool_id, tool_type, entry_point
-            );
-            Some((tool_type, entry_point, tool.clone()))
-        } else {
-            error!("Tool with ID '{}' not found in registry", tool_id);
-            None
-        };
-
-        if tool_info.is_none() {
-            return Err(format!("Tool with ID '{}' not found", tool_id));
-        }
-
-        let (tool_type, entry_point, tool_data) = tool_info.unwrap();
-
-        // Check if tool_type is empty
-        if tool_type.is_empty() {
-            error!("Missing tool_type for tool {}", tool_id);
-            return Err(format!("Missing tool_type for tool {}", tool_id));
-        }
-
-        // Check if the process is already running
-        let process_running = self.processes.get(tool_id).is_some_and(|p| p.is_some());
-
-        if process_running {
-            info!(
-                "Tool {} is already running, killing process before restart",
-                tool_id
-            );
-
-            // Get the process and kill it
-            if let Some(Some(process)) = self.processes.get_mut(tool_id) {
-                if let Err(e) = kill_process(process).await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                    return Err(format!("Failed to kill process: {}", e));
-                }
-                info!("Successfully killed process for tool {}", tool_id);
-            }
-
-            // Remove the process from the registry
-            self.processes.insert(tool_id.to_string(), None);
-
-            // Remove the process IOs
-            self.process_ios.remove(tool_id);
-        }
-
-        // Check if the tool is enabled
-        let is_enabled = tool_data.enabled;
-
-        if !is_enabled {
-            info!("Tool {} is disabled, not restarting", tool_id);
-            return Ok(());
-        }
-
-        info!(
-            "Tool {} is enabled and not running, starting process",
-            tool_id
-        );
-
-        // Extract environment variables from the tool configuration
-        let env_vars = if let Some(config) = &tool_data.config {
-            if let Some(env_map) = &config.env {
-                info!(
-                    "Extracted {} environment variables for tool {}",
-                    env_map.len(),
-                    tool_id
-                );
-                for (key, value) in env_map {
-                    info!(
-                        "Setting environment variable for tool {}: {}={}",
-                        tool_id, key, value
-                    );
-                }
-                Some(env_map.clone())
-            } else {
-                info!("No environment variables found for tool {}", tool_id);
-                None
-            }
-        } else {
-            info!("No configuration found for tool {}", tool_id);
-            None
-        };
-
-        // Get the configuration from the tool data
-        let config_value = if let Some(configuration) = &tool_data.configuration {
-            // Use the configuration directly
-            info!("Using configuration from tool data for {}", tool_id);
-            json!({
-                "command": configuration.command,
-                "args": configuration.args
-            })
-        } else if !entry_point.is_empty() {
-            // If no configuration but entry_point exists, create a simple config
-            info!(
-                "Creating simple configuration with entry_point for {}",
-                tool_id
-            );
-            json!({
-                "command": entry_point
-            })
-        } else if let Some(config) = &tool_data.config {
-            // Try to use config if it exists
-            if let Some(command) = &config.command {
-                info!("Using command from config for {}: {}", tool_id, command);
-                json!({
-                    "command": command,
-                    "args": config.args.clone().unwrap_or_default()
-                })
-            } else {
-                error!("Missing command in configuration for tool {}", tool_id);
-                return Err(format!(
-                    "Missing command in configuration for tool {}",
-                    tool_id
-                ));
-            }
-        } else {
-            error!("Missing configuration for tool {}", tool_id);
-            return Err(format!("Missing configuration for tool {}", tool_id));
-        };
-
-        // Spawn process based on tool type
-        let spawn_result = match tool_type.as_str() {
-            "node" => {
-                info!("Spawning Node.js process for tool: {}", tool_id);
-                spawn_nodejs_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            "python" => {
-                info!("Spawning Python process for tool: {}", tool_id);
-                spawn_python_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            "docker" => {
-                info!("Spawning Docker process for tool: {}", tool_id);
-                spawn_docker_process(&config_value, tool_id, env_vars.as_ref()).await
-            }
-            _ => {
-                error!("Unsupported tool type: {}", tool_type);
-                return Err(format!("Unsupported tool type: {}", tool_type));
-            }
-        };
-
-        match spawn_result {
-            Ok((process, stdin, stdout)) => {
-                info!("Successfully spawned process for tool: {}", tool_id);
-                self.processes.insert(tool_id.to_string(), Some(process));
-                self.process_ios
-                    .insert(tool_id.to_string(), (stdin, stdout));
-
-                // Wait a moment for the server to start
-                // We need to use a separate scope to avoid moving self
-                {
-                    // Release the lock during sleep
-                    info!("Waiting for server to start for tool: {}", tool_id);
-                    let sleep_future = tokio::time::sleep(Duration::from_secs(2));
-                    sleep_future.await;
-                }
-
-                // Try to discover tools from this server
-                match discover_server_tools(tool_id, self).await {
-                    Ok(tools) => {
-                        self.server_tools.insert(tool_id.to_string(), tools.clone());
-                        info!(
-                            "Successfully discovered {} tools for {}",
-                            tools.len(),
-                            tool_id
-                        );
-                    }
-                    Err(e) => {
-                        error!("Failed to discover tools from server {}: {}", tool_id, e);
-                        // Continue even if discovery fails
-                    }
-                }
-
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to spawn process for tool {}: {}", tool_id, e);
-                Err(format!("Failed to spawn process: {}", e))
-            }
-        }
-    }
-
-    pub async fn init_mcp_server(mcp_state: MCPState) {
-        info!("Starting background initialization of MCP services");
-
-        // Use the existing initialize_mcp_state function which handles loading from DB and restarting tools
-        let initialized_state = ToolRegistry::init_mcp_state().await;
-
-        // Copy the initialized data to our existing state
-        {
-            let initialized_registry = initialized_state.tool_registry.read().await;
-            let mut current_registry = mcp_state.tool_registry.write().await;
-
-            // Copy the tools data
-            current_registry.tools = initialized_registry.tools.clone();
-
-            // For processes, we need special handling
-            // Since we can't directly copy the processes, we'll use the restart_tool method on the registry
-            // to respawn processes for tools that were running
-            let tool_ids_to_restart: Vec<String> = initialized_registry
-                .tools
-                .iter()
-                .filter_map(|(tool_id, metadata)| {
-                    if metadata.enabled {
-                        info!("Found enabled tool: {}", tool_id);
-                        Some(tool_id.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            // Release the read lock before proceeding
-            drop(initialized_registry);
-
-            // Now restart each tool
-            for tool_id in tool_ids_to_restart {
-                info!("Respawning process for tool: {}", tool_id);
-                match current_registry.restart_tool(&tool_id).await {
-                    Ok(()) => {
-                        info!("Successfully spawned process for tool: {}", tool_id);
-                    }
-                    Err(e) => {
-                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Shared state for MCP tools
-#[derive(Clone, Default)]
-pub struct MCPState {
-    pub tool_registry: Arc<RwLock<ToolRegistry>>,
-}
-
-/// MCP tool registration request
-#[derive(Deserialize)]
-pub struct ToolRegistrationRequest {
-    tool_name: String,
-    description: String,
-    authentication: Option<Value>,
-    tool_type: String, // "node", "python", "docker"
-    configuration: Option<Value>,
-    distribution: Option<Value>,
-}
-
-/// MCP tool registration response
-#[derive(Serialize)]
-pub struct ToolRegistrationResponse {
-    pub success: bool,
-    pub message: String,
-    pub tool_id: Option<String>,
-}
-
-/// MCP tool execution request
-#[derive(Deserialize)]
-pub struct ToolExecutionRequest {
-    pub tool_id: String,
-    pub parameters: Value,
-}
-
-/// MCP tool execution response
-#[derive(Serialize)]
-pub struct ToolExecutionResponse {
-    pub success: bool,
-    pub result: Option<Value>,
-    pub error: Option<String>,
-}
-
-/// MCP tool update request
-#[derive(Deserialize)]
-pub struct ToolUpdateRequest {
-    tool_id: String,
-    enabled: bool,
-}
-
-/// MCP tool update response
-#[derive(Serialize)]
-pub struct ToolUpdateResponse {
-    success: bool,
-    message: String,
-}
-
-/// MCP tool config update request
-#[derive(Deserialize)]
-pub struct ToolConfigUpdateRequest {
-    tool_id: String,
-    config: ToolConfig,
-}
-
-/// MCP tool config update response
-#[derive(Serialize)]
-pub struct ToolConfigUpdateResponse {
-    success: bool,
-    message: String,
-}
-
-/// MCP tool uninstall request
-#[derive(Deserialize)]
-pub struct ToolUninstallRequest {
-    tool_id: String,
-}
-
-/// MCP tool uninstall response
-#[derive(Serialize)]
-pub struct ToolUninstallResponse {
-    success: bool,
-    message: String,
-}
-
-/// MCP server discovery request
-#[derive(Deserialize)]
-pub struct DiscoverServerToolsRequest {
-    server_id: String,
-}
-
-/// MCP server discovery response
-#[derive(Serialize)]
-pub struct DiscoverServerToolsResponse {
-    success: bool,
-    tools: Option<Vec<Value>>,
-    error: Option<String>,
-}
-
-#[derive(Error, Debug)]
-pub enum MCPError {
-    #[error("Server {0} not found or not running")]
-    ServerNotFound(String),
-
-    #[error("Failed to serialize command: {0}")]
-    SerializationError(String),
-
-    #[error("Failed to write to process stdin: {0}")]
-    StdinWriteError(String),
-
-    #[error("Failed to flush stdin: {0}")]
-    StdinFlushError(String),
-
-    #[error("Failed to read from process stdout: {0}")]
-    StdoutReadError(String),
-
-    #[error("Timeout waiting for response from server {0}")]
-    TimeoutError(String),
-
-    #[error("Failed to parse response as JSON: {0}")]
-    JsonParseError(String),
-
-    #[error("Tool execution error: {0}")]
-    ToolExecutionError(String),
-
-    // #[error("Entry point file '{0}' does not exist")]
-    // EntryPointNotFound(String),
-
-    // #[error("Failed to spawn process: {0}")]
-    // ProcessSpawnError(String),
-
-    // #[error("Failed to open stdin")]
-    // StdinOpenError,
-
-    // #[error("Failed to open stdout")]
-    // StdoutOpenError,
-    #[error("Server process closed connection")]
-    ServerClosedConnection,
-
-    #[error("No response from process")]
-    NoResponse,
-
-    #[error("Response contains no result field")]
-    NoResultField,
-}
-
 /// Discover tools available from an MCP server
-async fn discover_server_tools(
+pub async fn discover_server_tools(
     server_id: &str,
     registry: &mut ToolRegistry,
 ) -> Result<Vec<Value>, String> {
@@ -706,7 +132,7 @@ async fn discover_server_tools(
 }
 
 /// Execute a tool on an MCP server
-async fn execute_server_tool(
+pub async fn execute_server_tool(
     server_id: &str,
     tool_name: &str,
     parameters: Value,
@@ -770,255 +196,11 @@ async fn execute_server_tool(
         .ok_or(MCPError::NoResultField)
 }
 
-/// Spawn a Node.js MCP server process
-async fn spawn_nodejs_process(
+/// Spawn an MCP server process using DMProcess
+pub async fn spawn_process(
     configuration: &Value,
     tool_id: &str,
-    env_vars: Option<&HashMap<String, String>>,
-) -> Result<
-    (
-        Child,
-        tokio::process::ChildStdin,
-        tokio::process::ChildStdout,
-    ),
-    String,
-> {
-    info!("Spawning Node.js process for tool ID: {}", tool_id);
-    info!("Configuration: {}", configuration);
-
-    let mut cmd;
-
-    let command = configuration
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
-
-    if command.contains("npx") || command.contains("node") {
-        info!(
-            "Using command to start process for tool {}: {}",
-            tool_id, command
-        );
-        cmd = Command::new(command);
-        // Add args if they exist
-        if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-            info!(
-                "Adding {} arguments to command for tool {}",
-                args.len(),
-                tool_id
-            );
-            for (i, arg) in args.iter().enumerate() {
-                if let Some(arg_str) = arg.as_str() {
-                    info!("Arg {}: {}", i, arg_str);
-                    cmd.arg(arg_str);
-                }
-            }
-        } else {
-            info!("No arguments found in configuration for tool {}", tool_id);
-        }
-
-        info!("Adding tool-id argument: {}", tool_id);
-        cmd.arg("--tool-id").arg(tool_id);
-
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-    } else {
-        // Otherwise, assume it's a file path that doesn't exist yet
-        error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
-        return Err(format!("Entry point file '{}' does not exist", command));
-    }
-
-    // Add environment variables if provided
-    if let Some(env_map) = env_vars {
-        info!(
-            "Setting {} environment variables for tool {}",
-            env_map.len(),
-            tool_id
-        );
-        for (key, value) in env_map {
-            info!(
-                "Setting environment variable for tool {}: {}={}",
-                tool_id, key, value
-            );
-            cmd.env(key, value);
-        }
-    } else {
-        info!("No environment variables provided for tool {}", tool_id);
-    }
-
-    // Log the command we're about to run
-    info!(
-        "Spawning process for tool {}: {:?} with args: {:?}",
-        tool_id,
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => {
-            info!("Successfully spawned process for tool {}", tool_id);
-            child
-        }
-        Err(e) => {
-            error!("Failed to spawn process for tool {}: {}", tool_id, e);
-            return Err(format!("Failed to spawn process: {}", e));
-        }
-    };
-
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
-    };
-
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
-}
-
-/// Spawn a Python MCP server process
-async fn spawn_python_process(
-    configuration: &Value,
-    tool_id: &str,
-    env_vars: Option<&HashMap<String, String>>,
-) -> Result<
-    (
-        Child,
-        tokio::process::ChildStdin,
-        tokio::process::ChildStdout,
-    ),
-    String,
-> {
-    let mut cmd;
-
-    let command = configuration
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
-
-    info!("Using Python command: {}", command);
-    cmd = Command::new(command);
-
-    // Add args if they exist
-    info!("Args: {:?}", configuration.get("args"));
-    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-        for arg in args {
-            if let Some(arg_str) = arg.as_str() {
-                cmd.arg(arg_str);
-            }
-        }
-    }
-
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Add environment variables if provided
-    if let Some(env_map) = env_vars {
-        for (key, value) in env_map {
-            info!("Setting environment variable: {}={}", key, value);
-            cmd.env(key, value);
-        }
-    }
-
-    // Log the command we're about to run
-    info!(
-        "Spawning Python process: {:?} with args: {:?}",
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(e) => {
-            error!("Failed to spawn Python process: {}", e);
-            return Err(format!("Failed to spawn Python process: {}", e));
-        }
-    };
-
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for Python process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
-    };
-
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for Python process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Python process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
-}
-
-/// Spawn a Docker MCP server process
-async fn spawn_docker_process(
-    configuration: &Value,
-    tool_id: &str,
+    tool_type: &str,
     env_vars: Option<&HashMap<String, String>>,
 ) -> Result<
     (
@@ -1033,113 +215,35 @@ async fn spawn_docker_process(
         .and_then(|v| v.as_str())
         .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
-    if command != "docker" {
-        return Err(format!(
-            "Expected 'docker' command for Docker runtime, got '{}'",
-            command
-        ));
-    }
+    let args = configuration
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|args| {
+            args.iter()
+                .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
-    info!("Using Docker command");
-    let mut cmd = Command::new(command);
-
-    cmd.arg("run")
-        .arg("-i")
-        .arg("--name")
-        .arg(tool_id)
-        .arg("-a")
-        .arg("stdout")
-        .arg("-a")
-        .arg("stderr")
-        .arg("-a")
-        .arg("stdin");
-
-    // Add environment variables as Docker -e flags if provided
-    if let Some(env_map) = env_vars {
-        for (key, value) in env_map {
-            info!("Setting Docker environment variable: {}={}", key, value);
-            cmd.arg("-e").arg(format!("{}={}", key, value));
-        }
-    }
-
-    cmd.arg("--rm");
-
-    // Add args if they exist
-    info!("Args: {:?}", configuration.get("args"));
-    if let Some(args) = configuration.get("args").and_then(|v| v.as_array()) {
-        for arg in args {
-            if let Some(arg_str) = arg.as_str() {
-                cmd.arg(arg_str);
-            }
-        }
-    }
-
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Log the command we're about to run
-    info!(
-        "Spawning Docker process: {:?} with args: {:?}",
-        cmd.as_std().get_program(),
-        cmd.as_std().get_args().collect::<Vec<_>>()
-    );
-
-    // Spawn the process
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(e) => {
-            error!("Failed to spawn Docker process: {}", e);
-            return Err(format!("Failed to spawn Docker process: {}", e));
-        }
+    let config = ToolConfiguration {
+        command: command.to_string(),
+        args: Some(args),
     };
 
-    // Capture stderr to a separate task that logs errors
-    if let Some(stderr) = child.stderr.take() {
-        let tool_id_clone = tool_id.to_string();
-        tokio::spawn(async move {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(bytes_read) = stderr_reader.read_line(&mut line).await {
-                if bytes_read == 0 {
-                    break;
-                }
-                info!("[{} stderr]: {}", tool_id_clone, line.trim());
-                line.clear();
-            }
-        });
-    }
-
-    // Take ownership of the pipes
-    let stdin = match child.stdin.take() {
-        Some(stdin) => stdin,
-        None => {
-            error!("Failed to open stdin for Docker process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdin error: {}", e);
-            }
-            return Err(String::from("Failed to open stdin"));
-        }
+    let tool_type = match tool_type {
+        "node" => ToolType::Node,
+        "python" => ToolType::Python,
+        "docker" => ToolType::Docker,
+        _ => return Err(format!("Unsupported tool type: {}", tool_type)),
     };
 
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            error!("Failed to open stdout for Docker process");
-            if let Err(e) = child.kill().await {
-                error!("Failed to kill process after stdout error: {}", e);
-            }
-            return Err(String::from("Failed to open stdout"));
-        }
-    };
-
-    info!("Docker process spawned successfully with stdin and stdout pipes");
-    // Return the process and pipes
-    Ok((child, stdin, stdout))
+    let tool_id = ToolId::new(tool_id.to_string());
+    let dm_process = DMProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
 }
 
 /// Kill a running process
-async fn kill_process(process: &mut Child) -> Result<(), String> {
+pub async fn kill_process(process: &mut Child) -> Result<(), String> {
     match process.kill().await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Failed to kill process: {}", e)),
@@ -1167,7 +271,7 @@ pub async fn register_tool(
     let mut registry = mcp_state.tool_registry.write().await;
 
     // Generate a simple tool ID (in production, use UUIDs)
-    let tool_id = format!("tool_{}", registry.tools.len() + 1);
+    let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
     info!("Generated tool ID: {}", tool_id);
 
     // Create the tool configuration if provided
@@ -1235,7 +339,8 @@ pub async fn register_tool(
         authentication: request.authentication.clone(),
     };
 
-    registry.tools.insert(tool_id.clone(), tool.clone());
+    // Save the tool in the registry
+    registry.save_tool(&tool_id, &tool)?;
 
     // Create a default empty tools list
     registry.server_tools.insert(tool_id.clone(), Vec::new());
@@ -1267,24 +372,13 @@ pub async fn register_tool(
     };
 
     // Spawn process based on tool type
-    let spawn_result = match request.tool_type.as_str() {
-        "node" => {
-            info!("Spawning Node.js process for tool: {}", request.tool_name);
-            spawn_nodejs_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        "python" => {
-            info!("Spawning Python process for tool: {}", request.tool_name);
-            spawn_python_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        "docker" => {
-            info!("Spawning Docker process for tool: {}", request.tool_name);
-            spawn_docker_process(&config_value, &tool_id, env_vars.as_ref()).await
-        }
-        _ => {
-            info!("Unsupported tool type: {}", request.tool_type);
-            return Err(format!("Unsupported tool type: {}", request.tool_type));
-        }
-    };
+    let spawn_result = spawn_process(
+        &config_value,
+        &tool_id,
+        &request.tool_type,
+        env_vars.as_ref(),
+    )
+    .await;
 
     match spawn_result {
         Ok((process, stdin, stdout)) => {
@@ -1386,7 +480,10 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
     let registry = mcp_state.tool_registry.read().await;
     let mut tools = Vec::new();
 
-    for (id, tool_struct) in registry.tools.iter() {
+    // Get all tools from the registry
+    let tool_map = registry.get_all_tools()?;
+
+    for (id, tool_struct) in tool_map {
         // Convert the Tool struct to a Value
         let mut tool_value = json!({
             "name": tool_struct.name,
@@ -1451,13 +548,13 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(id);
+            let process_running = registry.processes.contains_key(&id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
             let server_tool_count = registry
                 .server_tools
-                .get(id)
+                .get(&id)
                 .map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
@@ -1596,7 +693,7 @@ pub async fn update_tool_status(
     let tool_info = {
         let registry = mcp_state.tool_registry.read().await;
 
-        if let Some(tool) = registry.tools.get(&request.tool_id) {
+        if let Ok(tool) = registry.get_tool(&request.tool_id) {
             // Extract and clone the necessary values
             let tool_type = tool.tool_type.clone();
             let entry_point = tool.entry_point.clone().unwrap_or_default();
@@ -1621,12 +718,16 @@ pub async fn update_tool_status(
 
     // Now handle the process based on the enabled status
     let result = {
-        let mut registry = mcp_state.tool_registry.write().await;
+        let registry = mcp_state.tool_registry.write().await;
 
-        // Update the enabled status in the tool definition
-        if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-            tool.enabled = request.enabled;
-        }
+        // Get the current tool data
+        let mut tool = registry.get_tool(&request.tool_id)?;
+
+        // Update the enabled status
+        tool.enabled = request.enabled;
+
+        // Save the updated tool
+        registry.save_tool(&request.tool_id, &tool)?;
 
         // Drop the write lock before trying to restart the tool
         drop(registry);
@@ -1645,14 +746,6 @@ pub async fn update_tool_status(
             success: false,
             message: e,
         });
-    }
-
-    // Save the updated state to the database
-    if let Err(e) = ToolRegistry::save_mcp_state(mcp_state).await {
-        error!("Failed to save MCP state after updating tool status: {}", e);
-        // Continue even if saving fails
-    } else {
-        info!("Successfully saved MCP state after updating tool status");
     }
 
     // Return success
@@ -1680,9 +773,10 @@ pub async fn update_tool_config(
     // First, check if the tool exists
     let (tool_exists, is_enabled) = {
         let registry = mcp_state.tool_registry.read().await;
-        let tool = registry.tools.get(&request.tool_id);
-        let enabled = tool.map(|t| t.enabled).unwrap_or(false);
-        (tool.is_some(), enabled)
+        match registry.get_tool(&request.tool_id) {
+            Ok(tool) => (true, tool.enabled),
+            Err(_) => (false, false),
+        }
     };
 
     // If the tool doesn't exist, return an error
@@ -1697,53 +791,42 @@ pub async fn update_tool_config(
     info!("Tool '{}' found, enabled: {}", request.tool_id, is_enabled);
 
     // Update the tool configuration
-    let mut registry = mcp_state.tool_registry.write().await;
+    let registry = mcp_state.tool_registry.write().await;
 
-    // Update the configuration in the tool definition
-    if let Some(tool) = registry.tools.get_mut(&request.tool_id) {
-        // Create or update the config object
-        if tool.config.is_none() {
-            tool.config = Some(ToolConfig {
-                env: Some(HashMap::new()),
-                command: None,
-                args: None,
-            });
+    // Get the current tool data
+    let mut tool = registry.get_tool(&request.tool_id)?;
+
+    // Create or update the config object
+    if tool.config.is_none() {
+        tool.config = Some(ToolConfig {
+            env: Some(HashMap::new()),
+            command: None,
+            args: None,
+        });
+    }
+
+    if let Some(config) = &mut tool.config {
+        // Create or update the env object
+        if config.env.is_none() {
+            config.env = Some(HashMap::new());
         }
 
-        if let Some(config) = &mut tool.config {
-            // Create or update the env object
-            if config.env.is_none() {
-                config.env = Some(HashMap::new());
-            }
-
-            if let Some(env_map) = &mut config.env {
-                // Update each environment variable
-                if let Some(req_env) = &request.config.env {
-                    for (key, value) in req_env {
-                        info!(
-                            "Setting environment variable for tool {}: {}={}",
-                            request.tool_id, key, value
-                        );
-                        env_map.insert(key.clone(), value.clone());
-                    }
+        if let Some(env_map) = &mut config.env {
+            // Update each environment variable
+            if let Some(req_env) = &request.config.env {
+                for (key, value) in req_env {
+                    info!(
+                        "Setting environment variable for tool {}: {}={}",
+                        request.tool_id, key, value
+                    );
+                    env_map.insert(key.clone(), value.clone());
                 }
             }
         }
     }
 
-    // Release the registry lock before saving state
-    drop(registry);
-
-    // Save the updated state to the database
-    if let Err(e) = ToolRegistry::save_mcp_state(mcp_state).await {
-        error!("Failed to save MCP state after updating tool config: {}", e);
-        // Continue even if saving fails
-    } else {
-        info!(
-            "Successfully saved MCP state after updating tool config for tool: {}",
-            request.tool_id
-        );
-    }
+    // Save the updated tool
+    registry.save_tool(&request.tool_id, &tool)?;
 
     // Return success
     Ok(ToolConfigUpdateResponse {
@@ -1759,6 +842,14 @@ pub async fn uninstall_tool(
 ) -> Result<ToolUninstallResponse, String> {
     let mut registry = mcp_state.tool_registry.write().await;
 
+    // First check if the tool exists
+    if registry.get_tool(&request.tool_id).is_err() {
+        return Ok(ToolUninstallResponse {
+            success: false,
+            message: format!("Tool with ID '{}' not found", request.tool_id),
+        });
+    }
+
     // Kill the process if it's running
     if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
         if let Err(e) = kill_process(process).await {
@@ -1769,21 +860,23 @@ pub async fn uninstall_tool(
         }
     }
 
-    // Remove the tool and process from the registry
-    if registry.tools.remove(&request.tool_id).is_some() {
-        registry.processes.remove(&request.tool_id);
-        registry.server_tools.remove(&request.tool_id);
+    // Remove the process and IOs from the registry
+    registry.processes.remove(&request.tool_id);
+    registry.process_ios.remove(&request.tool_id);
+    registry.server_tools.remove(&request.tool_id);
 
-        Ok(ToolUninstallResponse {
-            success: true,
-            message: "Tool uninstalled successfully".to_string(),
-        })
-    } else {
-        Ok(ToolUninstallResponse {
+    // Delete the tool using registry's delete_tool method
+    if let Err(e) = registry.delete_tool(&request.tool_id) {
+        return Ok(ToolUninstallResponse {
             success: false,
-            message: format!("Tool with ID '{}' not found", request.tool_id),
-        })
+            message: format!("Failed to delete tool: {}", e),
+        });
     }
+
+    Ok(ToolUninstallResponse {
+        success: true,
+        message: "Tool uninstalled successfully".to_string(),
+    })
 }
 
 /// Get all server data in a single function to avoid multiple locks
@@ -1793,7 +886,9 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
     // 1. Get registered servers
     let mut servers = Vec::new();
-    for (id, tool_struct) in registry.tools.iter() {
+    let tool_map = registry.get_all_tools()?;
+
+    for (id, tool_struct) in tool_map {
         // Convert the Tool struct to a Value
         let mut tool_value = json!({
             "name": tool_struct.name,
@@ -1858,13 +953,13 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(id);
+            let process_running = registry.processes.contains_key(&id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
             let server_tool_count = registry
                 .server_tools
-                .get(id)
+                .get(&id)
                 .map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
@@ -1905,43 +1000,15 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
     }))
 }
 
-/// Save the current MCP state to the database
-pub async fn save_mcp_state_command(mcp_state: &MCPState) -> Result<String, String> {
-    match ToolRegistry::save_mcp_state(mcp_state).await {
-        Ok(_) => Ok("MCP state saved successfully".to_string()),
-        Err(e) => Err(format!("Failed to save MCP state: {}", e)),
-    }
-}
-
-/// Load MCP state from the database
-pub async fn load_mcp_state_command(mcp_state: &MCPState) -> Result<String, String> {
-    match database::DatabaseManager::new() {
-        Ok(db_manager) => {
-            match db_manager.load_tool_registry() {
-                Ok(registry) => {
-                    // Update the tool registry with loaded data
-                    let mut state_registry = mcp_state.tool_registry.write().await;
-                    state_registry.tools = registry.tools;
-                    state_registry.server_tools = registry.server_tools;
-                    // Note: processes and process_ios are not persisted
-
-                    Ok("MCP state loaded successfully".to_string())
-                }
-                Err(e) => Err(format!("Failed to load tool registry: {}", e)),
-            }
-        }
-        Err(e) => Err(format!("Failed to initialize database: {}", e)),
-    }
-}
-
 /// Check if the database exists and has data
 pub async fn check_database_exists_command() -> Result<bool, String> {
-    database::check_database_exists()
+    let db_manager = database::DBManager::new()?;
+    db_manager.check_exists()
 }
 
 /// Clear all data from the database
 pub async fn clear_database_command() -> Result<String, String> {
-    let mut db_manager = database::DatabaseManager::new()?;
+    let mut db_manager = database::DBManager::new()?;
     match db_manager.clear_database() {
         Ok(_) => Ok("Database cleared successfully".to_string()),
         Err(e) => Err(format!("Failed to clear database: {}", e)),
@@ -1958,7 +1025,7 @@ pub async fn restart_tool_command(
     // Check if the tool exists
     let tool_exists = {
         let registry = mcp_state.tool_registry.read().await;
-        registry.tools.contains_key(&tool_id)
+        registry.get_tool(&tool_id).is_ok()
     };
 
     if !tool_exists {
@@ -1993,4 +1060,51 @@ pub async fn restart_tool_command(
             })
         }
     }
+}
+
+/// Initialize the MCP server and start background services
+pub async fn init_mcp_server(mcp_state: MCPState) {
+    info!("Starting background initialization of MCP services");
+
+    // Initialize the registry with database connection
+    let registry = match ToolRegistry::new() {
+        Ok(registry) => registry,
+        Err(e) => {
+            error!("Failed to initialize registry: {}", e);
+            return;
+        }
+    };
+
+    // Get all tools from database
+    let tools = match registry.get_all_tools() {
+        Ok(tools) => tools,
+        Err(e) => {
+            error!("Failed to get tools from database: {}", e);
+            return;
+        }
+    };
+
+    // Update the state with the new registry
+    {
+        let mut current_registry = mcp_state.tool_registry.write().await;
+        *current_registry = registry;
+
+        // Restart enabled tools
+        for (tool_id, metadata) in tools {
+            if metadata.enabled {
+                info!("Found enabled tool: {}", tool_id);
+                match current_registry.restart_tool(&tool_id).await {
+                    Ok(()) => {
+                        info!("Successfully spawned process for tool: {}", tool_id);
+                    }
+                    Err(e) => {
+                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                    }
+                }
+            }
+        }
+    }
+
+    // Start the process monitor
+    ToolRegistry::start_process_monitor(mcp_state);
 }

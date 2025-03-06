@@ -45,7 +45,7 @@ const availableTools: RegistryTool[] = [
   //   runtime: "node",
   //   config: {
   //     command: "node",
-  //     "args": ["--experimental-modules", "--no-warnings", "../../../libs/mcp-core/tests/it/resources/mcp-server-hello-world/build/index.js"],
+  //     "args": ["--experimental-modules", "--no-warnings", "../../../libs/mcp-core/tests/it/integration/mcp-server-hello-world/build/index.js"],
   //     "env": {}
   //   }
   // },

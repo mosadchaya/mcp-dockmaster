@@ -57,4 +57,4 @@ pub enum MCPError {
     JsonError(#[from] serde_json::Error),
 }
 
-pub type MCPResult<T> = Result<T, MCPError>; 
+pub type MCPResult<T> = Result<T, MCPError>;

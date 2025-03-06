@@ -1,8 +1,11 @@
-use mcp_core::mcp_proxy::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, MCPState, ToolConfigUpdateRequest,
-    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolRegistrationRequest,
-    ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest,
-    ToolUpdateResponse,
+use mcp_core::{
+    mcp_state::MCPState,
+    models::models::{
+        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolConfigUpdateRequest,
+        ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
+        ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
+        ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+    },
 };
 use serde_json::Value;
 use tauri::State;
@@ -82,13 +85,17 @@ pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, St
 /// Save the MCP state to the database
 #[tauri::command]
 pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
-    mcp_core::mcp_proxy::save_mcp_state_command(state.inner()).await
+    println!("Saving MCP state to the database is no longer supported");
+    Ok("Saving MCP state to the database is no longer supported".to_string())
+    // mcp_core::mcp_proxy::save_mcp_state_command(state.inner()).await
 }
 
 /// Load MCP state from the database
 #[tauri::command]
 pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
-    mcp_core::mcp_proxy::load_mcp_state_command(state.inner()).await
+    println!("Loading MCP state from the database is no longer supported");
+    Ok("Loading MCP state from the database is no longer supported".to_string())
+    // mcp_core::mcp_proxy::load_mcp_state_command(state.inner()).await
 }
 
 /// Check if the database exists and has data
