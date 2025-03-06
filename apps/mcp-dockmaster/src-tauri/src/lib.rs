@@ -55,7 +55,7 @@ mod commands {
 
 fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<MCPState>() {
-        let mcp_state = state.clone();
+        let mcp_state = state.inner().clone();
 
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
