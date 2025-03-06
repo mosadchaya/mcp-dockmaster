@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::models::models::Tool;
+use crate::models::types::Tool;
 
 /// Database manager for persisting application state
 pub struct DBManager {
@@ -25,7 +25,6 @@ impl DBManager {
 
     /// Initialize the database manager with a custom database path
     pub fn with_path(db_path: PathBuf) -> Result<Self, String> {
-
         // Ensure the parent directory exists
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {

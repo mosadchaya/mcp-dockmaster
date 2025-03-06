@@ -1,5 +1,5 @@
 use crate::mcp_state::MCPState;
-use crate::models::models::{
+use crate::models::types::{
     DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
     ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
     ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
@@ -34,7 +34,6 @@ pub async fn discover_server_tools(
     stdin: &mut tokio::process::ChildStdin,
     stdout: &mut tokio::process::ChildStdout,
 ) -> Result<Vec<Value>, String> {
-
     info!("Discovering tools from server {}", server_id);
 
     // According to MCP specification, the correct method is "tools/list"
@@ -55,22 +54,28 @@ pub async fn discover_server_tools(
 
     // Write command to stdin
     match stdin.write_all(cmd_str.as_bytes()).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             // If the pipe is broken, the process might have died
             if e.kind() == std::io::ErrorKind::BrokenPipe {
-                return Err(format!("Process for server {} has died (broken pipe)", server_id));
+                return Err(format!(
+                    "Process for server {} has died (broken pipe)",
+                    server_id
+                ));
             }
             return Err(format!("Failed to write to process stdin: {}", e));
         }
     }
-    
+
     match stdin.flush().await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             // If the pipe is broken, the process might have died
             if e.kind() == std::io::ErrorKind::BrokenPipe {
-                return Err(format!("Process for server {} has died (broken pipe during flush)", server_id));
+                return Err(format!(
+                    "Process for server {} has died (broken pipe during flush)",
+                    server_id
+                ));
             }
             return Err(format!("Failed to flush stdin: {}", e));
         }
@@ -160,7 +165,6 @@ pub async fn execute_server_tool(
     stdin: &mut tokio::process::ChildStdin,
     stdout: &mut tokio::process::ChildStdout,
 ) -> Result<Value, MCPError> {
-
     let execute_cmd = json!({
         "jsonrpc": "2.0",
         "id": format!("execute_{}_{}", server_id, tool_name),
@@ -174,23 +178,29 @@ pub async fn execute_server_tool(
 
     // Write command to stdin with better error handling
     match stdin.write_all(cmd_str.as_bytes()).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             // If the pipe is broken, the process might have died
             if e.kind() == std::io::ErrorKind::BrokenPipe {
-                return Err(MCPError::StdinWriteError(format!("Process has died (broken pipe): {}", e)));
+                return Err(MCPError::StdinWriteError(format!(
+                    "Process has died (broken pipe): {}",
+                    e
+                )));
             }
             return Err(MCPError::StdinWriteError(e.to_string()));
         }
     }
-    
+
     // Flush stdin with better error handling
     match stdin.flush().await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             // If the pipe is broken, the process might have died
             if e.kind() == std::io::ErrorKind::BrokenPipe {
-                return Err(MCPError::StdinFlushError(format!("Process has died (broken pipe during flush): {}", e)));
+                return Err(MCPError::StdinFlushError(format!(
+                    "Process has died (broken pipe during flush): {}",
+                    e
+                )));
             }
             return Err(MCPError::StdinFlushError(e.to_string()));
         }
@@ -419,7 +429,9 @@ pub async fn register_tool(
         Ok((process, stdin, stdout)) => {
             info!("Process spawned successfully for tool ID: {}", tool_id);
             let mut process_manager = mcp_state.process_manager.write().await;
-            process_manager.processes.insert(tool_id.clone(), Some(process));
+            process_manager
+                .processes
+                .insert(tool_id.clone(), Some(process));
             process_manager
                 .process_ios
                 .insert(tool_id.clone(), (stdin, stdout));
@@ -462,8 +474,7 @@ pub async fn register_tool(
                             "name": request.tool_name,
                             "description": request.description
                         });
-                        server_tools
-                            .insert(tool_id.clone(), vec![default_tool]);
+                        server_tools.insert(tool_id.clone(), vec![default_tool]);
                     }
                 }
                 Ok(Err(e)) => {
@@ -475,8 +486,7 @@ pub async fn register_tool(
                         "name": request.tool_name,
                         "description": request.description
                     });
-                    server_tools
-                        .insert(tool_id.clone(), vec![default_tool]);
+                    server_tools.insert(tool_id.clone(), vec![default_tool]);
                     info!("Added default tool for server {}", tool_id);
                 }
                 Err(_) => {
@@ -488,8 +498,7 @@ pub async fn register_tool(
                         "name": request.tool_name,
                         "description": request.description
                     });
-                    server_tools
-                        .insert(tool_id.clone(), vec![default_tool]);
+                    server_tools.insert(tool_id.clone(), vec![default_tool]);
                     info!("Added default tool for server {} after timeout", tool_id);
                 }
             }
@@ -594,9 +603,7 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
             // Add number of available tools from this server
             let server_tool_count = {
                 let server_tools = mcp_state.server_tools.read().await;
-                server_tools
-                    .get(&id)
-                    .map_or_else(|| 0, |tools| tools.len())
+                server_tools.get(&id).map_or_else(|| 0, |tools| tools.len())
             };
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
@@ -665,22 +672,25 @@ pub async fn discover_tools(
 
     // Discover tools from the server
     let mut process_manager = mcp_state.process_manager.write().await;
-    let result = if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&request.server_id) {
-        discover_server_tools(&request.server_id, stdin, stdout).await
-    } else {
-        Err(format!("Server {} not found or not running", request.server_id))
-    };
-    
+    let result =
+        if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&request.server_id) {
+            discover_server_tools(&request.server_id, stdin, stdout).await
+        } else {
+            Err(format!(
+                "Server {} not found or not running",
+                request.server_id
+            ))
+        };
+
     // Release the process_manager lock before accessing server_tools
     drop(process_manager);
-    
+
     // Get a write lock on server_tools to update
     let mut server_tools = mcp_state.server_tools.write().await;
     match result {
         Ok(tools) => {
             // Store the discovered tools
-            server_tools
-                .insert(request.server_id.clone(), tools.clone());
+            server_tools.insert(request.server_id.clone(), tools.clone());
 
             Ok(DiscoverServerToolsResponse {
                 success: true,
@@ -715,14 +725,14 @@ pub async fn execute_proxy_tool(
 
     // Execute the tool on the server
     let mut process_manager = mcp_state.process_manager.write().await;
-    
+
     // Check if the server exists
     let result = if !process_manager.process_ios.contains_key(server_id) {
         Err(MCPError::ServerNotFound(server_id.to_string()))
     } else {
         // Get stdin/stdout for the server
         let (stdin, stdout) = process_manager.process_ios.get_mut(server_id).unwrap();
-        
+
         // Execute the tool
         execute_server_tool(
             server_id,
@@ -730,14 +740,14 @@ pub async fn execute_proxy_tool(
             request.parameters.clone(),
             stdin,
             stdout,
-        ).await
+        )
+        .await
     };
-    
+
     // Release the lock
     drop(process_manager);
-    
-    match result
-    {
+
+    match result {
         Ok(result) => Ok(ToolExecutionResponse {
             success: true,
             result: Some(result),
@@ -764,10 +774,13 @@ pub async fn update_tool_status(
             // Extract and clone the necessary values
             let tool_type = tool.tool_type.clone();
             let entry_point = tool.entry_point.clone().unwrap_or_default();
-           let process_running = {
-            let process_manager = mcp_state.process_manager.read().await;
-            process_manager.processes.get(&request.tool_id).is_some_and(|p| p.is_some())
-        };
+            let process_running = {
+                let process_manager = mcp_state.process_manager.read().await;
+                process_manager
+                    .processes
+                    .get(&request.tool_id)
+                    .is_some_and(|p| p.is_some())
+            };
 
             Some((tool_type, entry_point, process_running))
         } else {
@@ -931,7 +944,7 @@ pub async fn uninstall_tool(
     process_manager.processes.remove(&request.tool_id);
     process_manager.process_ios.remove(&request.tool_id);
     drop(process_manager);
-    
+
     // Remove server tools
     let mut server_tools = mcp_state.server_tools.write().await;
     server_tools.remove(&request.tool_id);
@@ -1030,9 +1043,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
-            let server_tool_count = server_tools
-                .get(&id)
-                .map_or_else(|| 0, |tools| tools.len());
+            let server_tool_count = server_tools.get(&id).map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
 

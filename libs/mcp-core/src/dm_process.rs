@@ -1,6 +1,6 @@
 use crate::{
     error::{MCPError, MCPResult},
-    models::models::{ToolConfiguration, ToolId, ToolType},
+    models::types::{ToolConfiguration, ToolId, ToolType},
 };
 use log::{error, info};
 use serde_json::json;

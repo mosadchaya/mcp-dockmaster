@@ -5,31 +5,28 @@ use tokio::sync::RwLock;
 #[cfg(test)]
 mod tests {
     use mcp_core::{
-        mcp_proxy, mcp_state::MCPState, models::models::ToolExecutionRequest,
-        registry::ToolRegistry,
+        mcp_proxy, mcp_state::MCPState, models::types::ToolExecutionRequest, registry::ToolRegistry,
     };
 
-  use std::collections::HashMap;
-use mcp_core::process_manager::ProcessManager;
-use mcp_core::database;
-use super::*;
+    use super::*;
+    use mcp_core::database;
+    use mcp_core::process_manager::ProcessManager;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Create a unique database path for this test
-        use std::env;
-        use std::path::PathBuf;
         use tempfile::tempdir;
-        
+
         let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {}", e))?;
         let db_path = temp_dir.path().join("test_mcp_core.db");
-        
+
         // Initialize registry with custom database path
         let registry = {
             let db_manager = database::DBManager::with_path(db_path)?;
             ToolRegistry::with_db_manager(db_manager)?
         };
-        
+
         // Initialize MCP state
         let mcp_state = MCPState {
             tool_registry: Arc::new(RwLock::new(registry)),

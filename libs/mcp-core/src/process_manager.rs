@@ -10,6 +10,7 @@ use tokio::process::Child;
 ///
 /// It has no knowledge about the database or MCPState, focusing solely on
 /// process tracking.
+#[derive(Default)]
 pub struct ProcessManager {
     pub processes: HashMap<String, Option<Child>>,
     pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
@@ -17,9 +18,6 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new() -> Self {
-        Self {
-            processes: HashMap::new(),
-            process_ios: HashMap::new(),
-        }
+        Self::default()
     }
 }

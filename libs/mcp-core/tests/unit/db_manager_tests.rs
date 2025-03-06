@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use mcp_core::{models::models::Tool, DBManager};
+    use mcp_core::{models::types::Tool, DBManager};
     use serial_test::serial;
     use std::env;
     use tempfile::tempdir;
