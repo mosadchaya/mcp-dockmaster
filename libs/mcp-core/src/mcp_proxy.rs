@@ -426,9 +426,9 @@ pub async fn register_tool(
         tool_type: request.tool_type.clone(),
         entry_point: None,
         configuration,
-        distribution: request.distribution.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or_else(|_| Distribution { r#type: "".to_string(), package: "".to_string() })),
+        distribution: request.distribution.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(Distribution { r#type: "".to_string(), package: "".to_string() })),
         config: tool_config,
-        env_configs: request.env_configs.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or_else(|_| EnvConfigs { env: None })),
+        env_configs: request.env_configs.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
     };
 
     // Save the tool in the registry
