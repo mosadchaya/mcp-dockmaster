@@ -1,30 +1,29 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use log::{error, info, warn};
 use serde_json::{json, Value};
-use tokio::process::Child;
+use tokio::{process::Child, sync::RwLock};
 
 use crate::{
     mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process},
-    mcp_state::MCPState,
     models::models::Tool,
     DBManager, MCPError,
 };
 
-pub struct ToolRegistry {
-    pub processes: HashMap<String, Option<Child>>,
-    pub server_tools: HashMap<String, Vec<Value>>,
-    pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
+pub struct AppContext {
+    pub processes: RwLock<HashMap<String, Option<Child>>>,
+    pub server_tools: RwLock<HashMap<String, Vec<Value>>>,
+    pub process_ios: RwLock<HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>>,
     db: DBManager,
 }
 
-impl ToolRegistry {
+impl AppContext {
     pub fn new() -> Result<Self, String> {
         let db = DBManager::new()?;
         Ok(Self {
-            processes: HashMap::new(),
-            server_tools: HashMap::new(),
-            process_ios: HashMap::new(),
+            processes: RwLock::new(HashMap::new()),
+            server_tools: RwLock::new(HashMap::new()),
+            process_ios: RwLock::new(HashMap::new()),
             db,
         })
     }
@@ -50,8 +49,9 @@ impl ToolRegistry {
     }
 
     /// Kill all running processes
-    pub async fn kill_all_processes(&mut self) {
-        for (tool_id, process_opt) in self.processes.iter_mut() {
+    pub async fn kill_all_processes(&self) {
+        let mut processes = self.processes.write().await;
+        for (tool_id, process_opt) in processes.iter_mut() {
             if let Some(process) = process_opt {
                 if let Err(e) = process.kill().await {
                     error!("Failed to kill process for tool {}: {}", tool_id, e);
@@ -64,7 +64,7 @@ impl ToolRegistry {
 
     /// Execute a tool on a server
     pub async fn execute_tool(
-        &mut self,
+        &self,
         server_id: &str,
         tool_id: &str,
         parameters: Value,
@@ -73,7 +73,7 @@ impl ToolRegistry {
     }
 
     /// Restart a tool by its ID
-    pub async fn restart_tool(&mut self, tool_id: &str) -> Result<(), String> {
+    pub async fn restart_tool(&self, tool_id: &str) -> Result<(), String> {
         info!("Attempting to restart tool: {}", tool_id);
 
         // Get tool from database
@@ -86,7 +86,10 @@ impl ToolRegistry {
         }
 
         // Check if the process is already running
-        let process_running = self.processes.get(tool_id).is_some_and(|p| p.is_some());
+        let process_running = {
+            let processes = self.processes.read().await;
+            processes.get(tool_id).is_some_and(|p| p.is_some())
+        };
 
         if process_running {
             info!(
@@ -95,19 +98,25 @@ impl ToolRegistry {
             );
 
             // Get the process and kill it
-            if let Some(Some(process)) = self.processes.get_mut(tool_id) {
-                if let Err(e) = kill_process(process).await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                    return Err(format!("Failed to kill process: {}", e));
+            {
+                let mut processes = self.processes.write().await;
+                if let Some(Some(process)) = processes.get_mut(tool_id) {
+                    if let Err(e) = kill_process(process).await {
+                        error!("Failed to kill process for tool {}: {}", tool_id, e);
+                        return Err(format!("Failed to kill process: {}", e));
+                    }
+                    info!("Successfully killed process for tool {}", tool_id);
                 }
-                info!("Successfully killed process for tool {}", tool_id);
+
+                // Remove the process from the registry
+                processes.insert(tool_id.to_string(), None);
             }
 
-            // Remove the process from the registry
-            self.processes.insert(tool_id.to_string(), None);
-
             // Remove the process IOs
-            self.process_ios.remove(tool_id);
+            {
+                let mut process_ios = self.process_ios.write().await;
+                process_ios.remove(tool_id);
+            }
         }
 
         // Check if the tool is enabled
@@ -185,9 +194,14 @@ impl ToolRegistry {
         match spawn_result {
             Ok((process, stdin, stdout)) => {
                 info!("Successfully spawned process for tool: {}", tool_id);
-                self.processes.insert(tool_id.to_string(), Some(process));
-                self.process_ios
-                    .insert(tool_id.to_string(), (stdin, stdout));
+                {
+                    let mut processes = self.processes.write().await;
+                    processes.insert(tool_id.to_string(), Some(process));
+                }
+                {
+                    let mut process_ios = self.process_ios.write().await;
+                    process_ios.insert(tool_id.to_string(), (stdin, stdout));
+                }
 
                 // Wait a moment for the server to start
                 {
@@ -199,7 +213,8 @@ impl ToolRegistry {
                 // Try to discover tools from this server
                 match discover_server_tools(tool_id, self).await {
                     Ok(tools) => {
-                        self.server_tools.insert(tool_id.to_string(), tools.clone());
+                        let mut server_tools = self.server_tools.write().await;
+                        server_tools.insert(tool_id.to_string(), tools.clone());
                         info!(
                             "Successfully discovered {} tools for {}",
                             tools.len(),
@@ -222,7 +237,7 @@ impl ToolRegistry {
     }
 
     // Start a background task that periodically checks if processes are running
-    pub fn start_process_monitor(mcp_state: MCPState) {
+    pub fn start_process_monitor(app_context: Arc<AppContext>) {
         info!("Starting process monitor task");
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
@@ -230,11 +245,8 @@ impl ToolRegistry {
             loop {
                 interval.tick().await;
 
-                let registry_clone = mcp_state.tool_registry.clone();
-                let mut registry = registry_clone.write().await;
-
                 // Get all tools from database
-                let tools = match registry.get_all_tools() {
+                let tools = match app_context.get_all_tools() {
                     Ok(tools) => tools,
                     Err(e) => {
                         error!("Failed to get tools from database: {}", e);
@@ -246,12 +258,14 @@ impl ToolRegistry {
                 for (id, tool) in tools {
                     if tool.enabled {
                         // Check if process is running
-                        let process_running =
-                            registry.processes.get(&id).is_some_and(|p| p.is_some());
+                        let process_running = {
+                            let processes = app_context.processes.read().await;
+                            processes.get(&id).is_some_and(|p| p.is_some())
+                        };
 
                         if !process_running {
                             warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
-                            if let Err(e) = registry.restart_tool(&id).await {
+                            if let Err(e) = app_context.restart_tool(&id).await {
                                 error!("Failed to restart tool {}: {}", id, e);
                             } else {
                                 info!("Successfully restarted tool: {}", id);

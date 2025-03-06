@@ -4,9 +4,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
-use crate::mcp_state::MCPState;
+use crate::app_context::AppContext;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -37,16 +36,16 @@ pub async fn health_check() -> impl IntoResponse {
 }
 
 pub async fn handle_mcp_request(
-    Extension(state): Extension<Arc<RwLock<MCPState>>>,
+    Extension(ctx): Extension<Arc<AppContext>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
     let result = match request.method.as_str() {
-        "tools/list" => handle_list_tools(state).await,
+        "tools/list" => handle_list_tools(ctx).await,
         "tools/call" => {
             if let Some(params) = request.params {
-                handle_invoke_tool(state, params).await
+                handle_invoke_tool(ctx, params).await
             } else {
                 Err(json!({
                     "code": -32602,
@@ -115,13 +114,11 @@ pub async fn handle_mcp_request(
     }
 }
 
-async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
-    let mcp_state = state.read().await;
-    let registry = mcp_state.tool_registry.read().await;
-
+async fn handle_list_tools(ctx: Arc<AppContext>) -> Result<Value, Value> {
     let mut all_tools = Vec::new();
 
-    for (server_id, tools) in &registry.server_tools {
+    let server_tools = ctx.server_tools.read().await;
+    for (server_id, tools) in &*server_tools {
         for tool in tools {
             let mut tool_info = serde_json::Map::new();
 
@@ -189,7 +186,7 @@ async fn handle_get_prompt(_params: Value) -> Result<Value, Value> {
     }))
 }
 
-async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
+async fn handle_invoke_tool(ctx: Arc<AppContext>, params: Value) -> Result<Value, Value> {
     let tool_name = match params.get("name").and_then(|v| v.as_str()) {
         Some(name) => name,
         None => {
@@ -205,13 +202,11 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
         None => json!({}),
     };
 
-    let mcp_state = state.read().await;
-    let mut registry = mcp_state.tool_registry.write().await;
-
     // Find which server has the requested tool
     let mut server_id = None;
 
-    for (sid, tools) in &registry.server_tools {
+    let server_tools = ctx.server_tools.read().await;
+    for (sid, tools) in &*server_tools {
         for tool in tools {
             if let Some(tool_id) = tool.get("id").and_then(|v| v.as_str()) {
                 if tool_id == tool_name {
@@ -244,7 +239,7 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
         }
     };
 
-    match registry
+    match ctx
         .execute_tool(&server_id, tool_name, arguments)
         .await
     {
