@@ -5,7 +5,16 @@ use std::sync::Arc;
 use crate::api::routes::routes;
 use crate::application::AppContext;
 
-pub async fn start_http_server(app_context: Arc<AppContext>) -> Result<(), String> {
+#[derive(Clone)]
+pub struct HttpState {
+    pub app_context: Arc<AppContext>,
+}
+
+pub async fn start_http_server() -> Result<(), String> {
+    // Initialize the application context
+    let app_context = AppContext::initialize().await?;
+    let app_context = Arc::new(app_context);
+
     let app = routes(app_context);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

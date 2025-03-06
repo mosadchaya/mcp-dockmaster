@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use log::{info, error};
+use serde_json::Value;
 use tokio::sync::RwLock;
 
 use crate::domain::traits::ToolRepository;
@@ -11,6 +12,7 @@ use crate::database::DBManager;
 use crate::registry::ToolRegistry;
 use crate::domain::traits::ProcessManager;
 
+/// Repository implementation that uses SQLite for persistence and ToolRegistry for in-memory storage
 pub struct SqliteToolRepository {
     db_manager: DBManager,
     registry: Arc<RwLock<ToolRegistry>>,
@@ -18,9 +20,19 @@ pub struct SqliteToolRepository {
 }
 
 impl SqliteToolRepository {
+    /// Create a new SqliteToolRepository with the given dependencies
     pub fn new(db_manager: DBManager, registry: Arc<RwLock<ToolRegistry>>, process_manager: Arc<dyn ProcessManager>) -> Self {
         Self { 
             db_manager,
+            registry,
+            process_manager,
+        }
+    }
+    
+    /// Create a new SqliteToolRepository without a DBManager (for testing or when DB access is not needed)
+    pub fn new_without_db(registry: Arc<RwLock<ToolRegistry>>, process_manager: Arc<dyn ProcessManager>) -> Self {
+        Self { 
+            db_manager: DBManager::new().expect("Failed to create DBManager"),
             registry,
             process_manager,
         }
@@ -126,39 +138,84 @@ impl ToolRepository for SqliteToolRepository {
     }
     
     async fn execute_tool(&self, request: ToolExecutionRequest) -> Result<ToolExecutionResponse, DomainError> {
-        // Extract server_id and tool_id from the proxy_id
+        info!("Executing tool with ID: {}", request.tool_id);
+        
+        // Extract server_id and tool_id from the proxy_id if it contains a colon
         let parts: Vec<&str> = request.tool_id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(DomainError::InvalidToolConfiguration(
-                "Invalid tool_id format. Expected 'server_id:tool_id'".to_string()
-            ));
-        }
-
-        let server_id = parts[0];
-        let tool_id = parts[1];
-
-        // Execute the tool on the server
-        let _registry = self.registry.write().await;
+        
         // Create a new HashMap for process_ios since we can't clone ChildStdin/ChildStdout
         let mut process_ios = HashMap::new();
-        // We need to refactor this in a future PR to properly handle process I/O
         
-        match self.process_manager.execute_server_tool(
-            server_id,
-            tool_id,
-            request.parameters.clone(),
-            &mut process_ios,
-        ).await {
-            Ok(result) => Ok(ToolExecutionResponse {
-                success: true,
-                result: Some(result),
-                error: None,
-            }),
-            Err(e) => Ok(ToolExecutionResponse {
-                success: false,
-                result: None,
-                error: Some(e.to_string()),
-            }),
+        if parts.len() == 2 {
+            // This is a server:tool format
+            let server_id = parts[0];
+            let tool_id = parts[1];
+            
+            info!("Executing server tool: {} from server: {}", tool_id, server_id);
+            
+            // Execute the tool on the server
+            let _registry = self.registry.write().await;
+            
+            match self.process_manager.execute_server_tool(
+                server_id,
+                tool_id,
+                request.parameters.clone(),
+                &mut process_ios,
+            ).await {
+                Ok(result) => Ok(ToolExecutionResponse {
+                    success: true,
+                    result: Some(result),
+                    error: None,
+                }),
+                Err(e) => {
+                    error!("Error executing server tool: {}", e);
+                    Ok(ToolExecutionResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Error executing server tool: {}", e)),
+                    })
+                }
+            }
+        } else {
+            // This is a regular tool execution
+            // Extract the tool name from parameters if available
+            let tool_name = request.parameters.get("tool_name").and_then(|v| v.as_str());
+            
+            if let Some(tool_name) = tool_name {
+                info!("Executing tool: {} with ID: {}", tool_name, request.tool_id);
+                
+                // Execute the tool on the server
+                let _registry = self.registry.write().await;
+                
+                match self.process_manager.execute_server_tool(
+                    &request.tool_id,
+                    tool_name,
+                    request.parameters.clone(),
+                    &mut process_ios,
+                ).await {
+                    Ok(result) => Ok(ToolExecutionResponse {
+                        success: true,
+                        result: Some(result),
+                        error: None,
+                    }),
+                    Err(e) => {
+                        error!("Error executing tool: {}", e);
+                        Ok(ToolExecutionResponse {
+                            success: false,
+                            result: None,
+                            error: Some(format!("Error executing tool: {}", e)),
+                        })
+                    }
+                }
+            } else {
+                // No tool_name provided, return an error
+                error!("No tool_name provided in parameters");
+                Ok(ToolExecutionResponse {
+                    success: false,
+                    result: None,
+                    error: Some("No tool_name provided in parameters".to_string()),
+                })
+            }
         }
     }
     

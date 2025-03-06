@@ -1,6 +1,6 @@
 use axum::{Extension, Json};
 use log::info;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::Arc;
 
 use crate::api::rpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};

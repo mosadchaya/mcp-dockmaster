@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fmt;
-use std::hash::{Hash, Hasher};
+// No imports needed here
 
 /// Tool definition with all properties
 #[derive(Clone, Debug, Serialize, Deserialize)]

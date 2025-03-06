@@ -4,12 +4,12 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::api::handlers::{handle_mcp_request, health_check};
+use crate::api::handlers::{health_handler, tools_handler};
 use crate::application::AppContext;
 
 pub fn routes(app_context: Arc<AppContext>) -> Router {
     Router::new()
-        .route("/mcp-proxy", post(handle_mcp_request))
-        .route("/health", get(health_check))
+        .route("/mcp-proxy", post(tools_handler::handle_mcp_request))
+        .route("/health", get(health_handler::health_check))
         .layer(Extension(app_context))
 }
