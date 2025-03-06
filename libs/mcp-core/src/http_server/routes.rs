@@ -5,16 +5,15 @@ use axum::{
 use log::{error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
-use crate::mcp_state::MCPState;
+use crate::app_context::AppContext;
 use super::handlers::{handle_mcp_request, health_check};
 
-pub async fn start_http_server(state: Arc<RwLock<MCPState>>) {
+pub async fn start_http_server(ctx: Arc<AppContext>) {
     let app = Router::new()
         .route("/mcp-proxy", post(handle_mcp_request))
         .route("/health", get(health_check))
-        .layer(Extension(state));
+        .layer(Extension(ctx));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("MCP HTTP server starting on {}", addr);

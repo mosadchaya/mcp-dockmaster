@@ -1,17 +1,16 @@
+pub mod app_context;
 pub mod database;
 pub mod dm_process;
 pub mod http_server;
 pub mod mcp_proxy;
-pub mod mcp_state;
 pub mod models;
-pub mod registry;
 
 // Re-export commonly used types and functions
+pub use app_context::AppContext;
 pub use database::DBManager;
 pub use dm_process::DMProcess;
 pub use error::{MCPError, MCPResult};
 pub use models::*;
-// pub use registry::ToolRegistry;
 
 // Initialize logging
 pub fn init_logging() {

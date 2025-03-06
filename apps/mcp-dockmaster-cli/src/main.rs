@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use log::{error, info};
-use mcp_core::{init_logging, mcp_proxy, mcp_state::MCPState};
+use mcp_core::{init_logging, mcp_proxy, app_context::AppContext};
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -92,8 +93,8 @@ async fn main() {
     // Parse command line arguments
     let cli = Cli::parse();
 
-    // Initialize MCP state
-    let mcp_state = MCPState::new();
+    // Initialize AppContext
+    let app_context = Arc::new(AppContext::new().expect("Failed to create AppContext"));
 
     // Handle commands
     match cli.command {
@@ -114,7 +115,7 @@ async fn main() {
             info!("Listing tools");
 
             // Get all server data
-            match mcp_proxy::get_all_server_data(&mcp_state).await {
+            match mcp_proxy::get_all_server_data(&app_context).await {
                 Ok(data) => {
                     // Print servers
                     if let Some(servers) = data.get("servers").and_then(|s| s.as_array()) {
@@ -244,7 +245,7 @@ async fn main() {
             info!("Restarting tool: {}", tool_id);
 
             // Restart the tool using the direct function
-            match mcp_proxy::restart_tool_command(&mcp_state, tool_id).await {
+            match mcp_proxy::restart_tool_command(&app_context, tool_id).await {
                 Ok(_) => {
                     println!("Tool restarted successfully");
                 }
