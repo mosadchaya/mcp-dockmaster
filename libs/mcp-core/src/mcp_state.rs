@@ -6,9 +6,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 use crate::mcp_proxy::process_lifecycle::{kill_process, spawn_process};
-use crate::mcp_proxy::tool_orchestration::{
-    discover_server_tools, execute_server_tool, initialize_server_connection,
-};
+use crate::mcp_proxy::tool_orchestration::{discover_server_tools, execute_server_tool};
 use crate::process_manager::ProcessManager;
 use crate::registry::ToolRegistry;
 use crate::MCPError;
@@ -195,7 +193,7 @@ impl MCPState {
         .await;
 
         match spawn_result {
-            Ok((process, stdin, stdout)) => {
+            Ok((process, _stdin, _stdout)) => {
                 info!("Successfully spawned process for tool: {}", tool_id);
                 {
                     let mut process_manager = self.process_manager.write().await;
