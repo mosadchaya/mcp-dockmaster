@@ -1,15 +1,15 @@
+use super::process_lifecycle::{kill_process, spawn_process};
+use super::tool_orchestration::{discover_server_tools, initialize_server_connection};
+use crate::mcp_state::MCPState;
+use crate::models::types::{
+    Tool, ToolConfig, ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration,
+    ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse,
+    ToolUpdateRequest, ToolUpdateResponse,
+};
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use tokio::time::Duration;
-use crate::mcp_state::MCPState;
-use crate::models::types::{
-    Tool, ToolConfig, ToolConfiguration, ToolConfigUpdateRequest, ToolConfigUpdateResponse,
-    ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
-    ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
-};
-use super::process_lifecycle::{kill_process, spawn_process};
-use super::tool_orchestration::discover_server_tools;
 
 /// Register a new tool with the MCP server
 pub async fn register_tool(
@@ -158,6 +158,22 @@ pub async fn register_tool(
             // Wait a moment for the server to start
             info!("Waiting for server to initialize...");
             tokio::time::sleep(Duration::from_secs(3)).await;
+
+            // Initialize the server connection
+            {
+                let mut process_manager = mcp_state.process_manager.write().await;
+                if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&tool_id) {
+                    match initialize_server_connection(&tool_id, stdin, stdout).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!(
+                                "Failed to initialize server connection for tool {}: {}",
+                                tool_id, e
+                            );
+                        }
+                    }
+                }
+            }
 
             // Try to discover tools from this server with a timeout to avoid hanging
             info!("Attempting to discover tools from server {}", tool_id);
@@ -325,10 +341,7 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
             if process_running {
                 let server_tool_count = {
                     let server_tools = mcp_state.server_tools.read().await;
-                    server_tools
-                        .get(&id)
-                        .map(|tools| tools.len())
-                        .unwrap_or(0)
+                    server_tools.get(&id).map(|tools| tools.len()).unwrap_or(0)
                 };
                 obj.insert("server_tool_count".to_string(), json!(server_tool_count));
             }
@@ -395,10 +408,7 @@ pub async fn update_tool_status(
                 let mut process_manager = mcp_state.process_manager.write().await;
                 if let Some(Some(process)) = process_manager.processes.get_mut(&request.tool_id) {
                     if let Err(e) = kill_process(process).await {
-                        error!(
-                            "Failed to kill process for tool {}: {}",
-                            request.tool_id, e
-                        );
+                        error!("Failed to kill process for tool {}: {}", request.tool_id, e);
                         return Ok(ToolUpdateResponse {
                             success: false,
                             message: format!("Failed to kill process: {}", e),
@@ -490,10 +500,7 @@ pub async fn update_tool_config(
             let mut process_manager = mcp_state.process_manager.write().await;
             if let Some(Some(process)) = process_manager.processes.get_mut(&request.tool_id) {
                 if let Err(e) = kill_process(process).await {
-                    error!(
-                        "Failed to kill process for tool {}: {}",
-                        request.tool_id, e
-                    );
+                    error!("Failed to kill process for tool {}: {}", request.tool_id, e);
                     return Ok(ToolConfigUpdateResponse {
                         success: false,
                         message: format!("Failed to kill process: {}", e),
@@ -520,7 +527,10 @@ pub async fn update_tool_config(
 
     Ok(ToolConfigUpdateResponse {
         success: true,
-        message: format!("Tool '{}' configuration updated successfully", request.tool_id),
+        message: format!(
+            "Tool '{}' configuration updated successfully",
+            request.tool_id
+        ),
     })
 }
 
@@ -783,10 +793,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
             if process_running {
                 let server_tool_count = {
                     let server_tools = mcp_state.server_tools.read().await;
-                    server_tools
-                        .get(&id)
-                        .map(|tools| tools.len())
-                        .unwrap_or(0)
+                    server_tools.get(&id).map(|tools| tools.len()).unwrap_or(0)
                 };
                 obj.insert("server_tool_count".to_string(), json!(server_tool_count));
             }

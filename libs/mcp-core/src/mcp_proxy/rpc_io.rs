@@ -1,10 +1,53 @@
+use crate::MCPError;
 use log::info;
 use serde_json::{json, Value};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     time::Duration,
 };
-use crate::MCPError;
+
+pub async fn init_rpc_call(
+    server_id: &str,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
+) -> Result<(), MCPError> {
+    info!("Initializing connection to server {}", server_id);
+
+    let execute_cmd = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+
+    let cmd_str = serde_json::to_string(&execute_cmd)
+        .map_err(|e| MCPError::SerializationError(e.to_string()))?
+        + "\n";
+
+    info!("Command: {}", cmd_str.trim());
+
+    stdin
+        .write_all(cmd_str.as_bytes())
+        .await
+        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
+
+    let mut reader = tokio::io::BufReader::new(&mut *stdout);
+    let mut response_line = String::new();
+
+    let read_result =
+        tokio::time::timeout(Duration::from_secs(1), reader.read_line(&mut response_line)).await;
+
+    match read_result {
+        Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
+        Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
+    }
+
+    Ok(())
+}
 
 /// Send a JSON-RPC command to a process and read the response
 pub async fn rpc_call(
@@ -70,7 +113,11 @@ pub async fn rpc_call(
     match read_result {
         Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
         Ok(Ok(_)) => {
-            info!("Received response from {}: {}", server_id, response_line.trim());
+            info!(
+                "Received response from {}: {}",
+                server_id,
+                response_line.trim()
+            );
         }
         Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
         Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),

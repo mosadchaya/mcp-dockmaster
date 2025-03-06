@@ -1,12 +1,24 @@
-use log::{info};
-use serde_json::{json, Value};
+use super::rpc_io::{init_rpc_call, rpc_call};
 use crate::mcp_state::MCPState;
 use crate::models::types::{
     DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolExecutionRequest,
     ToolExecutionResponse,
 };
 use crate::MCPError;
-use super::rpc_io::rpc_call;
+use log::info;
+use serde_json::{json, Value};
+
+/// Initialize a connection to an MCP server
+pub async fn initialize_server_connection(
+    server_id: &str,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
+) -> Result<(), String> {
+    match init_rpc_call(server_id, stdin, stdout).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to initialize server connection: {}", e)),
+    }
+}
 
 /// Discover tools available from an MCP server
 pub async fn discover_server_tools(
@@ -18,7 +30,7 @@ pub async fn discover_server_tools(
 
     // According to MCP specification, the correct method is "tools/list"
     let params = json!({});
-    
+
     match rpc_call(server_id, "tools/list", params, stdin, stdout, 10).await {
         Ok(result) => {
             // Handle different response formats
@@ -26,7 +38,7 @@ pub async fn discover_server_tools(
                 info!("Found {} tools in result array", tools_array.len());
                 return Ok(tools_array.clone());
             }
-            
+
             // Some implementations might nest it under a tools field
             if let Some(tools) = result.get("tools") {
                 if let Some(tools_array) = tools.as_array() {
@@ -34,14 +46,12 @@ pub async fn discover_server_tools(
                     return Ok(tools_array.clone());
                 }
             }
-            
+
             // If there's a result but we couldn't find tools array, try to use the entire result
             info!("No tools array found, using entire result as fallback");
             Ok(vec![result])
-        },
-        Err(e) => {
-            Err(format!("Failed to discover tools: {}", e))
         }
+        Err(e) => Err(format!("Failed to discover tools: {}", e)),
     }
 }
 
@@ -53,11 +63,11 @@ pub async fn execute_server_tool(
     stdin: &mut tokio::process::ChildStdin,
     stdout: &mut tokio::process::ChildStdout,
 ) -> Result<Value, MCPError> {
-    let params = json!({ 
-        "name": tool_name, 
-        "arguments": parameters 
+    let params = json!({
+        "name": tool_name,
+        "arguments": parameters
     });
-    
+
     rpc_call(server_id, "tools/call", params, stdin, stdout, 30).await
 }
 
@@ -145,7 +155,11 @@ pub async fn execute_proxy_tool(
     // Check if the server exists and is running
     let result = if !process_manager.process_ios.contains_key(server_id) {
         Err(MCPError::ServerNotFound(server_id.to_string()))
-    } else if !process_manager.processes.get(server_id).is_some_and(|p| p.is_some()) {
+    } else if !process_manager
+        .processes
+        .get(server_id)
+        .is_some_and(|p| p.is_some())
+    {
         Err(MCPError::ServerClosedConnection)
     } else {
         // Get stdin/stdout for the server

@@ -5,8 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use crate::mcp_proxy::tool_orchestration::{discover_server_tools, execute_server_tool};
 use crate::mcp_proxy::process_lifecycle::{kill_process, spawn_process};
+use crate::mcp_proxy::tool_orchestration::{
+    discover_server_tools, execute_server_tool, initialize_server_connection,
+};
 use crate::process_manager::ProcessManager;
 use crate::registry::ToolRegistry;
 use crate::MCPError;
@@ -200,9 +202,6 @@ impl MCPState {
                     process_manager
                         .processes
                         .insert(tool_id.to_string(), Some(process));
-                    process_manager
-                        .process_ios
-                        .insert(tool_id.to_string(), (stdin, stdout));
                 }
 
                 // Wait longer for the server to start
