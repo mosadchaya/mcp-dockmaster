@@ -1061,3 +1061,50 @@ pub async fn restart_tool_command(
         }
     }
 }
+
+/// Initialize the MCP server and start background services
+pub async fn init_mcp_server(mcp_state: MCPState) {
+    info!("Starting background initialization of MCP services");
+
+    // Initialize the registry with database connection
+    let registry = match ToolRegistry::new() {
+        Ok(registry) => registry,
+        Err(e) => {
+            error!("Failed to initialize registry: {}", e);
+            return;
+        }
+    };
+
+    // Get all tools from database
+    let tools = match registry.get_all_tools() {
+        Ok(tools) => tools,
+        Err(e) => {
+            error!("Failed to get tools from database: {}", e);
+            return;
+        }
+    };
+
+    // Update the state with the new registry
+    {
+        let mut current_registry = mcp_state.tool_registry.write().await;
+        *current_registry = registry;
+
+        // Restart enabled tools
+        for (tool_id, metadata) in tools {
+            if metadata.enabled {
+                info!("Found enabled tool: {}", tool_id);
+                match current_registry.restart_tool(&tool_id).await {
+                    Ok(()) => {
+                        info!("Successfully spawned process for tool: {}", tool_id);
+                    }
+                    Err(e) => {
+                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                    }
+                }
+            }
+        }
+    }
+
+    // Start the process monitor
+    ToolRegistry::start_process_monitor(mcp_state);
+}

@@ -73,11 +73,7 @@ fn init_services(
 ) {
     tokio::spawn(async move {
         mcp_core::http_server::start_http_server(http_state).await;
-        mcp_core::registry::ToolRegistry::init_mcp_server(mcp_state).await;
-
-        // Start the process monitor
-        // ToolRegistry::start_process_monitor(mcp_state.clone());
-        // info!("Process monitor started");
+        mcp_core::mcp_proxy::init_mcp_server(mcp_state).await;
 
         // Set the initialization complete flag
         commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
