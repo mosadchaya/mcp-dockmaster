@@ -178,7 +178,7 @@ const InstalledServers: React.FC = () => {
             server_id: serverTool?.server_id,
             server_name: server?.name,
             process_running: server?.process_running,
-            config: tool.config || { env: {} }
+            config: tool.configuration || { env: {} }
           });
         }
       });
