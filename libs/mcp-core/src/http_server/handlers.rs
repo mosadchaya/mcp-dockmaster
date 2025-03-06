@@ -117,11 +117,11 @@ pub async fn handle_mcp_request(
 
 async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
     let mcp_state = state.read().await;
-    let registry = mcp_state.tool_registry.read().await;
+    let server_tools = mcp_state.server_tools.read().await;
 
     let mut all_tools = Vec::new();
 
-    for (server_id, tools) in &registry.server_tools {
+    for (server_id, tools) in &*server_tools {
         for tool in tools {
             let mut tool_info = serde_json::Map::new();
 
@@ -206,12 +206,12 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
     };
 
     let mcp_state = state.read().await;
-    let mut registry = mcp_state.tool_registry.write().await;
+    let server_tools = mcp_state.server_tools.read().await;
 
     // Find which server has the requested tool
     let mut server_id = None;
 
-    for (sid, tools) in &registry.server_tools {
+    for (sid, tools) in &*server_tools {
         for tool in tools {
             if let Some(tool_id) = tool.get("id").and_then(|v| v.as_str()) {
                 if tool_id == tool_name {
@@ -244,7 +244,10 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
         }
     };
 
-    match registry
+    // Drop the server_tools lock before executing the tool
+    drop(server_tools);
+    
+    match mcp_state
         .execute_tool(&server_id, tool_name, arguments)
         .await
     {

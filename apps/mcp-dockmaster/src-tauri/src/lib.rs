@@ -55,12 +55,11 @@ mod commands {
 
 fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<MCPState>() {
-        let tool_registry = state.tool_registry.clone();
+        let mcp_state = state.inner().clone();
 
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
-                let mut registry = tool_registry.write().await;
-                registry.kill_all_processes().await;
+                mcp_state.kill_all_processes().await;
             });
         }
     }
@@ -163,47 +162,10 @@ pub async fn run() {
                 // First, prevent exit to handle cleanup
                 api.prevent_exit();
 
-                // Clone the entire state to avoid lifetime issues
-                if let Some(state) = app_handle.try_state::<MCPState>() {
-                    // Create a deep clone that's fully owned
-                    let state_owned = state.inner().clone();
-
-                    // // Spawn a task to save state and then cleanup
-                    // std::thread::spawn(move || {
-                    //     // Create a new runtime for this thread
-                    //     let rt = tokio::runtime::Runtime::new().unwrap();
-                    //     rt.block_on(async {
-                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                    //             log::error!("Failed to save MCP state: {}", e);
-                    //         } else {
-                    //             log::info!("MCP state saved successfully");
-                    //         }
-                    //     });
-                    // });
-                }
-
                 // Cleanup processes
                 cleanup_mcp_processes(app_handle);
             }
             RunEvent::Exit { .. } => {
-                // Clone the entire state to avoid lifetime issues
-                if let Some(state) = app_handle.try_state::<MCPState>() {
-                    // Create a deep clone that's fully owned
-                    let state_owned = state.inner().clone();
-
-                    // // Use a separate thread to avoid blocking the main thread
-                    // std::thread::spawn(move || {
-                    //     let rt = tokio::runtime::Runtime::new().unwrap();
-                    //     rt.block_on(async {
-                    //         if let Err(e) = ToolRegistry::save_mcp_state(&state_owned).await {
-                    //             log::error!("Failed to save MCP state: {}", e);
-                    //         } else {
-                    //             log::info!("MCP state saved successfully");
-                    //         }
-                    //     });
-                    // });
-                }
-
                 // Cleanup processes
                 cleanup_mcp_processes(app_handle);
                 std::process::exit(0);

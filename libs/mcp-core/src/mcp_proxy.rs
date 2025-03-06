@@ -1,32 +1,38 @@
 use crate::mcp_state::MCPState;
-use crate::models::models::{
+use crate::models::types::{
     DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfig,
     ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
     ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
     ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::registry::ToolRegistry;
-use crate::{database, dm_process::DMProcess, MCPError};
+use crate::{database, spawned_process::SpawnedProcess, MCPError};
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     process::Child,
     time::Duration,
 };
 
+/// MCPProxy: raw JSON-RPC & process-spawn operations
+///
+/// This module handles low-level operations for the MCP protocol:
+/// - Spawning and killing child processes
+/// - Sending JSON-RPC commands to child processes
+/// - Reading JSON responses from child processes
+/// - Discovering and executing tools via JSON-RPC
+///
+/// It focuses on I/O with child processes and doesn't directly manage
+/// which tools are in the database or which tools are enabled.
 /// Discover tools available from an MCP server
 pub async fn discover_server_tools(
     server_id: &str,
-    registry: &mut ToolRegistry,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
 ) -> Result<Vec<Value>, String> {
-    // Get the stdin/stdout handles for the server
-    let (stdin, stdout) = match registry.process_ios.get_mut(server_id) {
-        Some(io) => io,
-        None => return Err(format!("Server {} not found or not running", server_id)),
-    };
-
     info!("Discovering tools from server {}", server_id);
 
     // According to MCP specification, the correct method is "tools/list"
@@ -46,14 +52,33 @@ pub async fn discover_server_tools(
     info!("Command: {}", cmd_str.trim());
 
     // Write command to stdin
-    stdin
-        .write_all(cmd_str.as_bytes())
-        .await
-        .map_err(|e| format!("Failed to write to process stdin: {}", e))?;
-    stdin
-        .flush()
-        .await
-        .map_err(|e| format!("Failed to flush stdin: {}", e))?;
+    match stdin.write_all(cmd_str.as_bytes()).await {
+        Ok(_) => {}
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(format!(
+                    "Process for server {} has died (broken pipe)",
+                    server_id
+                ));
+            }
+            return Err(format!("Failed to write to process stdin: {}", e));
+        }
+    }
+
+    match stdin.flush().await {
+        Ok(_) => {}
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(format!(
+                    "Process for server {} has died (broken pipe during flush)",
+                    server_id
+                ));
+            }
+            return Err(format!("Failed to flush stdin: {}", e));
+        }
+    }
 
     // Read the response with a timeout
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
@@ -136,13 +161,9 @@ pub async fn execute_server_tool(
     server_id: &str,
     tool_name: &str,
     parameters: Value,
-    registry: &mut ToolRegistry,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
 ) -> Result<Value, MCPError> {
-    let (stdin, stdout) = registry
-        .process_ios
-        .get_mut(server_id)
-        .ok_or_else(|| MCPError::ServerNotFound(server_id.to_string()))?;
-
     let execute_cmd = json!({
         "jsonrpc": "2.0",
         "id": format!("execute_{}_{}", server_id, tool_name),
@@ -154,14 +175,35 @@ pub async fn execute_server_tool(
         .map_err(|e| MCPError::SerializationError(e.to_string()))?
         + "\n";
 
-    stdin
-        .write_all(cmd_str.as_bytes())
-        .await
-        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
-    stdin
-        .flush()
-        .await
-        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
+    // Write command to stdin with better error handling
+    match stdin.write_all(cmd_str.as_bytes()).await {
+        Ok(_) => {}
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(MCPError::StdinWriteError(format!(
+                    "Process has died (broken pipe): {}",
+                    e
+                )));
+            }
+            return Err(MCPError::StdinWriteError(e.to_string()));
+        }
+    }
+
+    // Flush stdin with better error handling
+    match stdin.flush().await {
+        Ok(_) => {}
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(MCPError::StdinFlushError(format!(
+                    "Process has died (broken pipe during flush): {}",
+                    e
+                )));
+            }
+            return Err(MCPError::StdinFlushError(e.to_string()));
+        }
+    };
 
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
@@ -238,7 +280,7 @@ pub async fn spawn_process(
     };
 
     let tool_id = ToolId::new(tool_id.to_string());
-    let dm_process = DMProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    let dm_process = SpawnedProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
     Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
 }
 
@@ -268,7 +310,7 @@ pub async fn register_tool(
         info!("Configuration not provided");
     }
 
-    let mut registry = mcp_state.tool_registry.write().await;
+    let registry = mcp_state.tool_registry.write().await;
 
     // Generate a simple tool ID (in production, use UUIDs)
     let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
@@ -343,7 +385,9 @@ pub async fn register_tool(
     registry.save_tool(&tool_id, &tool)?;
 
     // Create a default empty tools list
-    registry.server_tools.insert(tool_id.clone(), Vec::new());
+    let mut server_tools = mcp_state.server_tools.write().await;
+    server_tools.insert(tool_id.clone(), Vec::new());
+    drop(server_tools);
 
     // Extract environment variables from the tool config
     let env_vars = if let Some(config) = &tool.config {
@@ -383,21 +427,28 @@ pub async fn register_tool(
     match spawn_result {
         Ok((process, stdin, stdout)) => {
             info!("Process spawned successfully for tool ID: {}", tool_id);
-            registry.processes.insert(tool_id.clone(), Some(process));
-            registry
+            let mut process_manager = mcp_state.process_manager.write().await;
+            process_manager
+                .processes
+                .insert(tool_id.clone(), Some(process));
+            process_manager
                 .process_ios
                 .insert(tool_id.clone(), (stdin, stdout));
+            drop(process_manager);
 
             // Wait a moment for the server to start
             info!("Waiting for server to initialize...");
-            drop(registry); // Release the lock during sleep
             tokio::time::sleep(Duration::from_secs(3)).await;
 
             // Try to discover tools from this server with a timeout to avoid hanging
             info!("Attempting to discover tools from server {}", tool_id);
             let discover_result = tokio::time::timeout(Duration::from_secs(15), async {
-                let mut registry = mcp_state.tool_registry.write().await;
-                discover_server_tools(&tool_id, &mut registry).await
+                let mut process_manager = mcp_state.process_manager.write().await;
+                if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&tool_id) {
+                    discover_server_tools(&tool_id, stdin, stdout).await
+                } else {
+                    Err(format!("Server {} not found or not running", tool_id))
+                }
             })
             .await;
 
@@ -409,10 +460,10 @@ pub async fn register_tool(
                         tools.len(),
                         tool_id
                     );
-                    let mut registry = mcp_state.tool_registry.write().await;
                     // Clone tools before inserting to avoid the "moved value" error
                     let tools_clone = tools.clone();
-                    registry.server_tools.insert(tool_id.clone(), tools);
+                    let mut server_tools = mcp_state.server_tools.write().await;
+                    server_tools.insert(tool_id.clone(), tools);
 
                     // If empty tools, add a default "main" tool
                     if tools_clone.is_empty() {
@@ -422,37 +473,31 @@ pub async fn register_tool(
                             "name": request.tool_name,
                             "description": request.description
                         });
-                        registry
-                            .server_tools
-                            .insert(tool_id.clone(), vec![default_tool]);
+                        server_tools.insert(tool_id.clone(), vec![default_tool]);
                     }
                 }
                 Ok(Err(e)) => {
                     error!("Error discovering tools from server {}: {}", tool_id, e);
                     // Add a default tool since discovery failed
-                    let mut registry = mcp_state.tool_registry.write().await;
+                    let mut server_tools = mcp_state.server_tools.write().await;
                     let default_tool = json!({
                         "id": "main",
                         "name": request.tool_name,
                         "description": request.description
                     });
-                    registry
-                        .server_tools
-                        .insert(tool_id.clone(), vec![default_tool]);
+                    server_tools.insert(tool_id.clone(), vec![default_tool]);
                     info!("Added default tool for server {}", tool_id);
                 }
                 Err(_) => {
                     error!("Timeout while discovering tools from server {}", tool_id);
                     // Add a default tool since discovery timed out
-                    let mut registry = mcp_state.tool_registry.write().await;
+                    let mut server_tools = mcp_state.server_tools.write().await;
                     let default_tool = json!({
                         "id": "main",
                         "name": request.tool_name,
                         "description": request.description
                     });
-                    registry
-                        .server_tools
-                        .insert(tool_id.clone(), vec![default_tool]);
+                    server_tools.insert(tool_id.clone(), vec![default_tool]);
                     info!("Added default tool for server {} after timeout", tool_id);
                 }
             }
@@ -548,14 +593,17 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(&id);
+            let process_running = {
+                let process_manager = mcp_state.process_manager.read().await;
+                process_manager.processes.contains_key(&id)
+            };
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
-            let server_tool_count = registry
-                .server_tools
-                .get(&id)
-                .map_or_else(|| 0, |tools| tools.len());
+            let server_tool_count = {
+                let server_tools = mcp_state.server_tools.read().await;
+                server_tools.get(&id).map_or_else(|| 0, |tools| tools.len())
+            };
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
 
@@ -566,10 +614,10 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
 /// List all available tools from all running MCP servers
 pub async fn list_all_server_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
-    let registry = mcp_state.tool_registry.read().await;
+    let server_tools = mcp_state.server_tools.read().await;
     let mut all_tools = Vec::new();
 
-    for (server_id, tools) in &registry.server_tools {
+    for (server_id, tools) in &*server_tools {
         for tool in tools {
             // Extract the basic tool information
             let mut tool_info = serde_json::Map::new();
@@ -603,8 +651,8 @@ pub async fn discover_tools(
 ) -> Result<DiscoverServerToolsResponse, String> {
     // Check if the server exists and is running
     let server_running = {
-        let registry = mcp_state.tool_registry.read().await;
-        registry
+        let process_manager = mcp_state.process_manager.read().await;
+        process_manager
             .processes
             .get(&request.server_id)
             .is_some_and(|p| p.is_some())
@@ -622,13 +670,26 @@ pub async fn discover_tools(
     }
 
     // Discover tools from the server
-    let mut registry = mcp_state.tool_registry.write().await;
-    match discover_server_tools(&request.server_id, &mut registry).await {
+    let mut process_manager = mcp_state.process_manager.write().await;
+    let result =
+        if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&request.server_id) {
+            discover_server_tools(&request.server_id, stdin, stdout).await
+        } else {
+            Err(format!(
+                "Server {} not found or not running",
+                request.server_id
+            ))
+        };
+
+    // Release the process_manager lock before accessing server_tools
+    drop(process_manager);
+
+    // Get a write lock on server_tools to update
+    let mut server_tools = mcp_state.server_tools.write().await;
+    match result {
         Ok(tools) => {
             // Store the discovered tools
-            registry
-                .server_tools
-                .insert(request.server_id.clone(), tools.clone());
+            server_tools.insert(request.server_id.clone(), tools.clone());
 
             Ok(DiscoverServerToolsResponse {
                 success: true,
@@ -662,15 +723,30 @@ pub async fn execute_proxy_tool(
     println!("tool_id: {}", tool_id);
 
     // Execute the tool on the server
-    let mut registry = mcp_state.tool_registry.write().await;
-    match execute_server_tool(
-        server_id,
-        tool_id,
-        request.parameters.clone(),
-        &mut registry,
-    )
-    .await
-    {
+    let mut process_manager = mcp_state.process_manager.write().await;
+
+    // Check if the server exists
+    let result = if !process_manager.process_ios.contains_key(server_id) {
+        Err(MCPError::ServerNotFound(server_id.to_string()))
+    } else {
+        // Get stdin/stdout for the server
+        let (stdin, stdout) = process_manager.process_ios.get_mut(server_id).unwrap();
+
+        // Execute the tool
+        execute_server_tool(
+            server_id,
+            tool_id,
+            request.parameters.clone(),
+            stdin,
+            stdout,
+        )
+        .await
+    };
+
+    // Release the lock
+    drop(process_manager);
+
+    match result {
         Ok(result) => Ok(ToolExecutionResponse {
             success: true,
             result: Some(result),
@@ -697,10 +773,13 @@ pub async fn update_tool_status(
             // Extract and clone the necessary values
             let tool_type = tool.tool_type.clone();
             let entry_point = tool.entry_point.clone().unwrap_or_default();
-            let process_running = registry
-                .processes
-                .get(&request.tool_id)
-                .is_some_and(|p| p.is_some());
+            let process_running = {
+                let process_manager = mcp_state.process_manager.read().await;
+                process_manager
+                    .processes
+                    .get(&request.tool_id)
+                    .is_some_and(|p| p.is_some())
+            };
 
             Some((tool_type, entry_point, process_running))
         } else {
@@ -733,8 +812,7 @@ pub async fn update_tool_status(
         drop(registry);
 
         if request.enabled {
-            let mut registry = mcp_state.tool_registry.write().await;
-            registry.restart_tool(&request.tool_id).await
+            mcp_state.restart_tool(&request.tool_id).await
         } else {
             Ok(())
         }
@@ -840,7 +918,7 @@ pub async fn uninstall_tool(
     mcp_state: &MCPState,
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
-    let mut registry = mcp_state.tool_registry.write().await;
+    let registry = mcp_state.tool_registry.write().await;
 
     // First check if the tool exists
     if registry.get_tool(&request.tool_id).is_err() {
@@ -851,7 +929,8 @@ pub async fn uninstall_tool(
     }
 
     // Kill the process if it's running
-    if let Some(Some(process)) = registry.processes.get_mut(&request.tool_id) {
+    let mut process_manager = mcp_state.process_manager.write().await;
+    if let Some(Some(process)) = process_manager.processes.get_mut(&request.tool_id) {
         if let Err(e) = kill_process(process).await {
             return Ok(ToolUninstallResponse {
                 success: false,
@@ -860,10 +939,14 @@ pub async fn uninstall_tool(
         }
     }
 
-    // Remove the process and IOs from the registry
-    registry.processes.remove(&request.tool_id);
-    registry.process_ios.remove(&request.tool_id);
-    registry.server_tools.remove(&request.tool_id);
+    // Remove the process and IOs from the process manager
+    process_manager.processes.remove(&request.tool_id);
+    process_manager.process_ios.remove(&request.tool_id);
+    drop(process_manager);
+
+    // Remove server tools
+    let mut server_tools = mcp_state.server_tools.write().await;
+    server_tools.remove(&request.tool_id);
 
     // Delete the tool using registry's delete_tool method
     if let Err(e) = registry.delete_tool(&request.tool_id) {
@@ -881,8 +964,10 @@ pub async fn uninstall_tool(
 
 /// Get all server data in a single function to avoid multiple locks
 pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> {
-    // Acquire a single read lock for all operations
+    // Get registry data
     let registry = mcp_state.tool_registry.read().await;
+    let process_manager = mcp_state.process_manager.read().await;
+    let server_tools = mcp_state.server_tools.read().await;
 
     // 1. Get registered servers
     let mut servers = Vec::new();
@@ -953,14 +1038,11 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         // Add process status - check the processes map
         if let Some(obj) = tool_value.as_object_mut() {
-            let process_running = registry.processes.contains_key(&id);
+            let process_running = process_manager.processes.contains_key(&id);
             obj.insert("process_running".to_string(), json!(process_running));
 
             // Add number of available tools from this server
-            let server_tool_count = registry
-                .server_tools
-                .get(&id)
-                .map_or_else(|| 0, |tools| tools.len());
+            let server_tool_count = server_tools.get(&id).map_or_else(|| 0, |tools| tools.len());
             obj.insert("tool_count".to_string(), json!(server_tool_count));
         }
 
@@ -969,7 +1051,7 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
     // 2. Get all server tools
     let mut all_tools = Vec::new();
-    for (server_id, tools) in &registry.server_tools {
+    for (server_id, tools) in &*server_tools {
         for tool in tools {
             // Extract the basic tool information
             let mut tool_info = serde_json::Map::new();
@@ -1038,11 +1120,8 @@ pub async fn restart_tool_command(
 
     info!("Tool '{}' found, attempting to restart", tool_id);
 
-    // Get a write lock on the registry to restart the tool
-    let restart_result = {
-        let mut registry = mcp_state.tool_registry.write().await;
-        registry.restart_tool(&tool_id).await
-    };
+    // Restart the tool using MCPState
+    let restart_result = mcp_state.restart_tool(&tool_id).await;
 
     match restart_result {
         Ok(_) => {
@@ -1089,16 +1168,19 @@ pub async fn init_mcp_server(mcp_state: MCPState) {
         let mut current_registry = mcp_state.tool_registry.write().await;
         *current_registry = registry;
 
+        // Drop the write lock before trying to restart tools
+        drop(current_registry);
+
         // Restart enabled tools
-        for (tool_id, metadata) in tools {
+        for (tool_id_str, metadata) in tools {
             if metadata.enabled {
-                info!("Found enabled tool: {}", tool_id);
-                match current_registry.restart_tool(&tool_id).await {
+                info!("Found enabled tool: {}", tool_id_str);
+                match mcp_state.restart_tool(&tool_id_str).await {
                     Ok(()) => {
-                        info!("Successfully spawned process for tool: {}", tool_id);
+                        info!("Successfully spawned process for tool: {}", tool_id_str);
                     }
                     Err(e) => {
-                        error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                        error!("Failed to spawn process for tool {}: {}", tool_id_str, e);
                     }
                 }
             }
@@ -1106,5 +1188,6 @@ pub async fn init_mcp_server(mcp_state: MCPState) {
     }
 
     // Start the process monitor
-    ToolRegistry::start_process_monitor(mcp_state);
+    let mcp_state_arc = Arc::new(mcp_state);
+    mcp_state_arc.clone().start_process_monitor();
 }

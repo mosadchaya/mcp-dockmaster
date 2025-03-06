@@ -1,6 +1,6 @@
 use mcp_core::{
     mcp_state::MCPState,
-    models::models::{
+    models::types::{
         DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolConfigUpdateRequest,
         ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
         ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
