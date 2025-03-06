@@ -238,6 +238,50 @@ pub async fn execute_server_tool(
         .ok_or(MCPError::NoResultField)
 }
 
+/// Initialize a connection to an MCP server
+async fn initialize_server_connection(
+    server_id: &str,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
+) -> Result<(), MCPError> {
+    info!("Initializing connection to server {}", server_id);
+
+    let execute_cmd = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+    });
+
+    let cmd_str = serde_json::to_string(&execute_cmd)
+        .map_err(|e| MCPError::SerializationError(e.to_string()))?
+        + "\n";
+
+    info!("Command: {}", cmd_str.trim());
+
+    stdin
+        .write_all(cmd_str.as_bytes())
+        .await
+        .map_err(|e| MCPError::StdinWriteError(e.to_string()))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| MCPError::StdinFlushError(e.to_string()))?;
+
+    let mut reader = tokio::io::BufReader::new(&mut *stdout);
+    let mut response_line = String::new();
+
+    let read_result =
+        tokio::time::timeout(Duration::from_secs(1), reader.read_line(&mut response_line)).await;
+
+    match read_result {
+        Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
+        Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
+    }
+
+    Ok(())
+}
+
 /// Spawn an MCP server process using DMProcess
 pub async fn spawn_process(
     configuration: &Value,
@@ -280,7 +324,13 @@ pub async fn spawn_process(
     };
 
     let tool_id = ToolId::new(tool_id.to_string());
-    let dm_process = SpawnedProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    let mut dm_process = SpawnedProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    let _ = initialize_server_connection(
+        tool_id.as_str(),
+        &mut dm_process.stdin,
+        &mut dm_process.stdout,
+    )
+    .await;
     Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
 }
 
