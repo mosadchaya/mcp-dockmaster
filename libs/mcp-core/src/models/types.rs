@@ -96,7 +96,7 @@ pub struct Tool {
 //     pub server_tools: HashMap<ToolId, Vec<Value>>,
 
 /// MCP tool registration request
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ToolRegistrationRequest {
     pub tool_name: String,
     pub description: String,
@@ -108,7 +108,7 @@ pub struct ToolRegistrationRequest {
 }
 
 /// MCP tool registration response
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ToolRegistrationResponse {
     pub success: bool,
     pub message: String,
