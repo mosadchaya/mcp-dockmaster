@@ -3,11 +3,13 @@ import "./App.css";
 import homeIcon from "./assets/home.svg";
 import serversIcon from "./assets/servers.svg";
 import registryIcon from "./assets/registry.svg";
+import aboutIcon from "./assets/about.svg";
 
 // Import components
 import Home from "./components/Home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
+import About from "./components/About";
 import LoadingOverlay from "./components/LoadingOverlay";
 
 function App() {
@@ -18,6 +20,7 @@ function App() {
     { id: 'home', label: 'Home', icon: homeIcon },
     { id: 'installed', label: 'My Applications', icon: serversIcon },
     { id: 'registry', label: 'AI App Store', icon: registryIcon },
+    { id: 'about', label: 'About', icon: aboutIcon },
   ];
 
   const renderContent = () => {
@@ -28,6 +31,8 @@ function App() {
         return <InstalledServers />;
       case 'registry':
         return <Registry />;
+      case 'about':
+        return <About />;
       default:
         return <Home />;
     }
