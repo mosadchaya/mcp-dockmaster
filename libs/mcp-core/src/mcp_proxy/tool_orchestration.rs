@@ -142,9 +142,11 @@ pub async fn execute_proxy_tool(
     // Execute the tool on the server
     let mut process_manager = mcp_state.process_manager.write().await;
 
-    // Check if the server exists
+    // Check if the server exists and is running
     let result = if !process_manager.process_ios.contains_key(server_id) {
         Err(MCPError::ServerNotFound(server_id.to_string()))
+    } else if !process_manager.processes.get(server_id).is_some_and(|p| p.is_some()) {
+        Err(MCPError::ServerClosedConnection)
     } else {
         // Get stdin/stdout for the server
         let (stdin, stdout) = process_manager.process_ios.get_mut(server_id).unwrap();
