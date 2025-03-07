@@ -45,7 +45,9 @@ impl SpawnedProcess {
     ) -> Result<Self, String> {
         info!("Spawning Node.js process for tool ID: {}", tool_id);
 
-        let command = &config.command;
+        let command = config.command.as_ref()
+            .ok_or_else(|| format!("Command is required for Node.js tool {}", tool_id))?;
+            
         if !command.contains("npx") && !command.contains("node") {
             error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
             return Err(format!("Entry point file '{}' does not exist", command));
@@ -83,9 +85,13 @@ impl SpawnedProcess {
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
         info!("Spawning Python process for tool ID: {}", tool_id);
-        info!("Using Python command: {}", config.command);
+        
+        let command = config.command.as_ref()
+            .ok_or_else(|| format!("Command is required for Python tool {}", tool_id))?;
+            
+        info!("Using Python command: {}", command);
 
-        let mut cmd = Command::new(&config.command);
+        let mut cmd = Command::new(command);
 
         if let Some(args) = &config.args {
             info!("Args: {:?}", args);
@@ -104,15 +110,18 @@ impl SpawnedProcess {
     ) -> Result<Self, String> {
         info!("Spawning Docker process for tool ID: {}", tool_id);
 
-        if config.command != "docker" {
+        let command = config.command.as_ref()
+            .ok_or_else(|| format!("Command is required for Docker tool {}", tool_id))?;
+
+        if command != "docker" {
             return Err(format!(
                 "Expected 'docker' command for Docker runtime, got '{}'",
-                config.command
+                command
             ));
         }
 
         info!("Using Docker command");
-        let mut cmd = Command::new(&config.command);
+        let mut cmd = Command::new(command);
 
         cmd.arg("run")
             .arg("-i")
