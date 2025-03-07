@@ -1,9 +1,7 @@
-import lunr from "lunr";
-import { proxyRequest } from "./proxyRequest.js";
-import { RegistryTool, Tool, Tools } from "./types.js";
+import { proxyRequest } from "../proxyRequest.js";
+import { Tool } from "../types.js";
 
 export class MCPInstall {
-  // public static registry: Record<string, Tool> = {};
   public static name = 'install_mcp_servers_and_tools';
   public static isInitialized = false;
 
@@ -27,10 +25,6 @@ export class MCPInstall {
   }
 
   public static async init() {
-    // const result = await proxyRequest<{ tools: RegistryTool[] }>('registry/list', {});
-    // result.tools.forEach((tool: any) => {
-    //   MCPInstall.registry[tool.name] = tool;
-    // });
     MCPInstall.setInitialized();
   } 
 
@@ -53,6 +47,8 @@ export class MCPInstall {
         "type": "object"
       },
       "name": MCPInstall.name,
-      "server_id": MCPInstall.name
+      "server_id": MCPInstall.name,
+      "installed": true,
+      "categories": ["mcp-dockmaster", "install"]
     };
 }

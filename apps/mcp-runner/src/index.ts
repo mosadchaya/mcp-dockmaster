@@ -14,13 +14,11 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import fs from 'fs';
 import { z } from "zod";
 import { Tools } from './types.js';
 import { proxyRequest } from "./proxyRequest.js";
 import { debugLog } from "./logger.js";
-import { MCPSearch } from "./mcpSearch.js";
-import { MCPInstall } from "./mcpInstall.js";
+import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index.js";
 
 debugLog('Starting MCP Proxy Server script');
 
@@ -68,8 +66,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     if (result && typeof result === 'object') {
       // If the result already has a tools array, return it directly
       if (Array.isArray(result.tools)) {
-        result.tools.push(MCPSearch.tool);
-        result.tools.push(MCPInstall.tool);
+        injectInternalTools(result);
         debugLog('Received tools list with correct format');
         return result as any;
       }
@@ -77,8 +74,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // If the result is an array, wrap it in a tools object
       if (Array.isArray(result)) {
         debugLog('Received tools as array, converting to expected format');
-        result.push(MCPSearch.tool);
-        result.push(MCPInstall.tool);
+        injectInternalTools({ tools: result });
         return { tools: result } as any;
       }
     }
@@ -96,15 +92,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
   debugLog('CallToolRequestSchema handler called', request);
   const params: { name: string, arguments: Record<string, any> } = request.params;
-  if (params.name === MCPSearch.name) {
-    return await MCPSearch.search(params.arguments.query);
+  const result = await runInternalTool(params);
+
+  if (result.isInternalTool) {
+    return result.result;
   }
-  if (params.name === MCPInstall.name) {
-    fs.writeFileSync('/Users/edwardalvarado/mcp-dockmaster/apps/mcp-runner/install-args-2.json', JSON.stringify(params, null, 2));
-    const x = await MCPInstall.install(params.arguments.name);
-    fs.writeFileSync('/Users/edwardalvarado/mcp-dockmaster/apps/mcp-runner/install-result-2.json', JSON.stringify(x, null, 2));
-    return x;
-  }
+
   const callResult = await proxyRequest('tools/call', request.params);
   return callResult as any;
 });
@@ -155,9 +148,9 @@ async function main() {
   await server.connect(transport);
   
   console.error('MCP Proxy Server started');
+
   // Initialize internal tools;
-  await MCPSearch.init();
-  await MCPInstall.init();
+  await initInternalTools();
 }
 
 main().catch((error) => {
