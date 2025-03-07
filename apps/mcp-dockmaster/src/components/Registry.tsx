@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, ChevronLeft } from "lucide-react";
 
 interface RegistryTool {
   id: string;
@@ -359,7 +359,11 @@ const Registry: React.FC = () => {
               onClick={() => setShowAllCategories(!showAllCategories)}
             >
               {showAllCategories ? "Show Less" : "Show All Categories"}
-              <ChevronRight className="ml-1 h-4 w-4" />
+              {showAllCategories ? (
+                <ChevronLeft className="ml-1 h-4 w-4" />
+              ) : (
+                <ChevronRight className="ml-1 h-4 w-4" />
+              )}
             </Button>
           )}
         </div>
