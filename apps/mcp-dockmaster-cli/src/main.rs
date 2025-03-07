@@ -109,6 +109,8 @@ async fn main() {
     };
     let database_path = storage_path.join("mcp_dockmaster.db");
     let mcp_core = MCPCore::new(database_path);
+    mcp_core.init().await.unwrap();
+
     // Handle commands
     match cli.command {
         Commands::Register { name, .. } => {

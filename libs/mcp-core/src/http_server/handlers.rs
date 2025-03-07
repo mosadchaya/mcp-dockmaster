@@ -5,8 +5,8 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::core::mcp_core::MCPCore;
+use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::types::ToolRegistrationRequest;
 
 #[derive(Deserialize)]
