@@ -8,6 +8,7 @@ export interface Tool {
     inputSchema: InputSchema;
     name:        string;
     server_id:   string;
+    installed:   boolean;
 }
 
 export interface InputSchema {

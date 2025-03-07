@@ -31,7 +31,10 @@ export class MCPSearch {
       .slice(0, 10)
       .map((result) => MCPSearch.registry[result.ref])
       .map(tool => ({
-        name: tool.name, fullDescription: tool.fullDescription, id: tool.name
+        name: tool.name, 
+        fullDescription: tool.fullDescription, 
+        id: tool.name,
+        installed: tool.installed
       }));
 
     return {
@@ -46,7 +49,16 @@ export class MCPSearch {
     MCPSearch.isInitialized = true;
     // console.log("MCPSearch initialized");
     // console.log('Example Search:', "sql database server");
-    // console.log(MCPSearch.search("sql database server"));
+    // const results = MCPSearch.search("sql database server");
+    // results.content.forEach((result) => {
+    //   let x = JSON.parse(result.text);
+    //   x = x.map((tool: any) => {
+    //     tool.fullDescription = tool.fullDescription.substring(0, 40);
+    //     return tool;
+    //   });
+    //   result.text = JSON.stringify(x);
+    // });
+    // console.log(results);
   }
 
   public static async init() {
@@ -86,6 +98,7 @@ export class MCPSearch {
         "type": "object"
       },
       "name": MCPSearch.name,
-      "server_id": MCPSearch.name
+      "server_id": MCPSearch.name,
+      "installed": true
     };
 }
