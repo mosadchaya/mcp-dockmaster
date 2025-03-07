@@ -1,19 +1,24 @@
+use diesel::prelude::*;
+use diesel::r2d2::{self, ConnectionManager, Pool};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use directories::ProjectDirs;
 use log::info;
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::params;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::models::types::Tool;
+use crate::schema::tools;
+use crate::schema::server_tools;
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
+
+type SqlitePool = Pool<ConnectionManager<SqliteConnection>>;
 
 /// Database manager for persisting application state
 pub struct DBManager {
-    pool: Arc<Pool<SqliteConnectionManager>>,
+    pool: Arc<SqlitePool>,
 }
 
 impl DBManager {
@@ -33,122 +38,112 @@ impl DBManager {
             }
         }
 
-        // Create the connection manager
-        let manager = SqliteConnectionManager::file(&db_path);
+        // Create the database URL - use file: prefix for SQLite
+        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
 
-        // Create the connection pool
-        let pool = Pool::builder()
-            .max_size(10)
-            .connection_timeout(Duration::from_secs(60))
+        // Ensure the database file exists
+        if !db_path.exists() {
+            std::fs::File::create(&db_path)
+                .map_err(|e| format!("Failed to create database file: {}", e))?;
+        }
+
+        // Create the connection manager
+        let manager = ConnectionManager::<SqliteConnection>::new(database_url);
+
+        // Create the connection pool with more conservative settings
+        let pool = r2d2::Pool::builder()
+            .max_size(5)
+            .connection_timeout(std::time::Duration::from_secs(5))
             .build(manager)
             .map_err(|e| format!("Failed to create connection pool: {}", e))?;
 
         // Get a connection to initialize the database
-        let conn = pool
+        let mut conn = pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Enable WAL mode and set optimizations
-        conn.execute_batch(
-            "PRAGMA journal_mode=WAL;
-             PRAGMA synchronous=FULL;
-             PRAGMA temp_store=MEMORY;
-             PRAGMA optimize;
-             PRAGMA busy_timeout = 5000;
-             PRAGMA mmap_size=262144000; -- 250 MB in bytes (250 * 1024 * 1024)
-             PRAGMA foreign_keys = ON;", // Enable foreign key support
-        )
-        .map_err(|e| format!("Failed to set PRAGMA configurations: {}", e))?;
+        // Run migrations
+        conn.run_pending_migrations(MIGRATIONS)
+            .map_err(|e| format!("Failed to run migrations: {}", e))?;
+
+        // Set pragmas
+        diesel::sql_query("PRAGMA journal_mode=WAL")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set journal_mode: {}", e))?;
+        
+        diesel::sql_query("PRAGMA synchronous=FULL")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set synchronous: {}", e))?;
+        
+        diesel::sql_query("PRAGMA temp_store=MEMORY")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set temp_store: {}", e))?;
+        
+        diesel::sql_query("PRAGMA optimize")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to optimize: {}", e))?;
+        
+        diesel::sql_query("PRAGMA busy_timeout = 5000")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set busy_timeout: {}", e))?;
+        
+        diesel::sql_query("PRAGMA mmap_size=262144000")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set mmap_size: {}", e))?;
+        
+        diesel::sql_query("PRAGMA foreign_keys = ON")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
 
         let db_manager = Self {
             pool: Arc::new(pool),
         };
-        db_manager.initialize_tables()?;
 
         info!("Database initialized at: {:?}", db_path);
         Ok(db_manager)
     }
 
-    /// Initialize database tables
-    fn initialize_tables(&self) -> Result<(), String> {
-        let conn = self
-            .pool
-            .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS tools (
-                id TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| format!("Failed to create tools table: {}", e))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS server_tools (
-                server_id TEXT,
-                tool_data TEXT NOT NULL,
-                PRIMARY KEY (server_id)
-            )",
-            [],
-        )
-        .map_err(|e| format!("Failed to create server_tools table: {}", e))?;
-
-        Ok(())
-    }
-
     /// Get a tool by ID
     pub fn get_tool(&self, tool_id: &str) -> Result<Tool, String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let data: String = conn
-            .query_row(
-                "SELECT data FROM tools WHERE id = ?1",
-                params![tool_id],
-                |row| row.get(0),
-            )
+        let result = tools::table
+            .filter(tools::id.eq(tool_id))
+            .select(tools::data)
+            .first::<String>(&mut conn)
             .map_err(|e| format!("Failed to get tool {}: {}", tool_id, e))?;
 
-        serde_json::from_str(&data).map_err(|e| format!("Failed to deserialize tool data: {}", e))
+        serde_json::from_str(&result).map_err(|e| format!("Failed to deserialize tool data: {}", e))
     }
 
     /// Get all tools
     pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let mut stmt = conn
-            .prepare("SELECT id, data FROM tools")
-            .map_err(|e| format!("Failed to prepare statement: {}", e))?;
-
-        let rows = stmt
-            .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let data: String = row.get(1)?;
-                Ok((id, data))
-            })
+        let results = tools::table
+            .select((tools::id, tools::data))
+            .load::<(String, String)>(&mut conn)
             .map_err(|e| format!("Failed to query tools: {}", e))?;
 
-        let mut tools = HashMap::new();
-        for row in rows {
-            let (id, data) = row.map_err(|e| format!("Failed to read row: {}", e))?;
-            let tool: Tool = serde_json::from_str(&data)
+        let mut tools_map = HashMap::new();
+        for (tool_id, tool_data_str) in results {
+            let tool: Tool = serde_json::from_str(&tool_data_str)
                 .map_err(|e| format!("Failed to deserialize tool data: {}", e))?;
-            tools.insert(id, tool);
+            tools_map.insert(tool_id, tool);
         }
 
-        Ok(tools)
+        Ok(tools_map)
     }
 
     /// Save or update a tool
     pub fn save_tool(&self, tool_id: &str, tool: &Tool) -> Result<(), String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
@@ -156,23 +151,26 @@ impl DBManager {
         let tool_json = serde_json::to_string(tool)
             .map_err(|e| format!("Failed to serialize tool data: {}", e))?;
 
-        conn.execute(
-            "INSERT OR REPLACE INTO tools (id, data) VALUES (?1, ?2)",
-            params![tool_id, tool_json],
-        )
-        .map_err(|e| format!("Failed to save tool: {}", e))?;
+        diesel::insert_into(tools::table)
+            .values((tools::id.eq(tool_id), tools::data.eq(&tool_json)))
+            .on_conflict(tools::id)
+            .do_update()
+            .set(tools::data.eq(&tool_json))
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to save tool: {}", e))?;
 
         Ok(())
     }
 
     /// Delete a tool by ID
     pub fn delete_tool(&self, tool_id: &str) -> Result<(), String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        conn.execute("DELETE FROM tools WHERE id = ?1", params![tool_id])
+        diesel::delete(tools::table.filter(tools::id.eq(tool_id)))
+            .execute(&mut conn)
             .map_err(|e| format!("Failed to delete tool: {}", e))?;
 
         Ok(())
@@ -180,28 +178,21 @@ impl DBManager {
 
     /// Clear the database
     pub fn clear_database(&mut self) -> Result<(), String> {
-        // Get a connection from the pool
         let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Begin transaction
-        let tx = conn
-            .transaction()
-            .map_err(|e| format!("Failed to begin transaction: {}", e))?;
+        conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            diesel::delete(tools::table)
+                .execute(conn)?;
 
-        // Clear tools table
-        tx.execute("DELETE FROM tools", [])
-            .map_err(|e| format!("Failed to clear tools table: {}", e))?;
+            diesel::delete(server_tools::table)
+                .execute(conn)?;
 
-        // Clear server_tools table
-        tx.execute("DELETE FROM server_tools", [])
-            .map_err(|e| format!("Failed to clear server_tools table: {}", e))?;
-
-        // Commit transaction
-        tx.commit()
-            .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+            Ok(())
+        })
+        .map_err(|e| format!("Transaction failed: {}", e))?;
 
         info!("Database cleared successfully");
         Ok(())
@@ -209,14 +200,14 @@ impl DBManager {
 
     /// Check if the database exists and has data
     pub fn check_exists(&self) -> Result<bool, String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Check if the tools table exists and has data
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tools", [], |row| row.get(0))
+        let count: i64 = tools::table
+            .count()
+            .get_result(&mut conn)
             .map_err(|e| format!("Failed to check database: {}", e))?;
 
         Ok(count > 0)
