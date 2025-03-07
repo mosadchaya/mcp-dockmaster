@@ -338,6 +338,12 @@ const Registry: React.FC = () => {
           />
         </div>
 
+        {searchTerm && (
+          <div className="text-sm text-muted-foreground">
+            Found {filteredTools.length} result{filteredTools.length !== 1 ? 's' : ''}
+          </div>
+        )}
+
         <div className={`flex items-center gap-2 pb-2 flex-wrap`}>
           <div className={`flex gap-2 flex-wrap ${showAllCategories ? 'max-h-[300px] overflow-y-auto' : ''}`}>
             {visibleCategories.map(([category, count]) => (
