@@ -53,6 +53,7 @@ export class MCPInstall {
         "type": "object"
       },
       "name": MCPInstall.name,
-      "server_id": MCPInstall.name
+      "server_id": MCPInstall.name,
+      "installed": true
     };
 }

@@ -310,8 +310,33 @@ async fn fetch_tool_from_registry() -> Result<Value, Value> {
     Ok(v)
 }
 
-async fn handle_list_all_tools(_: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
-    fetch_tool_from_registry().await
+async fn handle_list_all_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
+    let mcp_state = state.read().await;
+    let registry = mcp_state.tool_registry.read().await;
+    let installed_tools = registry.get_all_tools()?;
+    let mut registry_tools = fetch_tool_from_registry().await?;
+
+    for tool in registry_tools
+        .get_mut("tools")
+        .unwrap()
+        .as_array_mut()
+        .unwrap()
+    {
+        let tool_name = tool.get("name").unwrap().as_str().unwrap();
+        if installed_tools.contains_key(tool_name) {
+            println!("Tool {} is installed", tool_name);
+            tool.as_object_mut()
+                .unwrap()
+                .insert("installed".to_string(), json!(true));
+        } else {
+            println!("Tool {} is not installed", tool_name);
+            tool.as_object_mut()
+                .unwrap()
+                .insert("installed".to_string(), json!(false));
+        }
+    }
+
+    Ok(registry_tools)
 }
 
 async fn handle_list_prompts() -> Result<Value, Value> {
