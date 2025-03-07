@@ -20,7 +20,7 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "./components/ui/sidebar";
-import { Link, Navigate, NavLink, Route, Routes, useMatch } from "react-router";
+import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import { AboutIcon, HomeIcon, RegistryIcon, ServersIcon } from "./components/icons";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";

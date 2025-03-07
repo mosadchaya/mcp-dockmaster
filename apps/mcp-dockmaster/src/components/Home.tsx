@@ -6,9 +6,20 @@ import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
 import pythonIcon from "../assets/python.svg";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@radix-ui/react-collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@radix-ui/react-collapsible";
 import { Button } from "./ui/button";
-import { ArrowRight, Box, ChevronDown, ChevronUp, Code, Copy, Loader2, RefreshCw, Server } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Separator } from "./ui/separator";
 import { Badge } from "./ui/badge";
@@ -25,7 +36,10 @@ const mcpClientProxy = {
   claude: {
     mcpServers: {
       "mcp-dockmaster": {
-        args: ["/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js", "--stdio"],
+        args: [
+          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "--stdio",
+        ],
         command: "node",
       },
     },
@@ -33,7 +47,10 @@ const mcpClientProxy = {
   cursor: {
     mcpServers: {
       "mcp-dockmaster": {
-        args: ["/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js", "--stdio"],
+        args: [
+          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "--stdio",
+        ],
         command: "node",
       },
     },
@@ -51,7 +68,9 @@ const Home: React.FC = () => {
 
   const checkPrerequisites = async () => {
     setIsChecking(true);
-    setPrerequisites((prev) => prev.map((item) => ({ ...item, loading: true })));
+    setPrerequisites((prev) =>
+      prev.map((item) => ({ ...item, loading: true }))
+    );
 
     try {
       // Check if Node.js is installed
@@ -87,16 +106,37 @@ const Home: React.FC = () => {
         }
       };
 
-      const [nodeInstalled, uvInstalled, dockerInstalled] = await Promise.all([checkNode(), checkUv(), checkDocker()]);
+      const [nodeInstalled, uvInstalled, dockerInstalled] = await Promise.all([
+        checkNode(),
+        checkUv(),
+        checkDocker(),
+      ]);
 
       setPrerequisites([
-        { name: "Node.js", installed: nodeInstalled, loading: false, icon: nodeIcon },
-        { name: "UV (Python)", installed: uvInstalled, loading: false, icon: pythonIcon },
-        { name: "Docker", installed: dockerInstalled, loading: false, icon: dockerIcon },
+        {
+          name: "Node.js",
+          installed: nodeInstalled,
+          loading: false,
+          icon: nodeIcon,
+        },
+        {
+          name: "UV (Python)",
+          installed: uvInstalled,
+          loading: false,
+          icon: pythonIcon,
+        },
+        {
+          name: "Docker",
+          installed: dockerInstalled,
+          loading: false,
+          icon: dockerIcon,
+        },
       ]);
     } catch (error) {
       console.error("Failed to check prerequisites:", error);
-      setPrerequisites((prev) => prev.map((item) => ({ ...item, loading: false })));
+      setPrerequisites((prev) =>
+        prev.map((item) => ({ ...item, loading: false }))
+      );
     } finally {
       setIsChecking(false);
     }
@@ -121,19 +161,30 @@ const Home: React.FC = () => {
   return (
     <div className="h-full px-6 flex flex-col gap-8 py-10 max-w-4xl mx-auto w-full">
       <div className="flex flex-col space-y-1.5 ">
-        <h1 className="font-semibold tracking-tight text-2xl">Welcome to MPC Dockmaster</h1>
-        <p className="text-sm text-muted-foreground">Select an option from the sidebar to get started.</p>
+        <h1 className="font-semibold tracking-tight text-2xl">
+          Welcome to MPC Dockmaster
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Select an option from the sidebar to get started.
+        </p>
       </div>
       <div className="space-y-2 ">
         <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
         <p className="text-sm text-muted-foreground">
-          Using the proxy tool, you will be able to integrate with MCP clients like Claude offering all the tools you
-          configure in MPC Dockmaster.
+          Using the proxy tool, you will be able to integrate with MCP clients
+          like Claude offering all the tools you configure in MPC Dockmaster.
         </p>
 
-        <Collapsible className="mt-4 space-y-2" open={showMCPConfig} onOpenChange={setShowMCPConfig}>
+        <Collapsible
+          className="mt-4 space-y-2"
+          open={showMCPConfig}
+          onOpenChange={setShowMCPConfig}
+        >
           <CollapsibleTrigger asChild>
-            <Button variant="outline" className="shadow-none flex w-full items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              className="shadow-none flex w-full items-center justify-between gap-2"
+            >
               <span className="flex items-center gap-2">
                 <ArrowRight className="h-4 w-4" />
                 Show MCP Configuration
@@ -161,7 +212,11 @@ const Home: React.FC = () => {
                   size="sm"
                   variant="outline"
                   className="absolute right-2 top-2 h-8 w-8 p-0 text-muted-foreground cursor-pointer"
-                  onClick={() => copyToClipboard(JSON.stringify(mcpClientProxy.claude, null, 2))}
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(mcpClientProxy.claude, null, 2)
+                    )
+                  }
                 >
                   <Copy className="h-4 w-4" />
                   <span className="sr-only">Copy code</span>
@@ -184,7 +239,11 @@ const Home: React.FC = () => {
                   size="sm"
                   variant="outline"
                   className="absolute right-2 top-2 h-8 w-8 p-0 text-muted-foreground cursor-pointer"
-                  onClick={() => copyToClipboard(JSON.stringify(mcpClientProxy.cursor, null, 2))}
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(mcpClientProxy.cursor, null, 2)
+                    )
+                  }
                 >
                   <Copy className="h-4 w-4" />
                   <span className="sr-only">Copy code</span>
@@ -204,7 +263,11 @@ const Home: React.FC = () => {
             className="flex items-center gap-2"
             onClick={checkPrerequisites}
           >
-            {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isChecking ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
             {isChecking ? "Checking..." : "Refresh"}
           </Button>
         </div>
@@ -220,12 +283,18 @@ const Home: React.FC = () => {
                       !prerequisite.installed && "bg-red-500/10"
                     )}
                   >
-                    <img src={prerequisite.icon} alt={prerequisite.name} className="h-5 w-5" />
+                    <img
+                      src={prerequisite.icon}
+                      alt={prerequisite.name}
+                      className="h-5 w-5"
+                    />
                   </div>
                   <div>
                     <p className="font-medium">{prerequisite.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {prerequisite.installed ? "Installed and running" : "Not installed or not running"}
+                      {prerequisite.installed
+                        ? "Installed and running"
+                        : "Not installed or not running"}
                     </p>
                   </div>
                 </div>
@@ -237,9 +306,14 @@ const Home: React.FC = () => {
                 ) : (
                   <span className="status-indicator">
                     {prerequisite.installed ? (
-                      <Badge className="bg-green-500 text-white hover:bg-green-600">Active</Badge>
+                      <Badge className="bg-green-500 text-white hover:bg-green-600">
+                        Active
+                      </Badge>
                     ) : (
-                      <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500">
+                      <Badge
+                        variant="outline"
+                        className="border-red-500 bg-red-500/10 text-red-500"
+                      >
                         Inactive
                       </Badge>
                     )}

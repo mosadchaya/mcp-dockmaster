@@ -3,7 +3,7 @@ use serde_json::json;
 #[cfg(test)]
 mod tests {
     use mcp_core::{
-        core::{core_mcp_proxy::CoreMcpProxy, mcp_core::MCPCore},
+        core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
         init_logging,
         models::types::ToolExecutionRequest,
     };

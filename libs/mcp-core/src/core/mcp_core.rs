@@ -3,13 +3,12 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use log::{error, info};
 use tokio::sync::RwLock;
 
+use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
+use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::{database::db_manager::DBManager, registry::tool_registry::ToolRegistry};
 
 use crate::mcp_state::mcp_state::MCPState;
 use crate::mcp_state::process_manager::ProcessManager;
-
-use super::core_database::McpCoreDatabaseManager;
-use super::core_mcp_proxy::CoreMcpProxy;
 
 /// Errors that can occur during initialization
 #[derive(Debug)]

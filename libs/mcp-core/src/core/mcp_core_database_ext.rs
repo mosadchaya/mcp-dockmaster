@@ -1,12 +1,16 @@
 use super::mcp_core::MCPCore;
 
-pub trait McpCoreDatabaseManager {
-    async fn check_database_exists(&self) -> Result<bool, String>;
-    async fn apply_database_migrations(&self) -> Result<(), String>;
-    async fn clear_database(&self) -> Result<(), String>;
+pub trait McpCoreDatabaseExt {
+    fn check_database_exists(
+        &self,
+    ) -> impl std::future::Future<Output = Result<bool, String>> + Send;
+    fn apply_database_migrations(
+        &self,
+    ) -> impl std::future::Future<Output = Result<(), String>> + Send;
+    fn clear_database(&self) -> impl std::future::Future<Output = Result<(), String>> + Send;
 }
 
-impl McpCoreDatabaseManager for MCPCore {
+impl McpCoreDatabaseExt for MCPCore {
     /// Check if the database exists and has data
     async fn check_database_exists(&self) -> Result<bool, String> {
         self.database_manager.read().await.check_exists()
