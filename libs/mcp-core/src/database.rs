@@ -64,9 +64,29 @@ impl DBManager {
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
+        info!("Running migrations for database at {:?}", db_path);
+
         // Run migrations
-        conn.run_pending_migrations(MIGRATIONS)
-            .map_err(|e| format!("Failed to run migrations: {}", e))?;
+        let migration_result = conn.run_pending_migrations(MIGRATIONS);
+        match &migration_result {
+            Ok(migrations) => {
+                info!("Successfully ran {} migrations", migrations.len());
+                for migration in migrations {
+                    info!("Applied migration: {}", migration);
+                }
+            }
+            Err(e) => {
+                info!("Migration failed: {}", e);
+            }
+        }
+        migration_result.map_err(|e| format!("Failed to run migrations: {}", e))?;
+
+        // Debug: Check if tables exist and their structure
+        let tables = diesel::sql_query("SELECT name FROM sqlite_master WHERE type='table';")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to check tables: {}", e))?;
+
+        info!("Found {} tables after migrations", tables);
 
         // Set pragmas
         diesel::sql_query("PRAGMA journal_mode=WAL")
