@@ -8,6 +8,7 @@ use crate::models::types::{
 };
 use crate::registry::ToolRegistry;
 use crate::{database, spawned_process::SpawnedProcess, MCPError};
+use futures::future;
 use log::{error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -1306,19 +1307,42 @@ pub async fn init_mcp_server(mcp_state: MCPState) {
         // Drop the write lock before trying to restart tools
         drop(current_registry);
 
-        // Restart enabled tools
+        // Create a vector of futures for parallel execution
+        let mut restart_futures = Vec::new();
+
+        // Prepare restart tasks for all enabled tools
         for (tool_id_str, metadata) in tools {
             if metadata.enabled {
                 info!("Found enabled tool: {}", tool_id_str);
-                match mcp_state.restart_tool(&tool_id_str).await {
-                    Ok(()) => {
-                        info!("Successfully spawned process for tool: {}", tool_id_str);
+                let tool_id = tool_id_str.clone();
+                let mcp_state_clone = mcp_state.clone();
+                
+                // Create a future for each tool restart
+                let restart_future = async move {
+                    match mcp_state_clone.restart_tool(&tool_id).await {
+                        Ok(()) => {
+                            info!("Successfully spawned process for tool: {}", tool_id);
+                        }
+                        Err(e) => {
+                            error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                        }
                     }
-                    Err(e) => {
-                        error!("Failed to spawn process for tool {}: {}", tool_id_str, e);
-                    }
-                }
+                    
+                    // Return the tool_id for logging purposes
+                    tool_id
+                };
+                
+                restart_futures.push(restart_future);
             }
+        }
+        
+        // Execute all restart tasks in parallel
+        if !restart_futures.is_empty() {
+            info!("Starting parallel initialization of {} tools", restart_futures.len());
+            let results = future::join_all(restart_futures).await;
+            info!("Completed parallel initialization of {} tools", results.len());
+        } else {
+            info!("No enabled tools found to initialize");
         }
     }
 
