@@ -574,7 +574,7 @@ const InstalledServers: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">{tool.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {tool.config && Object.keys(tool.config.env).length > 0 && (
+                    {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
                       <Tooltip>
                         <TooltipTrigger>
                           <Button
