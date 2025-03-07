@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use log::{error, info};
-use mcp_core::{init_logging, mcp_proxy, mcp_state::MCPState};
+use mcp_core::{init_logging, mcp_core::MCPCore, mcp_proxy, utils::default_storage_path};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -93,8 +93,15 @@ async fn main() {
     let cli = Cli::parse();
 
     // Initialize MCP state
-    let mcp_state = MCPState::new();
-
+    let storage_path = match default_storage_path() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("failed to get storage path: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let database_path = storage_path.join("mcp_dockmaster.db");
+    let mcp_core = MCPCore::new(database_path);
     // Handle commands
     match cli.command {
         Commands::Register {
@@ -114,7 +121,7 @@ async fn main() {
             info!("Listing tools");
 
             // Get all server data
-            match mcp_proxy::get_all_server_data(&mcp_state).await {
+            match mcp_core.mcp_proxy.read().await.get_all_server_data().await {
                 Ok(data) => {
                     // Print servers
                     if let Some(servers) = data.get("servers").and_then(|s| s.as_array()) {
@@ -244,7 +251,7 @@ async fn main() {
             info!("Restarting tool: {}", tool_id);
 
             // Restart the tool using the direct function
-            match mcp_proxy::restart_tool_command(&mcp_state, tool_id).await {
+            match mcp_core.mcp_proxy.restart_tool(&tool_id).await {
                 Ok(_) => {
                     println!("Tool restarted successfully");
                 }
@@ -258,7 +265,7 @@ async fn main() {
             info!("Clearing database");
 
             // Clear the database using the direct function
-            match mcp_proxy::clear_database_command().await {
+            match mcp_core.write().clear_database_command().await {
                 Ok(message) => {
                     println!("{}", message);
                 }
