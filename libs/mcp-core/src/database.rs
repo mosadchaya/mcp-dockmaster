@@ -189,7 +189,6 @@ impl DBManager {
                 },
             }),
             distribution,
-            config: None,
             env_configs: None,
         };
 
@@ -264,7 +263,6 @@ impl DBManager {
                     },
                 }),
                 distribution,
-                config: None,
                 env_configs: None,
             };
 

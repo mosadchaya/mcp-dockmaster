@@ -313,7 +313,7 @@ pub async fn spawn_process(
         .unwrap_or_default();
 
     let config = ToolConfiguration {
-        command: command.to_string(),
+        command: Some(command.to_string()),
         args: Some(args),
         env: env_vars.map(|vars| {
             vars.iter()
@@ -389,8 +389,7 @@ pub async fn register_tool(
             command: config
                 .get("command")
                 .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string(),
+                .map(|s| s.to_string()),
             args: config.get("args").and_then(|v| v.as_array()).map(|args| {
                 args.iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()))

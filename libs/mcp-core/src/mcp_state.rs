@@ -131,14 +131,20 @@ impl MCPState {
         );
 
         // Extract environment variables from the tool configuration
-        let env_vars = if let Some(config) = &tool_data.config {
-            if let Some(env_map) = &config.env {
+        let env_vars = if let Some(configuration) = &tool_data.configuration {
+            if let Some(env_map) = &configuration.env {
                 info!(
                     "Extracted {} environment variables for tool {}",
                     env_map.len(),
                     tool_id
                 );
-                Some(env_map.clone())
+                // Convert ToolEnvironment -> just the defaults
+                let simple_env_map: HashMap<String, String> = env_map.iter()
+                    .filter_map(|(k, tool_env)| {
+                        tool_env.default.clone().map(|v| (k.clone(), v))
+                    })
+                    .collect();
+                Some(simple_env_map)
             } else {
                 info!("No environment variables found for tool {}", tool_id);
                 None
@@ -163,20 +169,6 @@ impl MCPState {
             json!({
                 "command": tool_data.entry_point
             })
-        } else if let Some(config) = &tool_data.config {
-            if let Some(command) = &config.command {
-                info!("Using command from config for {}: {}", tool_id, command);
-                json!({
-                    "command": command,
-                    "args": config.args.clone().unwrap_or_default()
-                })
-            } else {
-                error!("Missing command in configuration for tool {}", tool_id);
-                return Err(format!(
-                    "Missing command in configuration for tool {}",
-                    tool_id
-                ));
-            }
         } else {
             error!("Missing configuration for tool {}", tool_id);
             return Err(format!("Missing configuration for tool {}", tool_id));
