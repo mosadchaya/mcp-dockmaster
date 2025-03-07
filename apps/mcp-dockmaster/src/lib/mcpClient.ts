@@ -46,9 +46,7 @@ interface ToolUpdateResponse {
 
 interface ToolConfigUpdateRequest {
   tool_id: string;
-  config: {
-    env: Record<string, string>;
-  };
+  config: Record<string, string>;
 }
 
 interface ToolConfigUpdateResponse {

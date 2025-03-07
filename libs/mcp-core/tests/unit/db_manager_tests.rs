@@ -44,8 +44,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
-            env_configs: None,
         };
 
         // Save the tool
@@ -82,8 +80,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
-            env_configs: None,
         };
 
         let tool2 = Tool {
@@ -94,8 +90,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
-            env_configs: None,
         };
 
         // Save the tools
@@ -125,8 +119,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
-            env_configs: None,
         };
 
         db.save_tool("test_tool", &tool)

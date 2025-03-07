@@ -3,12 +3,12 @@ import MCPClient from "../lib/mcpClient";
 import { dispatchToolStatusChanged, TOOL_STATUS_CHANGED } from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
-import { Settings, Settings2 } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Badge } from "./ui/badge";
 
@@ -290,9 +290,7 @@ const InstalledServers: React.FC = () => {
       // Update the tool configuration
       const response = await MCPClient.updateToolConfig({
         tool_id: toolId,
-        config: {
-          env: envVarValues,
-        },
+        config: envVarValues
       });
 
       if (response.success) {
@@ -493,15 +491,17 @@ const InstalledServers: React.FC = () => {
           <div className="config-popup-content">
             <div className="env-vars-editor">
               {Object.entries(tool.config.env).map(([key, value]) => {
-                const description = typeof value === "object" && value !== null ? value.description : "";
-
+                const description = typeof value === 'object' && value !== null ? value.description : "";
+                // Get the default value if it exists in the object
+                const defaultValue = typeof value === 'object' && value !== null ? value.default : value;
+                
                 return (
                   <div key={key} className="env-var-input-group">
                     <label htmlFor={`env-${key}`}>{key}</label>
                     <input
                       id={`env-${key}`}
                       type="text"
-                      value={envVarValues[key] || ""}
+                      value={envVarValues[key] || defaultValue || ''}
                       onChange={(e) => handleEnvVarChange(key, e.target.value)}
                       placeholder={description || key}
                     />
@@ -574,12 +574,12 @@ const InstalledServers: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">{tool.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {tool.config && Object.keys(tool.config.env).length > 0 && (
+                    {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
                       <Tooltip>
                         <TooltipTrigger>
                           <Button
                             variant="ghost"
-                            onClick={(e) => {
+                            onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               startEditingEnvVars(tool.id, e);
                             }}

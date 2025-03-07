@@ -1,8 +1,8 @@
 use crate::mcp_state::MCPState;
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, EnvConfigs, Tool,
-    ToolConfig, ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration,
-    ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationRequest,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, Tool,
+    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolEnvironment,
+    ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationRequest,
     ToolRegistrationResponse, ToolType, ToolUninstallRequest, ToolUninstallResponse,
     ToolUpdateRequest, ToolUpdateResponse,
 };
@@ -314,7 +314,7 @@ pub async fn spawn_process(
         .unwrap_or_default();
 
     let config = ToolConfiguration {
-        command: command.to_string(),
+        command: Some(command.to_string()),
         args: Some(args),
         env: env_vars.map(|vars| {
             vars.iter()
@@ -390,8 +390,7 @@ pub async fn register_tool(
             command: config
                 .get("command")
                 .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string(),
+                .map(|s| s.to_string()),
             args: config.get("args").and_then(|v| v.as_array()).map(|args| {
                 args.iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
@@ -447,40 +446,7 @@ pub async fn register_tool(
             }),
         });
 
-    // Create the tool config with env variables if provided
-    let mut tool_config = None;
-    if let Some(auth) = &request.env_configs {
-        if let Some(env) = auth.get("env") {
-            if let Some(env_obj) = env.as_object() {
-                let mut env_map = HashMap::new();
-                for (key, value) in env_obj {
-                    // Extract the value as a string
-                    let value_str = match value {
-                        Value::String(s) => s.clone(),
-                        Value::Number(n) => n.to_string(),
-                        Value::Bool(b) => b.to_string(),
-                        _ => {
-                            // For objects, check if it has a description field (which means it's a template)
-                            if let Value::Object(obj) = value {
-                                if obj.contains_key("description") {
-                                    // This is a template, so we don't have a value yet
-                                    continue;
-                                }
-                            }
-                            // For other types, convert to JSON string
-                            value.to_string()
-                        }
-                    };
-                    env_map.insert(key.clone(), value_str);
-                }
-                tool_config = Some(ToolConfig {
-                    env: Some(env_map),
-                    command: None,
-                    args: None,
-                });
-            }
-        }
-    }
+    // Environment variables are now handled in the configuration field
 
     // Create the Tool struct
     let tool = Tool {
@@ -496,11 +462,6 @@ pub async fn register_tool(
                 package: "".to_string(),
             })
         }),
-        config: tool_config,
-        env_configs: request
-            .env_configs
-            .as_ref()
-            .map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
     };
 
     // Save the tool in the registry
@@ -511,9 +472,14 @@ pub async fn register_tool(
     server_tools.insert(tool_id.clone(), Vec::new());
     drop(server_tools);
 
-    // Extract environment variables from the tool config
-    let env_vars = if let Some(config) = &tool.config {
-        config.env.clone()
+    // Extract environment variables from the tool configuration
+    let env_vars = if let Some(configuration) = &tool.configuration {
+        configuration.env.as_ref().map(|map| {
+            // Convert ToolEnvironment -> just the defaults
+            map.iter()
+                .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
+                .collect::<HashMap<String, String>>()
+        })
     } else {
         None
     };
@@ -524,15 +490,6 @@ pub async fn register_tool(
             "command": configuration.command,
             "args": configuration.args
         })
-    } else if let Some(config) = &tool.config {
-        if let Some(command) = &config.command {
-            json!({
-                "command": command,
-                "args": config.args.clone().unwrap_or_default()
-            })
-        } else {
-            return Err("Configuration is required for tools".to_string());
-        }
     } else {
         return Err("Configuration is required for tools".to_string());
     };
@@ -685,37 +642,6 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
                 obj.insert(
                     "distribution".to_string(),
                     serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                );
-            }
-        }
-
-        if let Some(config) = &tool_struct.config {
-            if let Some(obj) = tool_value.as_object_mut() {
-                let mut config_json = json!({});
-                if let Some(env) = &config.env {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("env".to_string(), json!(env));
-                    }
-                }
-                if let Some(command) = &config.command {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("command".to_string(), json!(command));
-                    }
-                }
-                if let Some(args) = &config.args {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("args".to_string(), json!(args));
-                    }
-                }
-                obj.insert("config".to_string(), config_json);
-            }
-        }
-
-        if let Some(env_configs) = &tool_struct.env_configs {
-            if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert(
-                    "authentication".to_string(),
-                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
                 );
             }
         }
@@ -1004,31 +930,37 @@ pub async fn update_tool_config(
     // Get the current tool data
     let mut tool = registry.get_tool(&request.tool_id)?;
 
-    // Create or update the config object
-    if tool.config.is_none() {
-        tool.config = Some(ToolConfig {
-            env: Some(HashMap::new()),
+    // Create or update the configuration object
+    if tool.configuration.is_none() {
+        tool.configuration = Some(ToolConfiguration {
             command: None,
             args: None,
+            env: Some(HashMap::new()),
         });
     }
 
-    if let Some(config) = &mut tool.config {
+    if let Some(configuration) = &mut tool.configuration {
         // Create or update the env object
-        if config.env.is_none() {
-            config.env = Some(HashMap::new());
+        if configuration.env.is_none() {
+            configuration.env = Some(HashMap::new());
         }
 
-        if let Some(env_map) = &mut config.env {
-            // Update each environment variable
-            if let Some(req_env) = &request.config.env {
-                for (key, value) in req_env {
-                    info!(
-                        "Setting environment variable for tool {}: {}={}",
-                        request.tool_id, key, value
-                    );
-                    env_map.insert(key.clone(), value.clone());
-                }
+        if let Some(env_map) = &mut configuration.env {
+            // Update each environment variable from the config HashMap
+            for (key, value) in &request.config {
+                info!(
+                    "Setting environment variable for tool {}: {}={}",
+                    request.tool_id, key, value
+                );
+                // Convert to ToolEnvironment
+                env_map.insert(
+                    key.clone(),
+                    ToolEnvironment {
+                        description: "".to_string(),
+                        default: Some(value.clone()),
+                        required: false,
+                    },
+                );
             }
         }
     }
@@ -1137,37 +1069,6 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
                 obj.insert(
                     "distribution".to_string(),
                     serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                );
-            }
-        }
-
-        if let Some(config) = &tool_struct.config {
-            if let Some(obj) = tool_value.as_object_mut() {
-                let mut config_json = json!({});
-                if let Some(env) = &config.env {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("env".to_string(), json!(env));
-                    }
-                }
-                if let Some(command) = &config.command {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("command".to_string(), json!(command));
-                    }
-                }
-                if let Some(args) = &config.args {
-                    if let Some(config_obj) = config_json.as_object_mut() {
-                        config_obj.insert("args".to_string(), json!(args));
-                    }
-                }
-                obj.insert("config".to_string(), config_json);
-            }
-        }
-
-        if let Some(env_configs) = &tool_struct.env_configs {
-            if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert(
-                    "authentication".to_string(),
-                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
                 );
             }
         }

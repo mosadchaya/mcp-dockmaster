@@ -180,7 +180,7 @@ impl DBManager {
             tool_type: db_tool.tool_type,
             entry_point: db_tool.entry_point,
             configuration: Some(ToolConfiguration {
-                command: db_tool.command.unwrap_or_default(),
+                command: db_tool.command,
                 args: parsed_args,
                 env: if env_map.is_empty() {
                     None
@@ -189,8 +189,6 @@ impl DBManager {
                 },
             }),
             distribution,
-            config: None,
-            env_configs: None,
         };
 
         Ok(tool)
@@ -255,7 +253,7 @@ impl DBManager {
                 tool_type: db_tool.tool_type.clone(),
                 entry_point: db_tool.entry_point.clone(),
                 configuration: Some(ToolConfiguration {
-                    command: db_tool.command.clone().unwrap_or_default(),
+                    command: db_tool.command.clone(),
                     args: parsed_args,
                     env: if env_map.is_empty() {
                         None
@@ -264,8 +262,6 @@ impl DBManager {
                     },
                 }),
                 distribution,
-                config: None,
-                env_configs: None,
             };
 
             tools_map.insert(db_tool.id.clone(), tool);
@@ -298,7 +294,7 @@ impl DBManager {
         let command_str = tool
             .configuration
             .as_ref()
-            .map(|c| c.command.clone())
+            .and_then(|c| c.command.clone())
             .unwrap_or_default();
 
         // Prepare upsert struct
