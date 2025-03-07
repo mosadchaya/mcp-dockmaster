@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search, ChevronRight, ChevronLeft } from "lucide-react";
+import { Search, ChevronRight, ChevronLeft, Link } from "lucide-react";
 
 interface RegistryTool {
   id: string;
@@ -411,7 +411,17 @@ const Registry: React.FC = () => {
                             <div className="flex items-center gap-3">
                               <div className="bg-muted rounded-md p-1 size-8 ">{getRunnerIcon(tool.runtime)}</div>
 
-                              <CardTitle className="text-lg">{tool.name}</CardTitle>
+                              <CardTitle className="text-lg">
+                                {tool.name}
+                                <a
+                                  href={tool.publisher.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline text-foreground"
+                                >
+                                  <Link size={14} className="inline-block ml-1" />
+                                </a>
+                              </CardTitle>
                               {tool.installed && (
                                 <Badge variant="outline" className="ml-auto">
                                   Installed
@@ -427,14 +437,7 @@ const Registry: React.FC = () => {
                           {tool.publisher && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                               <span>By </span>{" "}
-                              <a
-                                href={tool.publisher.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="underline text-foreground"
-                              >
-                                {tool.publisher.name}
-                              </a>
+                              {tool.publisher.name}
                             </div>
                           )}
                           {tool.installed ? (
