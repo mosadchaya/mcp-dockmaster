@@ -188,7 +188,7 @@ impl DBManager {
         // Group environment variables by tool_id
         let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
         for row in all_env_rows {
-            let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_insert_with(HashMap::new);
+            let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_default();
             tool_env_map.insert(row.env_key.clone(), ToolEnvironment {
                 description: row.env_description,
                 default: Some(row.env_value),
