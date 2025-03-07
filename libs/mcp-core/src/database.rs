@@ -8,8 +8,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::models::types::{Tool, ToolConfiguration, ToolEnvironment, Distribution};
-use crate::models::tool_db::{DBTool, NewTool, DBToolEnv, NewToolEnv, UpdateTool};
+use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
+use crate::models::types::{Distribution, Tool, ToolConfiguration, ToolEnvironment};
+use crate::schema::server_tools::dsl as server_dsl;
+use crate::schema::tool_env::dsl as env_dsl;
+use crate::schema::tools::dsl as tools_dsl;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
@@ -69,27 +72,27 @@ impl DBManager {
         diesel::sql_query("PRAGMA journal_mode=WAL")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to set journal_mode: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA synchronous=FULL")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to set synchronous: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA temp_store=MEMORY")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to set temp_store: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA optimize")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to optimize: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA busy_timeout = 5000")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to set busy_timeout: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA mmap_size=262144000")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to set mmap_size: {}", e))?;
-        
+
         diesel::sql_query("PRAGMA foreign_keys = ON")
             .execute(&mut conn)
             .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
@@ -104,10 +107,9 @@ impl DBManager {
 
     /// Get a tool by ID
     pub fn get_tool(&self, tool_id_str: &str) -> Result<Tool, String> {
-        use crate::schema::tools::dsl as tools_dsl;
-        use crate::schema::tool_env::dsl as env_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // 1) Fetch from `tools` table
@@ -125,11 +127,14 @@ impl DBManager {
         // Convert environment variables into a HashMap
         let mut env_map = HashMap::new();
         for row in env_rows {
-            env_map.insert(row.env_key, ToolEnvironment {
-                description: row.env_description,
-                default: Some(row.env_value),
-                required: row.env_required,
-            });
+            env_map.insert(
+                row.env_key,
+                ToolEnvironment {
+                    description: row.env_description,
+                    default: Some(row.env_value),
+                    required: row.env_required,
+                },
+            );
         }
 
         // 3) Convert DBTool -> domain-level Tool
@@ -157,7 +162,11 @@ impl DBManager {
             configuration: Some(ToolConfiguration {
                 command: db_tool.command.unwrap_or_default(),
                 args: parsed_args,
-                env: if env_map.is_empty() { None } else { Some(env_map) },
+                env: if env_map.is_empty() {
+                    None
+                } else {
+                    Some(env_map)
+                },
             }),
             distribution,
             config: None,
@@ -169,10 +178,9 @@ impl DBManager {
 
     /// Get all tools
     pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
-        use crate::schema::tools::dsl as tools_dsl;
-        use crate::schema::tool_env::dsl as env_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // 1) Fetch all tools from the `tools` table
@@ -189,11 +197,14 @@ impl DBManager {
         let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
         for row in all_env_rows {
             let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_default();
-            tool_env_map.insert(row.env_key.clone(), ToolEnvironment {
-                description: row.env_description,
-                default: Some(row.env_value),
-                required: row.env_required,
-            });
+            tool_env_map.insert(
+                row.env_key.clone(),
+                ToolEnvironment {
+                    description: row.env_description,
+                    default: Some(row.env_value),
+                    required: row.env_required,
+                },
+            );
         }
 
         // 3) Convert DBTool -> domain-level Tool for each tool
@@ -226,7 +237,11 @@ impl DBManager {
                 configuration: Some(ToolConfiguration {
                     command: db_tool.command.clone().unwrap_or_default(),
                     args: parsed_args,
-                    env: if env_map.is_empty() { None } else { Some(env_map) },
+                    env: if env_map.is_empty() {
+                        None
+                    } else {
+                        Some(env_map)
+                    },
                 }),
                 distribution,
                 config: None,
@@ -241,10 +256,9 @@ impl DBManager {
 
     /// Save or update a tool
     pub fn save_tool(&self, tool_id_str: &str, tool: &Tool) -> Result<(), String> {
-        use crate::schema::tools::dsl as tools_dsl;
-        use crate::schema::tool_env::dsl as env_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // Convert domain `Tool` into row data
@@ -253,7 +267,10 @@ impl DBManager {
 
         // Store the `args` as JSON in a text column
         let args_as_str = if let Some(config) = &tool.configuration {
-            config.args.as_ref().map(|args_vec| serde_json::to_string(args_vec).unwrap_or_default())
+            config
+                .args
+                .as_ref()
+                .map(|args_vec| serde_json::to_string(args_vec).unwrap_or_default())
         } else {
             None
         };
@@ -272,7 +289,11 @@ impl DBManager {
             tool_type: &tool.tool_type,
             enabled: tool.enabled,
             entry_point: tool.entry_point.as_deref(),
-            command: if command_str.is_empty() { None } else { Some(&command_str) },
+            command: if command_str.is_empty() {
+                None
+            } else {
+                Some(&command_str)
+            },
             args: args_as_str.as_deref(),
             distribution_type: distribution_type_str.as_deref(),
             distribution_package: distribution_package_str.as_deref(),
@@ -285,7 +306,11 @@ impl DBManager {
             tool_type: Some(&tool.tool_type),
             enabled: Some(tool.enabled),
             entry_point: Some(tool.entry_point.as_deref()),
-            command: Some(if command_str.is_empty() { None } else { Some(&command_str) }),
+            command: Some(if command_str.is_empty() {
+                None
+            } else {
+                Some(&command_str)
+            }),
             args: Some(args_as_str.as_deref()),
             distribution_type: Some(distribution_type_str.as_deref()),
             distribution_package: Some(distribution_package_str.as_deref()),
@@ -337,10 +362,9 @@ impl DBManager {
 
     /// Delete a tool by ID
     pub fn delete_tool(&self, tool_id_str: &str) -> Result<(), String> {
-        use crate::schema::tools::dsl as tools_dsl;
-        use crate::schema::tool_env::dsl as env_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // Delete environment variables first (foreign key constraint will ensure this happens)
@@ -358,25 +382,20 @@ impl DBManager {
 
     /// Clear the database
     pub fn clear_database(&mut self) -> Result<(), String> {
-        use crate::schema::tools::dsl as tools_dsl;
-        use crate::schema::tool_env::dsl as env_dsl;
-        use crate::schema::server_tools::dsl as server_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         conn.transaction::<_, diesel::result::Error, _>(|conn| {
             // Delete environment variables first (due to foreign key constraints)
-            diesel::delete(env_dsl::tool_env)
-                .execute(conn)?;
+            diesel::delete(env_dsl::tool_env).execute(conn)?;
 
             // Delete tools
-            diesel::delete(tools_dsl::tools)
-                .execute(conn)?;
+            diesel::delete(tools_dsl::tools).execute(conn)?;
 
             // Delete server tools
-            diesel::delete(server_dsl::server_tools)
-                .execute(conn)?;
+            diesel::delete(server_dsl::server_tools).execute(conn)?;
 
             Ok(())
         })
@@ -388,9 +407,9 @@ impl DBManager {
 
     /// Check if the database exists and has data
     pub fn check_exists(&self) -> Result<bool, String> {
-        use crate::schema::tools::dsl as tools_dsl;
-
-        let mut conn = self.pool.get()
+        let mut conn = self
+            .pool
+            .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         let count: i64 = tools_dsl::tools
