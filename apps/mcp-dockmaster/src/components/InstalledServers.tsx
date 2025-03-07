@@ -500,6 +500,8 @@ const InstalledServers: React.FC = () => {
             <div className="env-vars-editor">
               {Object.entries(tool.config.env).map(([key, value]) => {
                 const description = typeof value === 'object' && value !== null ? value.description : '';
+                // Get the default value if it exists in the object
+                const defaultValue = typeof value === 'object' && value !== null ? value.default : value;
                 
                 return (
                   <div key={key} className="env-var-input-group">
@@ -507,7 +509,7 @@ const InstalledServers: React.FC = () => {
                     <input
                       id={`env-${key}`}
                       type="text"
-                      value={envVarValues[key] || ''}
+                      value={envVarValues[key] || defaultValue || ''}
                       onChange={(e) => handleEnvVarChange(key, e.target.value)}
                       placeholder={description || key}
                     />

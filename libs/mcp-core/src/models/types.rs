@@ -89,11 +89,6 @@ pub struct Tool {
     pub distribution: Option<Distribution>,
 }
 
-// TODO: Add these to the ToolRegistry struct
-//     pub tools: HashMap<ToolId, ToolMetadata>,
-//     pub processes: HashMap<ToolId, Option<ProcessManager>>,
-//     pub server_tools: HashMap<ToolId, Vec<Value>>,
-
 /// MCP tool registration request
 #[derive(Debug, Deserialize)]
 pub struct ToolRegistrationRequest {
