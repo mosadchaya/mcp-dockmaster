@@ -3,12 +3,12 @@ import MCPClient from "../lib/mcpClient";
 import { dispatchToolStatusChanged, TOOL_STATUS_CHANGED } from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
-import { Settings, Settings2 } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Badge } from "./ui/badge";
 
