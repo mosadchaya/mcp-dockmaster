@@ -9,6 +9,7 @@ export interface Tool {
     name:        string;
     server_id:   string;
     installed:   boolean;
+    categories: string[];
 }
 
 export interface InputSchema {
@@ -22,6 +23,7 @@ export interface InputSchema {
 export interface Properties {
     [key: string]: {
         default?: any;
+        required?: boolean;
         description: string;
         exclusiveMaximum?: number;
         exclusiveMinimum?: number;
@@ -45,6 +47,7 @@ export interface RegistryTool {
     license:         string;
     runtime:         string;
     config:          Config;
+    categories:      string[];
 }
 
 export interface Config {
