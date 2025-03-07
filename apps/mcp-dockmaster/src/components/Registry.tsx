@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import MCPClient from '../lib/mcpClient';
 import { getAvailableTools } from '../lib/registry';
 import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from '../lib/events';
@@ -13,6 +14,7 @@ interface RegistryTool {
   id: string;
   name: string;
   description: string;
+  fullDescription: string;
   publisher: {
     id: string;
     name: string;
@@ -40,29 +42,29 @@ const Registry: React.FC = () => {
   const [installing, setInstalling] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
+  
   // Load tools on initial mount
   useEffect(() => {
     loadAvailableTools();
-
+    
     // Add event listener for visibility change to reload tools when component becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         loadAvailableTools();
       }
     };
-
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
+    
     // Also reload when the window regains focus
     window.addEventListener('focus', loadAvailableTools);
-
+    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', loadAvailableTools);
     };
   }, []);
-
+  
   // Listen for tool installation/uninstallation events
   useEffect(() => {
     // When a tool is uninstalled, update its status in the registry
@@ -74,7 +76,7 @@ const Registry: React.FC = () => {
         )
       );
     };
-
+    
     // When a tool is installed elsewhere, update its status in the registry
     const handleToolInstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
@@ -84,18 +86,18 @@ const Registry: React.FC = () => {
         )
       );
     };
-
+    
     // Add event listeners
     document.addEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
     document.addEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
-
+    
     // Clean up event listeners on unmount
     return () => {
       document.removeEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
       document.removeEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
     };
   }, []);
-
+  
   const loadAvailableTools = async () => {
     setLoading(true);
     try {
@@ -114,7 +116,7 @@ const Registry: React.FC = () => {
         const isInstalled = installedTools.some(
           installedTool => 
             installedTool.id === tool.id || 
-            installedTool.name.toLowerCase() === tool.name.toLowerCase()
+          installedTool.name.toLowerCase() === tool.name.toLowerCase()
         );
         
         // Use lowercase name as key to avoid case-sensitivity issues
@@ -139,14 +141,14 @@ const Registry: React.FC = () => {
       setLoading(false);
     }
   };
-
+  
   const installTool = async (tool: RegistryTool) => {
     // Double-check if the tool is already installed before proceeding
     const installedTools = await MCPClient.listTools();
     const isAlreadyInstalled = installedTools.some(
       installedTool => 
         installedTool.id === tool.id || 
-        installedTool.name.toLowerCase() === tool.name.toLowerCase()
+      installedTool.name.toLowerCase() === tool.name.toLowerCase()
     );
     
     if (isAlreadyInstalled) {
@@ -275,41 +277,50 @@ const Registry: React.FC = () => {
       if (tool.config.command && tool.config.args) {
         return `${tool.config.command} ${tool.config.args.join(" ")}`;
       }
-
+      
       // Fallback 1: If the tool is an npm package, use npx to run it
       if (tool.distribution.type === "npm" && tool.distribution.package) {
         return `npx -y ${tool.distribution.package}`;
       }
-
+      
       // Fallback 2: If the tool is a docker image, use the image name
       if (tool.distribution.type === "dockerhub" && tool.distribution.package) {
         return `docker run --name ${tool.id} ${tool.distribution.package}`;
       }
     }
-
+    
     throw new Error(`No entry point found for tool: ${toolName}`);
   };
-
+  
   const getRunnerIcon = (runtime: string) => {
     switch (runtime.toLowerCase()) {
       case 'docker':
-        return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
+      return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
       case 'node':
-        return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
+      return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
       case 'python':
-        return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
+      return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
       default:
-        return <span className="runner-icon unknown">?</span>;
+      return <span className="runner-icon unknown">?</span>;
     }
   };
-
+  const parentRef = React.useRef<HTMLDivElement>(null);
+  
   const filteredTools = searchTerm 
-    ? availableTools.filter(tool => 
-        tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tool.description.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : availableTools;
-
+  ? availableTools.filter(tool => 
+    tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+  : availableTools;
+  
+  // Set up the virtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: filteredTools.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 120, // Estimated height of each tool item in pixels
+    overscan: 1, // Number of items to render beyond the visible area
+  });
+  
   return (
     <div className="registry-container">
       <div className="registry-header">
@@ -330,56 +341,79 @@ const Registry: React.FC = () => {
       {loading ? (
         <div className="loading-state">Loading available tools...</div>
       ) : (
-        <div className="tools-list">
-          {filteredTools.length === 0 ? (
-            <div className="empty-state">
-              <p>No tools found matching your search criteria.</p>
-            </div>
-          ) : (
-            filteredTools.map(tool => (
-              <div key={tool.id} className="tool-item">
-                <div className="tool-info">
-                  <div className="tool-header">
-                    <h3 className="tool-name">{tool.name}</h3>
-                    <div className="tool-metadata">
-                      {getRunnerIcon(tool.runtime)}
+        <div ref={parentRef} className="tools-list-container" style={{ height: '600px', overflow: 'auto' }}>
+          <div 
+            className="tools-list"
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            {filteredTools.length === 0 ? (
+              <div className="empty-state">
+                <p>No tools found matching your search criteria.</p>
+              </div>
+            ) : (
+              rowVirtualizer.getVirtualItems().map(virtualRow => {
+                const tool = filteredTools[virtualRow.index];
+                return (
+                  <div 
+                    key={tool.id} 
+                    className="tool-item top-0 left-0 pr-4"
+                    style={{
+                      position: 'absolute',
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div className="tool-info">
+                      <div className="tool-header">
+                        <h3 className="tool-name">{tool.name}</h3>
+                        <div className="tool-metadata">
+                          {getRunnerIcon(tool.runtime)}
+                        </div>
+                      </div>
+                      <p className="tool-description">{tool.description}</p>
+                      <div className="tool-publisher">
+                        <span>By </span>
+                        <a 
+                          href={tool.publisher.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="publisher-link"
+                        >
+                          {tool.publisher.name}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="tool-action">
+                      {tool.installed ? (
+                        <button
+                          className="uninstall-button"
+                          onClick={() => uninstallTool(tool.id)}
+                          disabled={uninstalling === tool.id}
+                        >
+                          {uninstalling === tool.id ? 'Uninstalling...' : 'Uninstall'}
+                        </button>
+                      ) : (
+                        <button
+                          className={`install-button ${tool.installed ? 'installed' : ''}`}
+                          onClick={() => !tool.installed && installTool(tool)}
+                          disabled={tool.installed || installing === tool.id}
+                        >
+                          {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <p className="tool-description">{tool.description}</p>
-                  <div className="tool-publisher">
-                    <span>By </span>
-                    <a 
-                      href={tool.publisher.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="publisher-link"
-                    >
-                      {tool.publisher.name}
-                    </a>
-                  </div>
-                </div>
-                <div className="tool-action">
-                  {tool.installed ? (
-                    <button
-                      className="uninstall-button"
-                      onClick={() => uninstallTool(tool.id)}
-                      disabled={uninstalling === tool.id}
-                    >
-                      {uninstalling === tool.id ? 'Uninstalling...' : 'Uninstall'}
-                    </button>
-                  ) : (
-                    <button
-                      className={`install-button ${tool.installed ? 'installed' : ''}`}
-                      onClick={() => !tool.installed && installTool(tool)}
-                      disabled={tool.installed || installing === tool.id}
-                    >
-                      {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+                )
+              })
+            )}
+          </div>
         </div>
       )}
     </div>
