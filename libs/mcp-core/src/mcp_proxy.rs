@@ -7,7 +7,9 @@ use crate::models::types::{
     ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::registry::ToolRegistry;
-use crate::{database, spawned_process::SpawnedProcess, MCPError};
+use crate::{
+    database, http_server::fetch_tool_from_registry, spawned_process::SpawnedProcess, MCPError,
+};
 use futures::future;
 use log::{error, info};
 use serde_json::{json, Value};
@@ -377,9 +379,24 @@ pub async fn register_tool(
     }
 
     let registry = mcp_state.tool_registry.write().await;
+    let tool_registry = fetch_tool_from_registry()
+        .await
+        .map_err(|e| format!("Failed to fetch tools from registry: {:?}", e))?;
+
+    let tool_registry = tool_registry.get("tools").unwrap().as_array().unwrap();
+
+    let tool = tool_registry
+        .iter()
+        .find(|t| t.get("id").unwrap().as_str().unwrap_or_default() == request.tool_id);
+
+    if tool.is_none() {
+        return Err(format!("Tool not found in registry: {}", request.tool_id));
+    }
+    let tool = tool.unwrap();
 
     // Generate a simple tool ID (in production, use UUIDs)
-    let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
+    // let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
+    let tool_id = tool.get("id").unwrap().as_str().unwrap().to_string();
     info!("Generated tool ID: {}", tool_id);
 
     // Create the tool configuration if provided
@@ -1217,7 +1234,7 @@ pub async fn init_mcp_server(mcp_state: MCPState) {
                 info!("Found enabled tool: {}", tool_id_str);
                 let tool_id = tool_id_str.clone();
                 let mcp_state_clone = mcp_state.clone();
-                
+
                 // Create a future for each tool restart
                 let restart_future = async move {
                     match mcp_state_clone.restart_tool(&tool_id).await {
@@ -1228,20 +1245,26 @@ pub async fn init_mcp_server(mcp_state: MCPState) {
                             error!("Failed to spawn process for tool {}: {}", tool_id, e);
                         }
                     }
-                    
+
                     // Return the tool_id for logging purposes
                     tool_id
                 };
-                
+
                 restart_futures.push(restart_future);
             }
         }
-        
+
         // Execute all restart tasks in parallel
         if !restart_futures.is_empty() {
-            info!("Starting parallel initialization of {} tools", restart_futures.len());
+            info!(
+                "Starting parallel initialization of {} tools",
+                restart_futures.len()
+            );
             let results = future::join_all(restart_futures).await;
-            info!("Completed parallel initialization of {} tools", results.len());
+            info!(
+                "Completed parallel initialization of {} tools",
+                results.len()
+            );
         } else {
             info!("No enabled tools found to initialize");
         }

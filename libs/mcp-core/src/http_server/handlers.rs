@@ -1,11 +1,14 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
+use lazy_static::lazy_static;
 use log::info;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::sync::Mutex;
 use tokio::sync::RwLock;
 
 use crate::mcp_proxy::register_tool;
@@ -35,6 +38,23 @@ pub struct JsonRpcError {
     message: String,
     data: Option<Value>,
 }
+
+// Cache structure to store registry data and timestamp
+struct RegistryCache {
+    data: Option<Value>,
+    timestamp: Option<Instant>,
+}
+
+// Initialize the static cache with lazy_static
+lazy_static! {
+    static ref REGISTRY_CACHE: Mutex<RegistryCache> = Mutex::new(RegistryCache {
+        data: None,
+        timestamp: None,
+    });
+}
+
+// Cache duration constant (60 minutes)
+const CACHE_DURATION: Duration = Duration::from_secs(60 * 60);
 
 pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
@@ -91,6 +111,18 @@ pub async fn handle_mcp_request(
             }
         }
         "registry/list" => handle_list_all_tools(state).await,
+
+        "server/config" => {
+            if let Some(params) = request.params {
+                handle_get_server_config(state, params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Invalid params - missing parameters for server config"
+                }))
+            }
+        }
+
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method not found: {}", request.method)
@@ -186,7 +218,7 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
 
     let tool = tools
         .iter()
-        .find(|tool| tool.get("name").unwrap().as_str() == params.get("tool").unwrap().as_str());
+        .find(|tool| tool.get("id").unwrap().as_str() == params.get("tool_id").unwrap().as_str());
 
     match tool {
         Some(tool) => {
@@ -227,7 +259,15 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
                 })
             });
 
+            let tool_id = tool
+                .get("id")
+                .unwrap_or(&json!("error"))
+                .as_str()
+                .unwrap_or("error")
+                .to_string();
+
             let tool = ToolRegistrationRequest {
+                tool_id,
                 tool_name,
                 description,
                 tool_type,
@@ -251,7 +291,28 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
     }
 }
 
-async fn fetch_tool_from_registry() -> Result<Value, Value> {
+pub async fn fetch_tool_from_registry() -> Result<Value, Value> {
+    // Check if we have a valid cache
+    let use_cache = {
+        let cache = REGISTRY_CACHE.lock().unwrap();
+        if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
+            if timestamp.elapsed() < CACHE_DURATION {
+                // Cache is still valid
+                Some(data.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    // If we have valid cached data, return it
+    if let Some(cached_data) = use_cache {
+        return Ok(cached_data);
+    }
+
+    // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
     let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/db.v0.json";
 
@@ -302,12 +363,23 @@ async fn fetch_tool_from_registry() -> Result<Value, Value> {
             );
         }
 
+        println!("[TOOL] handle_register_tool: tool {:?} \n\nVS\n\n{:?} \n----------------------------------------", tool, tool_info);
+
         all_tools.push(json!(tool_info));
     }
-    let v = json!({
+
+    let result = json!({
         "tools": all_tools
     });
-    Ok(v)
+
+    // Update the cache with new data
+    {
+        let mut cache = REGISTRY_CACHE.lock().unwrap();
+        cache.data = Some(result.clone());
+        cache.timestamp = Some(Instant::now());
+    }
+
+    Ok(result)
 }
 
 async fn handle_list_all_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
@@ -438,6 +510,90 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
         Err(e) => Err(json!({
             "code": -32000,
             "message": format!("Tool execution error: {}", e)
+        })),
+    }
+}
+
+async fn handle_get_server_config(
+    state: Arc<RwLock<MCPState>>,
+    params: Value,
+) -> Result<Value, Value> {
+    // Extract tool_id and config from params
+    let tool_id = match params.get("tool_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => {
+            return Err(json!({
+                "code": -32602,
+                "message": "Missing tool_id in parameters"
+            }))
+        }
+    };
+
+    let config = match params.get("config") {
+        Some(Value::Object(obj)) => {
+            // Convert the object into a HashMap<String, String>
+            let mut config_map = std::collections::HashMap::new();
+            for (key, value) in obj {
+                let value_str = match value {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    _ => value.to_string(),
+                };
+                config_map.insert(key.clone(), value_str);
+            }
+            config_map
+        }
+        _ => {
+            return Err(json!({
+                "code": -32602,
+                "message": "Invalid or missing config object in parameters"
+            }))
+        }
+    };
+
+    // Create the config update request
+    let config_request = crate::models::types::ToolConfigUpdateRequest {
+        tool_id: tool_id.to_string(),
+        config,
+    };
+
+    // Get MCP state from the passed state parameter
+    let mcp_state = state.read().await;
+
+    // Update the tool configuration
+    match crate::mcp_proxy::update_tool_config(&mcp_state, config_request).await {
+        Ok(response) => {
+            if !response.success {
+                return Err(json!({
+                    "code": -32000,
+                    "message": response.message
+                }));
+            }
+
+            // After successful config update, restart the tool
+            match crate::mcp_proxy::restart_tool_command(&mcp_state, tool_id.to_string()).await {
+                Ok(restart_response) => {
+                    if restart_response.success {
+                        Ok(json!({
+                            "message": format!("Configuration updated and tool restarted successfully: {}", restart_response.message)
+                        }))
+                    } else {
+                        Err(json!({
+                            "code": -32000,
+                            "message": format!("Config updated but restart failed: {}", restart_response.message)
+                        }))
+                    }
+                }
+                Err(e) => Err(json!({
+                    "code": -32000,
+                    "message": format!("Config updated but restart error: {}", e)
+                })),
+            }
+        }
+        Err(e) => Err(json!({
+            "code": -32000,
+            "message": format!("Failed to update configuration: {}", e)
         })),
     }
 }

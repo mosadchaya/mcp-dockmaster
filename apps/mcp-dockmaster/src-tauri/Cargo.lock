@@ -2367,6 +2367,7 @@ dependencies = [
  "env_logger",
  "futures",
  "hyper",
+ "lazy_static",
  "libsqlite3-sys",
  "log",
  "reqwest",

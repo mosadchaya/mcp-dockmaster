@@ -67,6 +67,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // If the result already has a tools array, return it directly
       if (Array.isArray(result.tools)) {
         injectInternalTools(result);
+        result.tools.forEach((tool: any) => {
+          // This is temporal patch. 
+          // Claude desktop breaks with "invalid names"
+          tool.name = tool.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+          tool.name = tool.name.substring(0, 64);
+        });
         debugLog('Received tools list with correct format');
         return result as any;
       }
@@ -151,6 +157,7 @@ async function main() {
 
   // Initialize internal tools;
   await initInternalTools();
+
 }
 
 main().catch((error) => {

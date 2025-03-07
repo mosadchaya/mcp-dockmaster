@@ -92,6 +92,7 @@ pub struct Tool {
 /// MCP tool registration request
 #[derive(Debug, Deserialize)]
 pub struct ToolRegistrationRequest {
+    pub tool_id: String,
     pub tool_name: String,
     pub description: String,
     pub tool_type: String, // "node", "python", "docker"
