@@ -1,8 +1,8 @@
 use crate::mcp_state::MCPState;
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, EnvConfigs, Tool,
-    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration,
-    ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationRequest,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, Tool,
+    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolEnvironment,
+    ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationRequest,
     ToolRegistrationResponse, ToolType, ToolUninstallRequest, ToolUninstallResponse,
     ToolUpdateRequest, ToolUpdateResponse,
 };
@@ -461,10 +461,6 @@ pub async fn register_tool(
                 package: "".to_string(),
             })
         }),
-        env_configs: request
-            .env_configs
-            .as_ref()
-            .map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
     };
 
     // Save the tool in the registry
@@ -480,10 +476,8 @@ pub async fn register_tool(
         configuration.env.as_ref().map(|map| {
             // Convert ToolEnvironment -> just the defaults
             map.iter()
-               .filter_map(|(k, tool_env)| {
-                   tool_env.default.clone().map(|v| (k.clone(), v))
-               })
-               .collect::<HashMap<String, String>>()
+                .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
+                .collect::<HashMap<String, String>>()
         })
     } else {
         None
@@ -647,17 +641,6 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
                 obj.insert(
                     "distribution".to_string(),
                     serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                );
-            }
-        }
-
-        // The config field has been removed and merged into configuration
-
-        if let Some(env_configs) = &tool_struct.env_configs {
-            if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert(
-                    "authentication".to_string(),
-                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
                 );
             }
         }
@@ -969,11 +952,14 @@ pub async fn update_tool_config(
                     request.tool_id, key, value
                 );
                 // Convert to ToolEnvironment
-                env_map.insert(key.clone(), ToolEnvironment {
-                    description: "".to_string(),
-                    default: Some(value.clone()),
-                    required: false,
-                });
+                env_map.insert(
+                    key.clone(),
+                    ToolEnvironment {
+                        description: "".to_string(),
+                        default: Some(value.clone()),
+                        required: false,
+                    },
+                );
             }
         }
     }
@@ -1082,17 +1068,6 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
                 obj.insert(
                     "distribution".to_string(),
                     serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                );
-            }
-        }
-
-        // The config field has been removed and merged into configuration
-
-        if let Some(env_configs) = &tool_struct.env_configs {
-            if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert(
-                    "authentication".to_string(),
-                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
                 );
             }
         }

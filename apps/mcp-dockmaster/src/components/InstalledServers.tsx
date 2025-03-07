@@ -303,9 +303,7 @@ const InstalledServers: React.FC = () => {
       // Update the tool configuration
       const response = await MCPClient.updateToolConfig({
         tool_id: toolId,
-        config: {
-          env: envVarValues
-        }
+        config: envVarValues
       });
       
       if (response.success) {

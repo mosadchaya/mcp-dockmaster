@@ -189,7 +189,6 @@ impl DBManager {
                 },
             }),
             distribution,
-            env_configs: None,
         };
 
         Ok(tool)
@@ -263,7 +262,6 @@ impl DBManager {
                     },
                 }),
                 distribution,
-                env_configs: None,
             };
 
             tools_map.insert(db_tool.id.clone(), tool);

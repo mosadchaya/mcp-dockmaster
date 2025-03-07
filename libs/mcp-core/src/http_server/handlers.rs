@@ -206,15 +206,6 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
                 .unwrap_or_default()
                 .to_string();
 
-            let env_configs = tool
-                .get("config")
-                .and_then(|config| config.get("env"))
-                .map(|env| {
-                    json!({
-                        "env": env
-                    })
-                });
-
             let tool_type = tool
                 .get("runtime")
                 .unwrap_or(&json!("error"))
@@ -242,7 +233,6 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
                 tool_type,
                 configuration,
                 distribution,
-                env_configs,
             };
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
