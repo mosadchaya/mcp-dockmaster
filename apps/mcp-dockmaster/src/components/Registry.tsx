@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import MCPClient from "../lib/mcpClient";
-import { getAvailableTools } from "../lib/registry";
+import { getAvailableTools, getCategories } from "../lib/registry";
 import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from "../lib/events";
 import "./Registry.css";
 
@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search } from "lucide-react";
+import { Search, ChevronRight } from "lucide-react";
 
 interface RegistryTool {
   id: string;
@@ -39,6 +39,7 @@ interface RegistryTool {
     env: Record<string, any>;
   };
   license?: string;
+  categories?: string[];
 }
 
 const Registry: React.FC = () => {
@@ -47,25 +48,24 @@ const Registry: React.FC = () => {
   const [installing, setInstalling] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [categories, setCategories] = useState<[string, number][]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
-  // Load tools on initial mount
+  // Load tools and categories on initial mount
   useEffect(() => {
     loadAvailableTools();
+    loadCategories();
 
     // Add event listener for visibility change to reload tools when component becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         loadAvailableTools();
+        loadCategories();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Also reload when the window regains focus
-    window.addEventListener("focus", loadAvailableTools);
-
     window.addEventListener("focus", loadAvailableTools);
 
     return () => {
@@ -139,6 +139,15 @@ const Registry: React.FC = () => {
       console.error("Failed to load available tools:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const categoriesData = await getCategories();
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error("Failed to load categories:", error);
     }
   };
 
@@ -282,13 +291,21 @@ const Registry: React.FC = () => {
   };
   const parentRef = React.useRef<HTMLDivElement>(null);
 
-  const filteredTools = searchTerm
-    ? availableTools.filter(
-        (tool) =>
-          tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          tool.description.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : availableTools;
+  const filteredTools = availableTools.filter((tool) => {
+    const matchesSearch = searchTerm
+      ? tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+      : true;
+
+    const matchesCategory = selectedCategory
+      ? tool.categories?.includes(selectedCategory)
+      : true;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get visible categories (first 5 if not showing all)
+  const visibleCategories = showAllCategories ? categories : categories.slice(0, 12);
 
   // Set up the virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -306,19 +323,48 @@ const Registry: React.FC = () => {
         <p className="text-sm text-muted-foreground">Discover and install AI applications and MCP tools.</p>
       </div>
 
-      <div className="relative flex-1 max-h-12 h-full min-h-12 shrink-0">
-        <div className="absolute top-4 left-3 flex items-center pointer-events-none">
-          <Search size={18} className="text-gray-400" />
+      <div className="flex flex-col gap-4">
+        <div className="relative flex-1 max-h-12 h-full min-h-12 shrink-0">
+          <div className="absolute top-4 left-3 flex items-center pointer-events-none">
+            <Search size={18} className="text-gray-400" />
+          </div>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="size-full pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60"
+            placeholder="Search for tools..."
+            aria-label="Search for tools"
+          />
         </div>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="size-full pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground  rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60   "
-          placeholder="Search for tools..."
-          aria-label="Search for tools"
-        />
+
+        <div className={`flex items-center gap-2 pb-2 flex-wrap`}>
+          <div className={`flex gap-2 flex-wrap ${showAllCategories ? 'max-h-[300px] overflow-y-auto' : ''}`}>
+            {visibleCategories.map(([category, count]) => (
+              <Badge
+                key={category}
+                variant={selectedCategory === category ? "default" : "outline"}
+                className="cursor-pointer whitespace-nowrap"
+                onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+              >
+                {category} { count > 1 ? `(${count})` : '' }
+              </Badge>
+            ))}
+          </div>
+          {categories.length > 5 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="whitespace-nowrap"
+              onClick={() => setShowAllCategories(!showAllCategories)}
+            >
+              {showAllCategories ? "Show Less" : "Show All Categories"}
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
+
       {loading ? (
         <div className="flex justify-center items-center flex-col gap-3 ">
           {Array.from({ length: 3 }).map((_, index) => (
