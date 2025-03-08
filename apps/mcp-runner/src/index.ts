@@ -40,7 +40,6 @@ const server = new Server(
 );
 
 debugLog('Server instance created');
-
 debugLog('Setting up request handlers');
 
 // Handler for listing resources

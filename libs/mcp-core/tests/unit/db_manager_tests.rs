@@ -1,11 +1,26 @@
 #[cfg(test)]
 mod tests {
-    use mcp_core::{database::db_manager::DBManager, models::types::ServerDefinition};
+    use mcp_core::{
+        database::db_manager::DBManager, models::types::ServerDefinition,
+        utils::default_storage_path,
+    };
     use serial_test::serial;
+    use std::fs;
     use tempfile::tempdir;
+
+    // Helper function to clean up any existing default database
+    fn cleanup_default_db() {
+        if let Ok(storage_path) = default_storage_path() {
+            let db_path = storage_path.join("mcp_dockmaster.db");
+            let _ = fs::remove_file(db_path);
+        }
+    }
 
     // Helper function to set up a temporary database for testing
     fn setup_temp_db() -> (DBManager, tempfile::TempDir) {
+        // Clean up any existing default database first
+        cleanup_default_db();
+
         // Create a new temporary directory
         let temp_dir = tempdir().expect("Failed to create temp directory");
 
@@ -47,7 +62,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_get_all_servers() {
-        let db = DBManager::new().unwrap();
+        let (db, _temp) = setup_temp_db();
 
         // Create test tools
         let tool1 = ServerDefinition {
@@ -85,7 +100,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_delete_server() {
-        let db = DBManager::new().unwrap();
+        let (db, _temp) = setup_temp_db();
 
         // Create a test tool
         let tool_id = "test_tool";
@@ -113,7 +128,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_update_server() {
-        let db = DBManager::new().unwrap();
+        let (db, _temp) = setup_temp_db();
 
         // Create a test tool
         let tool_id = "test_tool";
