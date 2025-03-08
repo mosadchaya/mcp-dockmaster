@@ -529,18 +529,6 @@ const InstalledServers: React.FC = () => {
     );
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Running":
-        return "bg-emerald-500";
-      case "Stopped":
-        return "bg-amber-500";
-      case "Error":
-        return "bg-red-500";
-      default:
-        return "bg-slate-500";
-    }
-  };
   return (
     <div className="h-full px-6 flex flex-col gap-8 py-10 max-w-4xl mx-auto w-full">
       {/* Notifications */}
