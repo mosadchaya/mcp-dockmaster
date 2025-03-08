@@ -20,5 +20,6 @@
     },
     "lint": {}
   },
-  "defaultProject": "mcp-dockmaster"
-} 
+  "defaultProject": "mcp-dockmaster",
+  "useLegacyCache": true
+}

@@ -12,6 +12,7 @@
       }
     },
     "test": {
+      "dependsOn": ["mcp-proxy-server:build"],
       "executor": "nx:run-commands",
       "options": {
         "cwd": "libs/mcp-core",
