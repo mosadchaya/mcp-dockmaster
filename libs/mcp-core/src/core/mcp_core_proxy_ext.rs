@@ -2,11 +2,12 @@ use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state::McpStateProcessMonitor;
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, Tool,
-    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolEnvironment,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, ToolConfigUpdateRequest,
+    ToolConfigUpdateResponse, ToolConfiguration, ToolDefinition, ToolEnvironment,
     ToolExecutionRequest, ToolExecutionResponse, ToolRegistrationRequest, ToolRegistrationResponse,
     ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
+use crate::types::{RuntimeTool, ToolId};
 use crate::MCPError;
 use anyhow::Result;
 use futures::future;
@@ -22,7 +23,9 @@ pub trait McpCoreProxyExt {
         &self,
         tool: ToolRegistrationRequest,
     ) -> impl std::future::Future<Output = Result<ToolRegistrationResponse, String>> + Send;
-    fn list_tools(&self) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + Send;
+    fn list_tools(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<RuntimeTool>, String>> + Send;
     fn list_all_server_tools(
         &self,
     ) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + Send;
@@ -149,7 +152,7 @@ impl McpCoreProxyExt for MCPCore {
         // Environment variables are now handled in the configuration field
 
         // Create the Tool struct
-        let tool = Tool {
+        let tool = ToolDefinition {
             name: request.tool_name.clone(),
             description: request.description.clone(),
             enabled: true, // Default to enabled
@@ -313,72 +316,32 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all registered tools
-    async fn list_tools(&self) -> Result<Vec<Value>, String> {
+    async fn list_tools(&self) -> Result<Vec<RuntimeTool>, String> {
         let mcp_state = self.mcp_state.read().await;
         let registry = mcp_state.tool_registry.read().await;
+
+        let tool_map = registry.get_all_tools()?;
         let mut tools = Vec::new();
 
-        // Get all tools from the registry
-        let tool_map = registry.get_all_tools()?;
-
         for (id, tool_struct) in tool_map {
-            // Convert the Tool struct to a Value
-            let mut tool_value = json!({
-                "name": tool_struct.name,
-                "description": tool_struct.description,
-                "enabled": tool_struct.enabled,
-                "tool_type": tool_struct.tool_type,
-                "id": id,
+            let process_running = {
+                let process_manager = mcp_state.process_manager.read().await;
+                process_manager.processes.contains_key(&id)
+            };
+
+            let tool_count = {
+                let server_tools = mcp_state.server_tools.read().await;
+                server_tools.get(&id).map_or(0, |tools| tools.len())
+            };
+
+            tools.push(RuntimeTool {
+                definition: tool_struct,
+                id: ToolId::new(id),
+                process_running,
+                tool_count,
             });
-
-            // Add optional fields if they exist
-            if let Some(entry_point) = &tool_struct.entry_point {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert("entry_point".to_string(), json!(entry_point));
-                }
-            }
-
-            if let Some(configuration) = &tool_struct.configuration {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "configuration".to_string(),
-                        json!({
-                            "command": configuration.command,
-                            "args": configuration.args,
-                            "env": configuration.env,
-                        }),
-                    );
-                }
-            }
-
-            if let Some(distribution) = &tool_struct.distribution {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "distribution".to_string(),
-                        serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                    );
-                }
-            }
-
-            // Add process status - check the processes map
-            if let Some(obj) = tool_value.as_object_mut() {
-                let process_running = {
-                    let process_manager = mcp_state.process_manager.read().await;
-                    process_manager.processes.contains_key(&id)
-                };
-                obj.insert("process_running".to_string(), json!(process_running));
-
-                // Add number of available tools from this server
-                let server_tool_count = {
-                    let server_tools = mcp_state.server_tools.read().await;
-                    server_tools.get(&id).map_or_else(|| 0, |tools| tools.len())
-                };
-                obj.insert("tool_count".to_string(), json!(server_tool_count));
-            }
-
-            tools.push(tool_value);
         }
-        println!("tools: {:?}", tools);
+
         Ok(tools)
     }
 

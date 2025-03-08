@@ -64,8 +64,14 @@ mod tests {
         // List all available tools
         let all_tools = mcp_core.list_all_server_tools().await?;
         eprintln!(
-            "Available tools: {}",
+            "Available tools (list_all_server_tools): {}",
             serde_json::to_string_pretty(&all_tools).unwrap()
+        );
+
+        let all_tools_simple = mcp_core.list_tools().await?;
+        eprintln!(
+            "Available tools (list_tools): {}",
+            serde_json::to_string_pretty(&all_tools_simple).unwrap()
         );
 
         // Execute tool

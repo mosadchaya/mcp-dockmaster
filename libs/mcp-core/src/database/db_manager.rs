@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
-use crate::models::types::{Distribution, Tool, ToolConfiguration, ToolEnvironment};
+use crate::models::types::{Distribution, ToolConfiguration, ToolDefinition, ToolEnvironment};
 use crate::schema::server_tools::dsl as server_dsl;
 use crate::schema::tool_env::dsl as env_dsl;
 use crate::schema::tools::dsl as tools_dsl;
@@ -130,7 +130,7 @@ impl DBManager {
     }
 
     /// Get a tool by ID
-    pub fn get_tool(&self, tool_id_str: &str) -> Result<Tool, String> {
+    pub fn get_tool(&self, tool_id_str: &str) -> Result<ToolDefinition, String> {
         let mut conn = self
             .pool
             .get()
@@ -177,7 +177,7 @@ impl DBManager {
             None
         };
 
-        let tool = Tool {
+        let tool = ToolDefinition {
             name: db_tool.name,
             description: db_tool.description,
             enabled: db_tool.enabled,
@@ -199,7 +199,7 @@ impl DBManager {
     }
 
     /// Get all tools
-    pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
+    pub fn get_all_tools(&self) -> Result<HashMap<String, ToolDefinition>, String> {
         let mut conn = self
             .pool
             .get()
@@ -250,7 +250,7 @@ impl DBManager {
             // Get environment variables for this tool
             let env_map = env_map_by_tool.remove(&db_tool.id).unwrap_or_default();
 
-            let tool = Tool {
+            let tool = ToolDefinition {
                 name: db_tool.name.clone(),
                 description: db_tool.description.clone(),
                 enabled: db_tool.enabled,
@@ -275,7 +275,7 @@ impl DBManager {
     }
 
     /// Save or update a tool
-    pub fn save_tool(&self, tool_id_str: &str, tool: &Tool) -> Result<(), String> {
+    pub fn save_tool(&self, tool_id_str: &str, tool: &ToolDefinition) -> Result<(), String> {
         let mut conn = self
             .pool
             .get()

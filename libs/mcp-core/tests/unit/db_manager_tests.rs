@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use mcp_core::{database::db_manager::DBManager, models::types::Tool};
+    use mcp_core::{database::db_manager::DBManager, models::types::ToolDefinition};
     use serial_test::serial;
     use tempfile::tempdir;
 
@@ -21,7 +21,7 @@ mod tests {
         let (db, _temp) = setup_temp_db();
 
         // Create a sample tool
-        let tool = Tool {
+        let tool = ToolDefinition {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
@@ -57,7 +57,7 @@ mod tests {
         let db = DBManager::with_path(db_path).expect("Failed to create database");
         db.apply_migrations().expect("Failed to apply migrations");
         // Create sample tools
-        let tool1 = Tool {
+        let tool1 = ToolDefinition {
             name: "tool1".to_string(),
             description: "Tool 1".to_string(),
             enabled: true,
@@ -67,7 +67,7 @@ mod tests {
             distribution: None,
         };
 
-        let tool2 = Tool {
+        let tool2 = ToolDefinition {
             name: "tool2".to_string(),
             description: "Tool 2".to_string(),
             enabled: false,
@@ -96,7 +96,7 @@ mod tests {
         let (mut db, _temp) = setup_temp_db();
 
         // Create and save a sample tool
-        let tool = Tool {
+        let tool = ToolDefinition {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
@@ -115,5 +115,45 @@ mod tests {
         // Verify the database is empty
         let tools = db.get_all_tools().expect("Failed to get all tools");
         assert!(tools.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn test_multiple_migrations() {
+        let (db, _temp) = setup_temp_db();
+
+        // Migrations were already applied once in setup_temp_db
+        // Apply migrations again to verify idempotency
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        // Second time to check that it's idempotent
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        // Verify we can still perform normal operations
+        let tool = ToolDefinition {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            enabled: true,
+            tool_type: "test".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+        };
+
+        // Save and retrieve to verify DB is still working
+        db.save_tool("test_tool", &tool)
+            .expect("Failed to save tool after multiple migrations");
+        let loaded_tool = db
+            .get_tool("test_tool")
+            .expect("Failed to get tool after multiple migrations");
+        assert_eq!(loaded_tool.name, "test_tool");
+
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
     }
 }

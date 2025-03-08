@@ -139,6 +139,7 @@ const Registry: React.FC = () => {
 
       // Get installed tools to check status
       const installedTools = await MCPClient.listTools();
+      console.log("installedTools: ", installedTools);
 
       // Create a map to ensure we don't have duplicate tools by name
       const uniqueToolsMap = new Map();
@@ -187,6 +188,8 @@ const Registry: React.FC = () => {
   const installTool = async (tool: RegistryTool) => {
     // Double-check if the tool is already installed before proceeding
     const installedTools = await MCPClient.listTools();
+    console.log("installedTools: ", installedTools);
+
     const isAlreadyInstalled = installedTools.some(
       (installedTool) =>
         installedTool.id === tool.id ||

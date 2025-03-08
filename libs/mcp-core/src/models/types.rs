@@ -76,7 +76,7 @@ pub struct ToolEnvironment {
 
 /// Tool definition with all properties
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Tool {
+pub struct ToolDefinition {
     pub name: String,
     pub description: String,
     pub enabled: bool,
@@ -87,6 +87,15 @@ pub struct Tool {
     pub configuration: Option<ToolConfiguration>,
     #[serde(default)]
     pub distribution: Option<Distribution>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RuntimeTool {
+    #[serde(flatten)]
+    pub definition: ToolDefinition,
+    pub id: ToolId,
+    pub process_running: bool,
+    pub tool_count: usize,
 }
 
 /// MCP tool registration request

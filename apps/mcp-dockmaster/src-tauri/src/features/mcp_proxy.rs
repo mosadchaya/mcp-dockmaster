@@ -9,6 +9,7 @@ use mcp_core::{
         ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
         ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
     },
+    types::RuntimeTool,
 };
 use serde_json::Value;
 use tauri::State;
@@ -24,7 +25,7 @@ pub async fn register_tool(
 
 /// List all registered tools
 #[tauri::command]
-pub async fn list_tools(mcp_core: State<'_, MCPCore>) -> Result<Vec<Value>, String> {
+pub async fn list_tools(mcp_core: State<'_, MCPCore>) -> Result<Vec<RuntimeTool>, String> {
     mcp_core.list_tools().await
 }
 

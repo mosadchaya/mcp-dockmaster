@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{database::db_manager::DBManager, models::types::Tool};
+use crate::{database::db_manager::DBManager, models::types::ToolDefinition};
 
 /// ToolRegistry: database logic only
 ///
@@ -22,17 +22,17 @@ impl ToolRegistry {
     }
 
     /// Get a tool by ID
-    pub fn get_tool(&self, tool_id: &str) -> Result<Tool, String> {
+    pub fn get_tool(&self, tool_id: &str) -> Result<ToolDefinition, String> {
         self.db.get_tool(tool_id)
     }
 
     /// Get all tools
-    pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
+    pub fn get_all_tools(&self) -> Result<HashMap<String, ToolDefinition>, String> {
         self.db.get_all_tools()
     }
 
     /// Save or update a tool
-    pub fn save_tool(&self, tool_id: &str, tool: &Tool) -> Result<(), String> {
+    pub fn save_tool(&self, tool_id: &str, tool: &ToolDefinition) -> Result<(), String> {
         self.db.save_tool(tool_id, tool)
     }
 
