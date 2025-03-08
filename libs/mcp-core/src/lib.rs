@@ -1,5 +1,6 @@
 pub mod database;
 pub mod http_server;
+pub mod mcp_installers;
 pub mod mcp_proxy;
 pub mod mcp_state;
 pub mod models;
