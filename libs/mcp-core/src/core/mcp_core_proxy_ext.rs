@@ -2,18 +2,17 @@ use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state::McpStateProcessMonitor;
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, RuntimeServer,
-    ServerDefinition, ServerRegistrationRequest, ToolConfigUpdateRequest, ToolConfigUpdateResponse,
-    ToolConfiguration, ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId,
-    ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest,
-    ToolUpdateResponse,
+    DiscoverServerToolsRequest, RuntimeServer, ServerDefinition, ServerRegistrationRequest,
+    ServerToolInfo, ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration,
+    ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationResponse,
+    ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::MCPError;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 use tokio::time::Duration;
 
@@ -26,11 +25,11 @@ pub trait McpCoreProxyExt {
         tool: ServerRegistrationRequest,
     ) -> Result<ToolRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
-    async fn list_all_server_tools(&self) -> Result<Vec<Value>, String>;
+    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>;
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<DiscoverServerToolsResponse, String>;
+    ) -> Result<Vec<ServerToolInfo>, String>;
     async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
@@ -59,11 +58,9 @@ impl McpCoreProxyExt for MCPCore {
         &self,
         request: ServerRegistrationRequest,
     ) -> Result<ToolRegistrationResponse, String> {
-        info!("Starting registration of tool: {}", request.tool_name);
-
-        // Safely access the command field if configuration exists
+        // Log configuration details if present
         if let Some(config) = &request.configuration {
-            if let Some(cmd) = config.get("command") {
+            if let Some(cmd) = &config.command {
                 info!("Command: {}", cmd);
             } else {
                 info!("Command: Not specified in configuration");
@@ -75,74 +72,8 @@ impl McpCoreProxyExt for MCPCore {
         let registry = self.tool_registry.write().await;
 
         // Generate a simple tool ID (in production, use UUIDs)
-        let tool_id = format!("tool_{}", registry.get_all_servers()?.len() + 1);
+        let tool_id = format!("server_{}", registry.get_all_servers()?.len() + 1);
         info!("Generated tool ID: {}", tool_id);
-
-        // Create the tool configuration if provided
-        let configuration = request
-            .configuration
-            .as_ref()
-            .map(|config| ToolConfiguration {
-                command: config
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                args: config.get("args").and_then(|v| v.as_array()).map(|args| {
-                    args.iter()
-                        .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
-                        .collect()
-                }),
-                env: config.get("env").and_then(|v| v.as_object()).map(|env| {
-                    env.iter()
-                        .map(|(k, v)| {
-                            let description = if let Value::Object(obj) = v {
-                                obj.get("description")
-                                    .and_then(|d| d.as_str())
-                                    .unwrap_or_default()
-                                    .to_string()
-                            } else {
-                                "".to_string()
-                            };
-
-                            let default = if let Value::Object(obj) = v {
-                                obj.get("default").and_then(|d| match d {
-                                    Value::String(s) => Some(s.clone()),
-                                    Value::Number(n) => Some(n.to_string()),
-                                    Value::Bool(b) => Some(b.to_string()),
-                                    _ => None,
-                                })
-                            } else if let Value::String(s) = v {
-                                Some(s.clone())
-                            } else if let Value::Number(n) = v {
-                                Some(n.to_string())
-                            } else if let Value::Bool(b) = v {
-                                Some(b.to_string())
-                            } else {
-                                None
-                            };
-
-                            let required = if let Value::Object(obj) = v {
-                                obj.get("required")
-                                    .and_then(|r| r.as_bool())
-                                    .unwrap_or(false)
-                            } else {
-                                false
-                            };
-
-                            (
-                                k.to_string(),
-                                ToolEnvironment {
-                                    description,
-                                    default,
-                                    required,
-                                },
-                            )
-                        })
-                        .collect()
-                }),
-            });
-
-        // Environment variables are now handled in the configuration field
 
         // Create the Tool struct
         let tool = ServerDefinition {
@@ -151,13 +82,8 @@ impl McpCoreProxyExt for MCPCore {
             enabled: true, // Default to enabled
             tool_type: request.tool_type.clone(),
             entry_point: None,
-            configuration,
-            distribution: request.distribution.as_ref().map(|v| {
-                serde_json::from_value(v.clone()).unwrap_or(Distribution {
-                    r#type: "".to_string(),
-                    package: "".to_string(),
-                })
-            }),
+            configuration: request.configuration,
+            distribution: request.distribution,
         };
 
         // Save the tool in the registry
@@ -241,51 +167,15 @@ impl McpCoreProxyExt for MCPCore {
                             tools.len(),
                             tool_id
                         );
-                        // Clone tools before inserting to avoid the "moved value" error
-                        let tools_clone = tools.clone();
-                        {
-                            let mcp_state = mcp_state_clone.write().await;
-                            let mut server_tools = mcp_state.server_tools.write().await;
-                            server_tools.insert(tool_id.clone(), tools);
-
-                            // If empty tools, add a default "main" tool
-                            if tools_clone.is_empty() {
-                                info!("No tools discovered, adding a default main tool");
-                                let default_tool = json!({
-                                    "id": "main",
-                                    "name": request.tool_name,
-                                    "description": request.description
-                                });
-                                server_tools.insert(tool_id.clone(), vec![default_tool]);
-                            }
-                        }
+                        let mcp_state = mcp_state_clone.write().await;
+                        let mut server_tools = mcp_state.server_tools.write().await;
+                        server_tools.insert(tool_id.clone(), tools);
                     }
                     Ok(Err(e)) => {
                         error!("Error discovering tools from server {}: {}", tool_id, e);
-                        {
-                            // Add a default tool since discovery failed
-                            let mcp_state = mcp_state_clone.write().await;
-                            let mut server_tools = mcp_state.server_tools.write().await;
-                            let default_tool = json!({
-                                "id": "main",
-                                "name": request.tool_name,
-                                "description": request.description
-                            });
-                            server_tools.insert(tool_id.clone(), vec![default_tool]);
-                            info!("Added default tool for server {}", tool_id);
-                        }
                     }
                     Err(_) => {
                         error!("Timeout while discovering tools from server {}", tool_id);
-                        // Add a default tool since discovery timed out
-                        let mcp_state = mcp_state_clone.write().await;
-                        let mut server_tools = mcp_state.server_tools.write().await;
-                        let default_tool = json!({
-                            "id": "main",
-                            "name": request.tool_name,
-                            "description": request.description
-                        });
-                        server_tools.insert(tool_id.clone(), vec![default_tool]);
                         info!("Added default tool for server {} after timeout", tool_id);
                     }
                 }
@@ -339,35 +229,16 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all available tools from all running MCP servers
-    async fn list_all_server_tools(&self) -> Result<Vec<Value>, String> {
+    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
         let server_tools = mcp_state.server_tools.read().await;
         let mut all_tools = Vec::new();
 
-        for (server_id, tools) in &*server_tools {
-            for tool in tools {
-                // Extract the basic tool information
-                let mut tool_info = serde_json::Map::new();
-
-                // Copy the original tool properties
-                if let Some(obj) = tool.as_object() {
-                    for (key, value) in obj {
-                        tool_info.insert(key.clone(), value.clone());
-                    }
-                }
-
-                // Add server_id
-                tool_info.insert("server_id".to_string(), json!(server_id));
-
-                // Create a proxy ID
-                let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                let proxy_id = format!("{}:{}", server_id, tool_id);
-                tool_info.insert("proxy_id".to_string(), json!(proxy_id));
-
-                all_tools.push(json!(tool_info));
-            }
+        for tools in (*server_tools).values() {
+            all_tools.extend(tools.iter().cloned());
         }
-
+        info!("Found {} tools", all_tools.len());
+        info!("All tools: {:?}", all_tools);
         Ok(all_tools)
     }
 
@@ -375,7 +246,7 @@ impl McpCoreProxyExt for MCPCore {
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<DiscoverServerToolsResponse, String> {
+    ) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
         // Check if the server exists and is running
         let server_running = {
@@ -387,18 +258,15 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         if !server_running {
-            return Ok(DiscoverServerToolsResponse {
-                success: false,
-                tools: None,
-                error: Some(format!(
-                    "Server with ID '{}' is not running",
-                    request.server_id
-                )),
-            });
+            return Err(format!(
+                "Server with ID '{}' is not running",
+                request.server_id
+            ));
         }
 
         let mcp_state = self.mcp_state.read().await;
         let mut process_manager = mcp_state.process_manager.write().await;
+
         // Discover tools from the server
         let result = if let Some((stdin, stdout)) =
             process_manager.process_ios.get_mut(&request.server_id)
@@ -420,20 +288,11 @@ impl McpCoreProxyExt for MCPCore {
             // Get a write lock on server_tools to update
             match result {
                 Ok(tools) => {
-                    // Store the discovered tools
+                    // Store the discovered tools and return them
                     server_tools.insert(request.server_id.clone(), tools.clone());
-
-                    Ok(DiscoverServerToolsResponse {
-                        success: true,
-                        tools: Some(tools),
-                        error: None,
-                    })
+                    Ok(tools)
                 }
-                Err(e) => Ok(DiscoverServerToolsResponse {
-                    success: false,
-                    tools: None,
-                    error: Some(format!("Failed to discover tools: {}", e)),
-                }),
+                Err(e) => Err(format!("Failed to discover tools: {}", e)),
             }
         }
     }

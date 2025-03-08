@@ -1,5 +1,6 @@
 use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
+use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
 use log::{error, info, warn};
@@ -20,14 +21,14 @@ use super::process_manager::ProcessManager;
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub process_manager: Arc<RwLock<ProcessManager>>,
-    pub server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
 }
 
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
         process_manager: Arc<RwLock<ProcessManager>>,
-        server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
+        server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
     ) -> Self {
         Self {
             tool_registry,
@@ -229,14 +230,23 @@ impl MCPState {
     }
 
     /// Discover tools from a server
-    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<Value>, String> {
+    pub async fn discover_server_tools(
+        &self,
+        server_id: &str,
+    ) -> Result<Vec<ServerToolInfo>, String> {
         let mut process_manager = self.process_manager.write().await;
         let (stdin, stdout) = match process_manager.process_ios.get_mut(server_id) {
             Some(io) => io,
             None => return Err(format!("Server {} not found or not running", server_id)),
         };
 
-        discover_server_tools(server_id, stdin, stdout).await
+        let tools = discover_server_tools(server_id, stdin, stdout).await?;
+
+        // Update the server_tools map with the discovered tools
+        let mut server_tools = self.server_tools.write().await;
+        server_tools.insert(server_id.to_string(), tools.clone());
+
+        Ok(tools)
     }
 }
 

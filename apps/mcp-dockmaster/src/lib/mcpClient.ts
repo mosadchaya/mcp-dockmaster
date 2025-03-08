@@ -98,6 +98,13 @@ interface DiscoverServerToolsResponse {
   error?: string;
 }
 
+interface ServerToolInfo {
+  id: string;
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+}
+
 /**
  * MCP Client for interacting with the MCP Server Proxy
  */
@@ -158,8 +165,8 @@ export class MCPClient {
   /**
    * Discover tools from a specific MCP server
    */
-  static async discoverTools(request: DiscoverServerToolsRequest): Promise<DiscoverServerToolsResponse> {
-    return await invoke<DiscoverServerToolsResponse>('discover_tools', { request });
+  static async discoverTools(request: DiscoverServerToolsRequest): Promise<ServerToolInfo[]> {
+    return await invoke<ServerToolInfo[]>('discover_tools', { request });
   }
   
   /**

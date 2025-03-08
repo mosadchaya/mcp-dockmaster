@@ -4,14 +4,14 @@ use mcp_core::{
         mcp_core_proxy_ext::McpCoreProxyExt,
     },
     models::types::{
-        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ServerRegistrationRequest,
+        DiscoverServerToolsRequest, ServerRegistrationRequest, ServerToolInfo,
         ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest,
         ToolExecutionResponse, ToolRegistrationResponse, ToolUninstallRequest,
         ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
     },
     types::RuntimeServer,
 };
-use serde_json::Value;
+
 use tauri::State;
 
 /// Register a new tool with the MCP server
@@ -31,7 +31,9 @@ pub async fn list_servers(mcp_core: State<'_, MCPCore>) -> Result<Vec<RuntimeSer
 
 /// List all available tools from all running MCP servers
 #[tauri::command]
-pub async fn list_all_server_tools(mcp_core: State<'_, MCPCore>) -> Result<Vec<Value>, String> {
+pub async fn list_all_server_tools(
+    mcp_core: State<'_, MCPCore>,
+) -> Result<Vec<ServerToolInfo>, String> {
     mcp_core.list_all_server_tools().await
 }
 
@@ -40,7 +42,7 @@ pub async fn list_all_server_tools(mcp_core: State<'_, MCPCore>) -> Result<Vec<V
 pub async fn discover_tools(
     mcp_core: State<'_, MCPCore>,
     request: DiscoverServerToolsRequest,
-) -> Result<DiscoverServerToolsResponse, String> {
+) -> Result<Vec<ServerToolInfo>, String> {
     mcp_core.list_server_tools(request).await
 }
 
@@ -78,22 +80,6 @@ pub async fn uninstall_tool(
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
     mcp_core.uninstall_tool(request).await
-}
-
-/// Save the MCP state to the database
-#[tauri::command]
-pub async fn save_mcp_state_command(_state: State<'_, MCPCore>) -> Result<String, String> {
-    println!("Saving MCP state to the database is no longer supported");
-    Ok("Saving MCP state to the database is no longer supported".to_string())
-    // mcp_core::mcp_proxy::save_mcp_state_command(state.inner()).await
-}
-
-/// Load MCP state from the database
-#[tauri::command]
-pub async fn load_mcp_state_command(_state: State<'_, MCPCore>) -> Result<String, String> {
-    println!("Loading MCP state from the database is no longer supported");
-    Ok("Loading MCP state from the database is no longer supported".to_string())
-    // mcp_core::mcp_proxy::load_mcp_state_command(state.inner()).await
 }
 
 /// Check if the database exists and has data
