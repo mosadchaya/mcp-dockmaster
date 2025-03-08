@@ -1,4 +1,4 @@
-CREATE TABLE tools (
+CREATE TABLE servers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -11,14 +11,16 @@ CREATE TABLE tools (
     distribution_package TEXT
 );
 
-CREATE TABLE tool_env (
-    tool_id TEXT NOT NULL,
+CREATE INDEX idx_servers_id_desc ON servers(id DESC);
+
+CREATE TABLE server_env (
+    server_id TEXT NOT NULL,
     env_key TEXT NOT NULL,
     env_value TEXT NOT NULL,
     env_description TEXT NOT NULL,
     env_required BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (tool_id, env_key),
-    FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
+    PRIMARY KEY (server_id, env_key),
+    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
 );
 
 CREATE TABLE server_tools (

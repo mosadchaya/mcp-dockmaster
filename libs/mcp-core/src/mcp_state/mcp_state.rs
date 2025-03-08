@@ -1,6 +1,6 @@
 use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
-use crate::registry::tool_registry::ToolRegistry;
+use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
 use log::{error, info, warn};
 use serde_json::{json, Value};
@@ -14,18 +14,18 @@ use super::process_manager::ProcessManager;
 /// MCPState: the main service layer
 ///
 /// This module coordinates database operations, process management, and discovered tools.
-/// It serves as the central orchestration layer that connects the database (ToolRegistry),
+/// It serves as the central orchestration layer that connects the database (ServerRegistry),
 /// process management (ProcessManager), and JSON-RPC operations (mcp_proxy).
 #[derive(Clone)]
 pub struct MCPState {
-    pub tool_registry: Arc<RwLock<ToolRegistry>>,
+    pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub process_manager: Arc<RwLock<ProcessManager>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
 }
 
 impl MCPState {
     pub fn new(
-        tool_registry: Arc<RwLock<ToolRegistry>>,
+        tool_registry: Arc<RwLock<ServerRegistry>>,
         process_manager: Arc<RwLock<ProcessManager>>,
         server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
     ) -> Self {
@@ -73,7 +73,7 @@ impl MCPState {
         // Get tool from database
         let tool_data = {
             let registry = self.tool_registry.read().await;
-            registry.get_tool(tool_id)?
+            registry.get_server(tool_id)?
         };
 
         // Check if tool_type is empty
@@ -263,7 +263,7 @@ impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
                 // Get all tools from database
                 let tools_result = {
                     let registry = tool_registry.read().await;
-                    registry.get_all_tools()
+                    registry.get_all_servers()
                 };
 
                 let tools = match tools_result {

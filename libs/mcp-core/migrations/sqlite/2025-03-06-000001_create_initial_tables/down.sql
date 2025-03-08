@@ -1,3 +1,3 @@
 DROP TABLE IF EXISTS server_tools;
-DROP TABLE IF EXISTS tool_env;
-DROP TABLE IF EXISTS tools;
+DROP TABLE IF EXISTS server_env;
+DROP TABLE IF EXISTS servers;

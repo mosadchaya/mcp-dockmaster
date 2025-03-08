@@ -1,8 +1,8 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
-    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
-    update_tool_status,
+    get_all_server_data, list_all_server_tools, list_servers, load_mcp_state_command,
+    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
+    update_tool_config, update_tool_status,
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
@@ -131,7 +131,7 @@ pub async fn run() {
             commands::check_docker_installed,
             commands::check_initialization_complete,
             register_tool,
-            list_tools,
+            list_servers,
             list_all_server_tools,
             discover_tools,
             execute_proxy_tool,

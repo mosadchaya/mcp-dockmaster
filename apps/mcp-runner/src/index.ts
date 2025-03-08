@@ -31,14 +31,15 @@ const server = new Server(
   {
     capabilities: {
       resources: {},
-      tools: {},
+      tools: {
+        "listChanged": true,
+      },
       prompts: {},
     },
   }
 );
 
 debugLog('Server instance created');
-
 debugLog('Setting up request handlers');
 
 // Handler for listing resources

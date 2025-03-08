@@ -5,7 +5,8 @@ use tokio::sync::RwLock;
 
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
-use crate::{database::db_manager::DBManager, registry::tool_registry::ToolRegistry};
+use crate::database::db_manager::DBManager;
+use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
 use crate::mcp_state::process_manager::ProcessManager;
@@ -26,8 +27,8 @@ pub enum InitError {
 pub struct MCPCore {
     /// Manager for SQLite database operations
     pub database_manager: Arc<RwLock<DBManager>>,
-    /// Registry containing tool metadata and configurations
-    pub tool_registry: Arc<RwLock<ToolRegistry>>,
+    /// Registry containing server metadata and configurations
+    pub tool_registry: Arc<RwLock<ServerRegistry>>,
     /// Central state management for the MCP server
     pub mcp_state: Arc<RwLock<MCPState>>,
 }
@@ -45,7 +46,7 @@ impl MCPCore {
         let db_manager = DBManager::with_path(database_path).unwrap();
         let database_manager = Arc::new(RwLock::new(db_manager.clone()));
 
-        let tool_registry = ToolRegistry::with_db_manager(db_manager.clone());
+        let tool_registry = ServerRegistry::with_db_manager(db_manager.clone());
         let tool_registry_arc = Arc::new(RwLock::new(tool_registry));
         let process_manager_arc = Arc::new(RwLock::new(ProcessManager::new()));
         let server_tools_arc = Arc::new(RwLock::new(HashMap::new()));

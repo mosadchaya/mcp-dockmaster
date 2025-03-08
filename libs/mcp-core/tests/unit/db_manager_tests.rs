@@ -1,11 +1,26 @@
 #[cfg(test)]
 mod tests {
-    use mcp_core::{database::db_manager::DBManager, models::types::Tool};
+    use mcp_core::{
+        database::db_manager::DBManager, models::types::ServerDefinition,
+        utils::default_storage_path,
+    };
     use serial_test::serial;
+    use std::fs;
     use tempfile::tempdir;
+
+    // Helper function to clean up any existing default database
+    fn cleanup_default_db() {
+        if let Ok(storage_path) = default_storage_path() {
+            let db_path = storage_path.join("mcp_dockmaster.db");
+            let _ = fs::remove_file(db_path);
+        }
+    }
 
     // Helper function to set up a temporary database for testing
     fn setup_temp_db() -> (DBManager, tempfile::TempDir) {
+        // Clean up any existing default database first
+        cleanup_default_db();
+
         // Create a new temporary directory
         let temp_dir = tempdir().expect("Failed to create temp directory");
 
@@ -17,77 +32,131 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_save_and_get_tool() {
+    fn test_save_and_get_server() {
         let (db, _temp) = setup_temp_db();
 
-        // Create a sample tool
-        let tool = Tool {
-            name: "test_tool".to_string(),
+        // Create a test tool
+        let tool_id = "test_tool";
+        let tool = ServerDefinition {
+            name: "Test Tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "test".to_string(),
+            tool_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
         };
 
         // Save the tool
-        db.save_tool("test_tool", &tool)
-            .expect("Failed to save tool");
+        db.save_server(tool_id, &tool).unwrap();
 
-        // Get the tool
-        let loaded_tool = db.get_tool("test_tool").expect("Failed to get tool");
+        // Get the tool back
+        let retrieved_tool = db.get_server(tool_id).unwrap();
 
-        // Verify the loaded data matches the original
-        assert_eq!(loaded_tool.name, "test_tool");
-        assert_eq!(loaded_tool.description, "A test tool");
-        assert!(loaded_tool.enabled);
+        assert_eq!(retrieved_tool.name, tool.name);
+        assert_eq!(retrieved_tool.description, tool.description);
+        assert_eq!(retrieved_tool.enabled, tool.enabled);
+        assert_eq!(retrieved_tool.tool_type, tool.tool_type);
     }
 
     #[test]
     #[serial]
-    fn test_get_all_tools() {
-        // Create a unique database path for this test
-        use tempfile::tempdir;
+    fn test_get_all_servers() {
+        let (db, _temp) = setup_temp_db();
 
-        let temp_dir = tempdir().expect("Failed to create temp dir");
-        let db_path = temp_dir.path().join("test_get_all_tools.db");
-
-        // Initialize database with custom path
-        let db = DBManager::with_path(db_path).expect("Failed to create database");
-        db.apply_migrations().expect("Failed to apply migrations");
-        // Create sample tools
-        let tool1 = Tool {
-            name: "tool1".to_string(),
-            description: "Tool 1".to_string(),
+        // Create test tools
+        let tool1 = ServerDefinition {
+            name: "Test Tool 1".to_string(),
+            description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "test".to_string(),
+            tool_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
         };
 
-        let tool2 = Tool {
-            name: "tool2".to_string(),
-            description: "Tool 2".to_string(),
+        let tool2 = ServerDefinition {
+            name: "Test Tool 2".to_string(),
+            description: "Another test tool".to_string(),
             enabled: false,
-            tool_type: "test".to_string(),
+            tool_type: "python".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
         };
 
         // Save the tools
-        db.save_tool("tool1", &tool1).expect("Failed to save tool1");
-        db.save_tool("tool2", &tool2).expect("Failed to save tool2");
+        db.save_server("test_tool_1", &tool1).unwrap();
+        db.save_server("test_tool_2", &tool2).unwrap();
 
         // Get all tools
-        let tools = db.get_all_tools().expect("Failed to get all tools");
+        let tools = db.get_all_servers().unwrap();
 
-        // Verify the loaded data
         assert_eq!(tools.len(), 2);
-        assert_eq!(tools.get("tool1").unwrap().name, "tool1");
-        assert_eq!(tools.get("tool2").unwrap().name, "tool2");
+        assert!(tools.contains_key("test_tool_1"));
+        assert!(tools.contains_key("test_tool_2"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_delete_server() {
+        let (db, _temp) = setup_temp_db();
+
+        // Create a test tool
+        let tool_id = "test_tool";
+        let tool = ServerDefinition {
+            name: "Test Tool".to_string(),
+            description: "A test tool".to_string(),
+            enabled: true,
+            tool_type: "node".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+        };
+
+        // Save the tool
+        db.save_server(tool_id, &tool).unwrap();
+
+        // Delete the tool
+        db.delete_server(tool_id).unwrap();
+
+        // Try to get the deleted tool
+        let result = db.get_server(tool_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn test_update_server() {
+        let (db, _temp) = setup_temp_db();
+
+        // Create a test tool
+        let tool_id = "test_tool";
+        let tool = ServerDefinition {
+            name: "Test Tool".to_string(),
+            description: "A test tool".to_string(),
+            enabled: true,
+            tool_type: "node".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+        };
+
+        // Save the tool
+        db.save_server(tool_id, &tool).unwrap();
+
+        // Update the tool
+        let mut updated_tool = tool.clone();
+        updated_tool.description = "Updated description".to_string();
+        updated_tool.enabled = false;
+
+        db.save_server(tool_id, &updated_tool).unwrap();
+
+        // Get the updated tool
+        let retrieved_tool = db.get_server(tool_id).unwrap();
+
+        assert_eq!(retrieved_tool.description, "Updated description");
+        assert!(!retrieved_tool.enabled);
     }
 
     #[test]
@@ -96,7 +165,7 @@ mod tests {
         let (mut db, _temp) = setup_temp_db();
 
         // Create and save a sample tool
-        let tool = Tool {
+        let tool = ServerDefinition {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
@@ -106,14 +175,54 @@ mod tests {
             distribution: None,
         };
 
-        db.save_tool("test_tool", &tool)
+        db.save_server("test_tool", &tool)
             .expect("Failed to save tool");
 
         // Clear the database
         db.clear_database().expect("Failed to clear database");
 
         // Verify the database is empty
-        let tools = db.get_all_tools().expect("Failed to get all tools");
+        let tools = db.get_all_servers().expect("Failed to get all tools");
         assert!(tools.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn test_multiple_migrations() {
+        let (db, _temp) = setup_temp_db();
+
+        // Migrations were already applied once in setup_temp_db
+        // Apply migrations again to verify idempotency
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        // Second time to check that it's idempotent
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        // Verify we can still perform normal operations
+        let tool = ServerDefinition {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            enabled: true,
+            tool_type: "test".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+        };
+
+        // Save and retrieve to verify DB is still working
+        db.save_server("test_tool", &tool)
+            .expect("Failed to save tool after multiple migrations");
+        let loaded_tool = db
+            .get_server("test_tool")
+            .expect("Failed to get tool after multiple migrations");
+        assert_eq!(loaded_tool.name, "test_tool");
+
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
+
+        db.apply_migrations()
+            .expect("Failed to apply migrations second time");
     }
 }

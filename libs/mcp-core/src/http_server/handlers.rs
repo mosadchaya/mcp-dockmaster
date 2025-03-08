@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
-use crate::types::ToolRegistrationRequest;
+use crate::models::types::ServerRegistrationRequest;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -223,7 +223,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                 })
             });
 
-            let tool = ToolRegistrationRequest {
+            let tool = ServerRegistrationRequest {
                 tool_name,
                 description,
                 tool_type,
@@ -309,7 +309,7 @@ async fn fetch_tool_from_registry() -> Result<Value, Value> {
 async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     let mcp_state = mcp_core.mcp_state.read().await;
     let registry = mcp_state.tool_registry.read().await;
-    let installed_tools = registry.get_all_tools()?;
+    let installed_tools = registry.get_all_servers()?;
     let mut registry_tools = fetch_tool_from_registry().await?;
 
     for tool in registry_tools

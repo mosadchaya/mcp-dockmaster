@@ -2,13 +2,15 @@ use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state::McpStateProcessMonitor;
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, Tool,
-    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolEnvironment,
-    ToolExecutionRequest, ToolExecutionResponse, ToolRegistrationRequest, ToolRegistrationResponse,
-    ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, RuntimeServer,
+    ServerDefinition, ServerRegistrationRequest, ToolConfigUpdateRequest, ToolConfigUpdateResponse,
+    ToolConfiguration, ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId,
+    ToolRegistrationResponse, ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest,
+    ToolUpdateResponse,
 };
 use crate::MCPError;
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
 use serde_json::{json, Value};
@@ -17,51 +19,46 @@ use tokio::time::Duration;
 
 use super::mcp_core::MCPCore;
 
+#[async_trait]
 pub trait McpCoreProxyExt {
-    fn register_tool(
+    async fn register_tool(
         &self,
-        tool: ToolRegistrationRequest,
-    ) -> impl std::future::Future<Output = Result<ToolRegistrationResponse, String>> + Send;
-    fn list_tools(&self) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + Send;
-    fn list_all_server_tools(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + Send;
-    fn discover_tools(
+        tool: ServerRegistrationRequest,
+    ) -> Result<ToolRegistrationResponse, String>;
+    async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
+    async fn list_all_server_tools(&self) -> Result<Vec<Value>, String>;
+    async fn discover_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> impl std::future::Future<Output = Result<DiscoverServerToolsResponse, String>> + Send;
-    fn execute_proxy_tool(
+    ) -> Result<DiscoverServerToolsResponse, String>;
+    async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
-    ) -> impl std::future::Future<Output = Result<ToolExecutionResponse, String>> + Send;
-    fn update_tool_status(
+    ) -> Result<ToolExecutionResponse, String>;
+    async fn update_tool_status(
         &self,
         request: ToolUpdateRequest,
-    ) -> impl std::future::Future<Output = Result<ToolUpdateResponse, String>> + Send;
-    fn update_tool_config(
+    ) -> Result<ToolUpdateResponse, String>;
+    async fn update_tool_config(
         &self,
         request: ToolConfigUpdateRequest,
-    ) -> impl std::future::Future<Output = Result<ToolConfigUpdateResponse, String>> + Send;
-    fn uninstall_tool(
+    ) -> Result<ToolConfigUpdateResponse, String>;
+    async fn uninstall_tool(
         &self,
         request: ToolUninstallRequest,
-    ) -> impl std::future::Future<Output = Result<ToolUninstallResponse, String>> + Send;
-    fn get_all_server_data(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Value, String>> + Send;
-    fn restart_tool_command(
-        &self,
-        tool_id: String,
-    ) -> impl std::future::Future<Output = Result<ToolUpdateResponse, String>> + Send;
-    fn init_mcp_server(&self) -> impl std::future::Future<Output = Result<()>> + Send;
-    fn kill_all_processes(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    ) -> Result<ToolUninstallResponse, String>;
+    async fn get_all_server_data(&self) -> Result<Value, String>;
+    async fn restart_tool_command(&self, tool_id: String) -> Result<ToolUpdateResponse, String>;
+    async fn init_mcp_server(&self) -> Result<()>;
+    async fn kill_all_processes(&self) -> Result<()>;
 }
 
+#[async_trait]
 impl McpCoreProxyExt for MCPCore {
     /// Register a new tool with the MCP server
     async fn register_tool(
         &self,
-        request: ToolRegistrationRequest,
+        request: ServerRegistrationRequest,
     ) -> Result<ToolRegistrationResponse, String> {
         info!("Starting registration of tool: {}", request.tool_name);
 
@@ -79,7 +76,7 @@ impl McpCoreProxyExt for MCPCore {
         let registry = self.tool_registry.write().await;
 
         // Generate a simple tool ID (in production, use UUIDs)
-        let tool_id = format!("tool_{}", registry.get_all_tools()?.len() + 1);
+        let tool_id = format!("tool_{}", registry.get_all_servers()?.len() + 1);
         info!("Generated tool ID: {}", tool_id);
 
         // Create the tool configuration if provided
@@ -149,7 +146,7 @@ impl McpCoreProxyExt for MCPCore {
         // Environment variables are now handled in the configuration field
 
         // Create the Tool struct
-        let tool = Tool {
+        let tool = ServerDefinition {
             name: request.tool_name.clone(),
             description: request.description.clone(),
             enabled: true, // Default to enabled
@@ -165,7 +162,7 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Save the tool in the registry
-        registry.save_tool(&tool_id, &tool)?;
+        registry.save_server(&tool_id, &tool)?;
 
         let mcp_state_clone = self.mcp_state.clone();
         {
@@ -313,72 +310,32 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all registered tools
-    async fn list_tools(&self) -> Result<Vec<Value>, String> {
+    async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String> {
         let mcp_state = self.mcp_state.read().await;
         let registry = mcp_state.tool_registry.read().await;
+
+        let tool_map = registry.get_all_servers()?;
         let mut tools = Vec::new();
 
-        // Get all tools from the registry
-        let tool_map = registry.get_all_tools()?;
-
         for (id, tool_struct) in tool_map {
-            // Convert the Tool struct to a Value
-            let mut tool_value = json!({
-                "name": tool_struct.name,
-                "description": tool_struct.description,
-                "enabled": tool_struct.enabled,
-                "tool_type": tool_struct.tool_type,
-                "id": id,
+            let process_running = {
+                let process_manager = mcp_state.process_manager.read().await;
+                process_manager.processes.contains_key(&id)
+            };
+
+            let tool_count = {
+                let server_tools = mcp_state.server_tools.read().await;
+                server_tools.get(&id).map_or(0, |tools| tools.len())
+            };
+
+            tools.push(RuntimeServer {
+                definition: tool_struct,
+                id: ToolId::new(id),
+                process_running,
+                tool_count,
             });
-
-            // Add optional fields if they exist
-            if let Some(entry_point) = &tool_struct.entry_point {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert("entry_point".to_string(), json!(entry_point));
-                }
-            }
-
-            if let Some(configuration) = &tool_struct.configuration {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "configuration".to_string(),
-                        json!({
-                            "command": configuration.command,
-                            "args": configuration.args,
-                            "env": configuration.env,
-                        }),
-                    );
-                }
-            }
-
-            if let Some(distribution) = &tool_struct.distribution {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "distribution".to_string(),
-                        serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                    );
-                }
-            }
-
-            // Add process status - check the processes map
-            if let Some(obj) = tool_value.as_object_mut() {
-                let process_running = {
-                    let process_manager = mcp_state.process_manager.read().await;
-                    process_manager.processes.contains_key(&id)
-                };
-                obj.insert("process_running".to_string(), json!(process_running));
-
-                // Add number of available tools from this server
-                let server_tool_count = {
-                    let server_tools = mcp_state.server_tools.read().await;
-                    server_tools.get(&id).map_or_else(|| 0, |tools| tools.len())
-                };
-                obj.insert("tool_count".to_string(), json!(server_tool_count));
-            }
-
-            tools.push(tool_value);
         }
-        println!("tools: {:?}", tools);
+
         Ok(tools)
     }
 
@@ -549,7 +506,7 @@ impl McpCoreProxyExt for MCPCore {
         let tool_info = {
             let registry = mcp_state.tool_registry.read().await;
 
-            if let Ok(tool) = registry.get_tool(&request.tool_id) {
+            if let Ok(tool) = registry.get_server(&request.tool_id) {
                 // Extract and clone the necessary values
                 let tool_type = tool.tool_type.clone();
                 let entry_point = tool.entry_point.clone().unwrap_or_default();
@@ -580,13 +537,13 @@ impl McpCoreProxyExt for MCPCore {
             let registry = mcp_state.tool_registry.write().await;
 
             // Get the current tool data
-            let mut tool = registry.get_tool(&request.tool_id)?;
+            let mut tool = registry.get_server(&request.tool_id)?;
 
             // Update the enabled status
             tool.enabled = request.enabled;
 
             // Save the updated tool
-            registry.save_tool(&request.tool_id, &tool)?;
+            registry.save_server(&request.tool_id, &tool)?;
 
             // Drop the write lock before trying to restart the tool
             drop(registry);
@@ -632,7 +589,7 @@ impl McpCoreProxyExt for MCPCore {
         // First, check if the tool exists
         let (tool_exists, is_enabled) = {
             let registry = mcp_state.tool_registry.read().await;
-            match registry.get_tool(&request.tool_id) {
+            match registry.get_server(&request.tool_id) {
                 Ok(tool) => (true, tool.enabled),
                 Err(_) => (false, false),
             }
@@ -653,7 +610,7 @@ impl McpCoreProxyExt for MCPCore {
         let registry = mcp_state.tool_registry.write().await;
 
         // Get the current tool data
-        let mut tool = registry.get_tool(&request.tool_id)?;
+        let mut tool = registry.get_server(&request.tool_id)?;
 
         // Create or update the configuration object
         if tool.configuration.is_none() {
@@ -691,7 +648,7 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         // Save the updated tool
-        registry.save_tool(&request.tool_id, &tool)?;
+        registry.save_server(&request.tool_id, &tool)?;
 
         // Return success
         Ok(ToolConfigUpdateResponse {
@@ -709,7 +666,7 @@ impl McpCoreProxyExt for MCPCore {
         let registry = mcp_state.tool_registry.write().await;
 
         // First check if the tool exists
-        if registry.get_tool(&request.tool_id).is_err() {
+        if registry.get_server(&request.tool_id).is_err() {
             return Ok(ToolUninstallResponse {
                 success: false,
                 message: format!("Tool with ID '{}' not found", request.tool_id),
@@ -737,7 +694,7 @@ impl McpCoreProxyExt for MCPCore {
         server_tools.remove(&request.tool_id);
 
         // Delete the tool using registry's delete_tool method
-        if let Err(e) = registry.delete_tool(&request.tool_id) {
+        if let Err(e) = registry.delete_server(&request.tool_id) {
             return Ok(ToolUninstallResponse {
                 success: false,
                 message: format!("Failed to delete tool: {}", e),
@@ -760,7 +717,7 @@ impl McpCoreProxyExt for MCPCore {
 
         // 1. Get registered servers
         let mut servers = Vec::new();
-        let tool_map = registry.get_all_tools()?;
+        let tool_map = registry.get_all_servers()?;
 
         for (id, tool_struct) in tool_map {
             // Convert the Tool struct to a Value
@@ -840,6 +797,15 @@ impl McpCoreProxyExt for MCPCore {
             }
         }
 
+        info!(
+            "All tools: {}",
+            serde_json::to_string_pretty(&all_tools).unwrap_or_else(|_| format!("{:?}", all_tools))
+        );
+        info!(
+            "Servers: {}",
+            serde_json::to_string_pretty(&servers).unwrap_or_else(|_| format!("{:?}", servers))
+        );
+
         // Return all data in one response
         Ok(json!({
             "servers": servers,
@@ -855,7 +821,7 @@ impl McpCoreProxyExt for MCPCore {
         // Check if the tool exists
         let tool_exists = {
             let registry = mcp_state.tool_registry.read().await;
-            registry.get_tool(&tool_id).is_ok()
+            registry.get_server(&tool_id).is_ok()
         };
 
         if !tool_exists {
@@ -894,7 +860,7 @@ impl McpCoreProxyExt for MCPCore {
         info!("Starting background initialization of MCP services");
 
         // Get all tools from database
-        let tools = match self.tool_registry.read().await.get_all_tools() {
+        let tools = match self.tool_registry.read().await.get_all_servers() {
             Ok(tools) => tools,
             Err(e) => {
                 error!("Failed to get tools from database: {}", e);
