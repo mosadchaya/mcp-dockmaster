@@ -68,9 +68,9 @@ mod tests {
             serde_json::to_string_pretty(&all_tools).unwrap()
         );
 
-        let all_tools_simple = mcp_core.list_tools().await?;
+        let all_tools_simple = mcp_core.list_servers().await?;
         eprintln!(
-            "Available tools (list_tools): {}",
+            "Available tools (list_servers): {}",
             serde_json::to_string_pretty(&all_tools_simple).unwrap()
         );
 

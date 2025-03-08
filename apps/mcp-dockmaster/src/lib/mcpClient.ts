@@ -112,8 +112,8 @@ export class MCPClient {
   /**
    * List all registered tools
    */
-  static async listTools(): Promise<ToolInstance[]> {
-    return await invoke<ToolInstance[]>('list_tools');
+  static async listServers(): Promise<ToolInstance[]> {
+    return await invoke<ToolInstance[]>('list_servers');
   }
 
   /**

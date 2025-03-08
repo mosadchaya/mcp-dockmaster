@@ -4,12 +4,12 @@ use mcp_core::{
         mcp_core_proxy_ext::McpCoreProxyExt,
     },
     models::types::{
-        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolConfigUpdateRequest,
-        ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
-        ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
+        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ServerRegistrationRequest,
+        ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest,
+        ToolExecutionResponse, ToolRegistrationResponse, ToolUninstallRequest,
         ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
     },
-    types::RuntimeTool,
+    types::RuntimeServer,
 };
 use serde_json::Value;
 use tauri::State;
@@ -18,15 +18,15 @@ use tauri::State;
 #[tauri::command]
 pub async fn register_tool(
     mcp_core: State<'_, MCPCore>,
-    request: ToolRegistrationRequest,
+    request: ServerRegistrationRequest,
 ) -> Result<ToolRegistrationResponse, String> {
     mcp_core.register_tool(request).await
 }
 
 /// List all registered tools
 #[tauri::command]
-pub async fn list_tools(mcp_core: State<'_, MCPCore>) -> Result<Vec<RuntimeTool>, String> {
-    mcp_core.list_tools().await
+pub async fn list_servers(mcp_core: State<'_, MCPCore>) -> Result<Vec<RuntimeServer>, String> {
+    mcp_core.list_servers().await
 }
 
 /// List all available tools from all running MCP servers

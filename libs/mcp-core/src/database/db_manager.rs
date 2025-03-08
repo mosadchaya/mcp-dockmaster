@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
-use crate::models::types::{Distribution, ToolConfiguration, ToolDefinition, ToolEnvironment};
+use crate::models::types::{Distribution, ServerDefinition, ToolConfiguration, ToolEnvironment};
 use crate::schema::server_tools::dsl as server_dsl;
 use crate::schema::tool_env::dsl as env_dsl;
 use crate::schema::tools::dsl as tools_dsl;
@@ -129,8 +129,8 @@ impl DBManager {
         Ok(())
     }
 
-    /// Get a tool by ID
-    pub fn get_tool(&self, tool_id_str: &str) -> Result<ToolDefinition, String> {
+    /// Get a server by ID
+    pub fn get_server(&self, tool_id_str: &str) -> Result<ServerDefinition, String> {
         let mut conn = self
             .pool
             .get()
@@ -177,7 +177,7 @@ impl DBManager {
             None
         };
 
-        let tool = ToolDefinition {
+        let server = ServerDefinition {
             name: db_tool.name,
             description: db_tool.description,
             enabled: db_tool.enabled,
@@ -195,11 +195,11 @@ impl DBManager {
             distribution,
         };
 
-        Ok(tool)
+        Ok(server)
     }
 
-    /// Get all tools
-    pub fn get_all_tools(&self) -> Result<HashMap<String, ToolDefinition>, String> {
+    /// Get all servers
+    pub fn get_all_servers(&self) -> Result<HashMap<String, ServerDefinition>, String> {
         let mut conn = self
             .pool
             .get()
@@ -251,7 +251,7 @@ impl DBManager {
             // Get environment variables for this tool
             let env_map = env_map_by_tool.remove(&db_tool.id).unwrap_or_default();
 
-            let tool = ToolDefinition {
+            let tool = ServerDefinition {
                 name: db_tool.name.clone(),
                 description: db_tool.description.clone(),
                 enabled: db_tool.enabled,
@@ -275,8 +275,8 @@ impl DBManager {
         Ok(tools_map)
     }
 
-    /// Save or update a tool
-    pub fn save_tool(&self, tool_id_str: &str, tool: &ToolDefinition) -> Result<(), String> {
+    /// Save or update a server
+    pub fn save_server(&self, tool_id_str: &str, tool: &ServerDefinition) -> Result<(), String> {
         let mut conn = self
             .pool
             .get()
@@ -382,7 +382,7 @@ impl DBManager {
     }
 
     /// Delete a tool by ID
-    pub fn delete_tool(&self, tool_id_str: &str) -> Result<(), String> {
+    pub fn delete_server(&self, tool_id_str: &str) -> Result<(), String> {
         let mut conn = self
             .pool
             .get()

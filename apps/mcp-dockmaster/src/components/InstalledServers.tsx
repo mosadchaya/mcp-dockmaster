@@ -163,7 +163,7 @@ const InstalledServers: React.FC = () => {
       setServerTools(allServerTools);
 
       // Get installed tools
-      const tools = await MCPClient.listTools();
+      const tools = await MCPClient.listServers();
 
       // Transform to our internal format with enabled state
       // Ensure we don't have duplicates by using a Map with tool name as key

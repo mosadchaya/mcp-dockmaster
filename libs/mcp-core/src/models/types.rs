@@ -74,9 +74,9 @@ pub struct ToolEnvironment {
 
 // ToolConfig struct has been removed and merged into ToolConfiguration
 
-/// Tool definition with all properties
+/// Server definition with all properties
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolDefinition {
+pub struct ServerDefinition {
     pub name: String,
     pub description: String,
     pub enabled: bool,
@@ -90,17 +90,17 @@ pub struct ToolDefinition {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RuntimeTool {
+pub struct RuntimeServer {
     #[serde(flatten)]
-    pub definition: ToolDefinition,
+    pub definition: ServerDefinition,
     pub id: ToolId,
     pub process_running: bool,
     pub tool_count: usize,
 }
 
-/// MCP tool registration request
+/// MCP server registration request
 #[derive(Debug, Deserialize)]
-pub struct ToolRegistrationRequest {
+pub struct ServerRegistrationRequest {
     pub tool_name: String,
     pub description: String,
     pub tool_type: String, // "node", "python", "docker"
@@ -184,4 +184,31 @@ pub struct DiscoverServerToolsResponse {
 pub struct Distribution {
     pub r#type: String,
     pub package: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InputSchemaProperty {
+    pub description: String,
+    #[serde(default)]
+    pub r#type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InputSchema {
+    #[serde(default)]
+    pub properties: HashMap<String, InputSchemaProperty>,
+    #[serde(default)]
+    pub required: Vec<String>,
+    #[serde(default)]
+    pub r#type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ServerTool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: InputSchema,
+    pub server_id: String,
+    #[serde(default)]
+    pub proxy_id: Option<String>,
 }
