@@ -124,96 +124,48 @@ async fn main() {
         Commands::List => {
             info!("Listing tools");
 
-            // Get all server data
-            match mcp_core.get_all_server_data().await {
-                Ok(data) => {
-                    // Print servers
-                    if let Some(servers) = data.get("servers").and_then(|s| s.as_array()) {
-                        println!("Registered Servers:");
-                        for (i, server) in servers.iter().enumerate() {
-                            println!(
-                                "{}. {}",
-                                i + 1,
-                                server
-                                    .get("name")
-                                    .and_then(|n| n.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   ID: {}",
-                                server
-                                    .get("id")
-                                    .and_then(|id| id.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   Type: {}",
-                                server
-                                    .get("tool_type")
-                                    .and_then(|t| t.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   Running: {}",
-                                server
-                                    .get("process_running")
-                                    .and_then(|p| p.as_bool())
-                                    .unwrap_or(false)
-                            );
-                            println!(
-                                "   Tool Count: {}",
-                                server
-                                    .get("tool_count")
-                                    .and_then(|c| c.as_i64())
-                                    .unwrap_or(0)
-                            );
-                            println!();
-                        }
-                    }
-
-                    // Print tools
-                    if let Some(tools) = data.get("tools").and_then(|t| t.as_array()) {
-                        println!("Available Tools:");
-                        for (i, tool) in tools.iter().enumerate() {
-                            println!(
-                                "{}. {}",
-                                i + 1,
-                                tool.get("name")
-                                    .and_then(|n| n.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   ID: {}",
-                                tool.get("id")
-                                    .and_then(|id| id.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   Server: {}",
-                                tool.get("server_id")
-                                    .and_then(|s| s.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   Proxy ID: {}",
-                                tool.get("proxy_id")
-                                    .and_then(|p| p.as_str())
-                                    .unwrap_or("Unknown")
-                            );
-                            println!(
-                                "   Description: {}",
-                                tool.get("description")
-                                    .and_then(|d| d.as_str())
-                                    .unwrap_or("")
-                            );
-                            println!();
-                        }
-                    }
+            // Get servers and tools data
+            let servers = match mcp_core.list_servers().await {
+                Ok(servers) => servers,
+                Err(e) => {
+                    error!("Error listing servers: {}", e);
+                    println!("Error listing servers: {}", e);
+                    return;
                 }
+            };
+
+            let tools = match mcp_core.list_all_server_tools().await {
+                Ok(tools) => tools,
                 Err(e) => {
                     error!("Error listing tools: {}", e);
                     println!("Error listing tools: {}", e);
+                    return;
                 }
+            };
+
+            // Print servers
+            println!("Registered Servers:");
+            for (i, server) in servers.iter().enumerate() {
+                println!("{}. {}", i + 1, server.definition.name);
+                println!("   ID: {}", server.id);
+                println!("   Type: {}", server.definition.tool_type);
+                println!("   Running: {}", server.process_running);
+                println!("   Tool Count: {}", server.tool_count);
+                println!();
+            }
+
+            // Print tools
+            println!("Available Tools:");
+            for (i, tool) in tools.iter().enumerate() {
+                println!("{}. {}", i + 1, tool.name);
+                println!("   ID: {}", tool.id);
+                println!("   Server: {}", tool.server_id);
+                println!(
+                    "   Proxy ID: {}",
+                    tool.proxy_id.as_deref().unwrap_or("None")
+                );
+                println!("   Description: {}", tool.description);
+                println!();
             }
         }
         Commands::Execute { tool_id, .. } => {

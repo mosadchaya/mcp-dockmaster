@@ -92,10 +92,11 @@ interface DiscoverServerToolsRequest {
   server_id: string;
 }
 
-interface DiscoverServerToolsResponse {
-  success: boolean;
-  tools?: any[];
-  error?: string;
+interface ServerToolInfo {
+  id: string;
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
 }
 
 /**
@@ -114,6 +115,13 @@ export class MCPClient {
    */
   static async listServers(): Promise<ToolInstance[]> {
     return await invoke<ToolInstance[]>('list_servers');
+  }
+
+  /**
+   * List all available tools from all running MCP servers
+   */
+  static async listAllServerTools(): Promise<any[]> {
+    return await invoke<any[]>('list_all_server_tools');
   }
 
   /**
@@ -151,8 +159,8 @@ export class MCPClient {
   /**
    * Discover tools from a specific MCP server
    */
-  static async discoverTools(request: DiscoverServerToolsRequest): Promise<DiscoverServerToolsResponse> {
-    return await invoke<DiscoverServerToolsResponse>('discover_tools', { request });
+  static async discoverTools(request: DiscoverServerToolsRequest): Promise<ServerToolInfo[]> {
+    return await invoke<ServerToolInfo[]>('discover_tools', { request });
   }
   
   /**
@@ -167,14 +175,6 @@ export class MCPClient {
    */
   static async getClaudeConfig(): Promise<any> {
     return await invoke<any>('get_claude_config');
-  }
-
-  /**
-   * Get all server data in a single call to avoid lock issues
-   * Returns servers, tools, and Claude configuration in a single response
-   */
-  static async getAllServerData(): Promise<any> {
-    return await invoke<any>('get_all_server_data');
   }
 }
 

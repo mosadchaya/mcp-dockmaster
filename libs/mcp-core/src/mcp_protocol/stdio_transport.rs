@@ -4,6 +4,7 @@ use log::info;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
+use crate::models::types::ServerToolInfo;
 use crate::MCPError;
 
 /// Initialize a connection to an MCP server
@@ -147,7 +148,7 @@ pub async fn discover_server_tools(
     server_id: &str,
     stdin: &mut tokio::process::ChildStdin,
     stdout: &mut tokio::process::ChildStdout,
-) -> Result<Vec<Value>, String> {
+) -> Result<Vec<ServerToolInfo>, String> {
     info!("Discovering tools from server {}", server_id);
 
     // According to MCP specification, the correct method is "tools/list"
@@ -243,27 +244,39 @@ pub async fn discover_server_tools(
         // MCP returns tools directly in the result field as array
         if let Some(tools_array) = result.as_array() {
             info!("Found {} tools in result array", tools_array.len());
-            return Ok(tools_array.clone());
+            return tools_array
+                .iter()
+                .map(|tool| ServerToolInfo::from_value(tool.clone(), server_id.to_string()))
+                .collect::<Result<Vec<ServerToolInfo>, String>>();
         }
 
         // Some implementations might nest it under a tools field
         if let Some(tools) = result.get("tools") {
             if let Some(tools_array) = tools.as_array() {
                 info!("Found {} tools in result.tools array", tools_array.len());
-                return Ok(tools_array.clone());
+                return tools_array
+                    .iter()
+                    .map(|tool| ServerToolInfo::from_value(tool.clone(), server_id.to_string()))
+                    .collect::<Result<Vec<ServerToolInfo>, String>>();
             }
         }
 
         // If there's a result but we couldn't find tools array, try to use the entire result
         info!("No tools array found, using entire result as fallback");
-        return Ok(vec![result.clone()]);
+        return Ok(vec![ServerToolInfo::from_value(
+            result.clone(),
+            server_id.to_string(),
+        )?]);
     }
 
     // If the server doesn't fully comply with MCP but has a tools field at root
     if let Some(tools) = response.get("tools") {
         if let Some(tools_array) = tools.as_array() {
             info!("Found {} tools in root tools array", tools_array.len());
-            return Ok(tools_array.clone());
+            return tools_array
+                .iter()
+                .map(|tool| ServerToolInfo::from_value(tool.clone(), server_id.to_string()))
+                .collect::<Result<Vec<ServerToolInfo>, String>>();
         }
     }
 

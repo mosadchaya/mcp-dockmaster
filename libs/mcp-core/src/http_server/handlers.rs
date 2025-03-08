@@ -7,7 +7,10 @@ use serde_json::{json, Value};
 
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
-use crate::models::types::ServerRegistrationRequest;
+use crate::models::types::{
+    Distribution, InputSchema, ServerRegistrationRequest, ServerToolInfo, ToolConfiguration,
+    ToolEnvironment, ToolExecutionRequest,
+};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -51,7 +54,7 @@ pub async fn handle_mcp_request(
             } else {
                 Err(json!({
                     "code": -32602,
-                    "message": "Invalid params - missing parameters for tool invocation"
+                    "message": "Missing parameters"
                 }))
             }
         }
@@ -90,36 +93,33 @@ pub async fn handle_mcp_request(
         "registry/list" => handle_list_all_tools(mcp_core).await,
         _ => Err(json!({
             "code": -32601,
-            "message": format!("Method not found: {}", request.method)
+            "message": format!("Method '{}' not found", request.method)
         })),
     };
 
     match result {
-        Ok(result_value) => Json(JsonRpcResponse {
+        Ok(result) => Json(JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
             id: request.id,
-            result: Some(result_value),
+            result: Some(result),
             error: None,
         }),
-        Err(error_value) => {
-            let code = error_value
-                .get("code")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(-32000) as i32;
-
-            let message = error_value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown error")
-                .to_string();
-
+        Err(error) => {
+            let error_obj = error.as_object().unwrap();
             Json(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: None,
                 error: Some(JsonRpcError {
-                    code,
-                    message,
+                    code: error_obj
+                        .get("code")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(-32000) as i32,
+                    message: error_obj
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string(),
                     data: None,
                 }),
             })
@@ -128,99 +128,96 @@ pub async fn handle_mcp_request(
 }
 
 async fn handle_list_tools(mcp_core: MCPCore) -> Result<Value, Value> {
-    let mcp_state = mcp_core.mcp_state.read().await;
-    let server_tools = mcp_state.server_tools.read().await;
+    let result = mcp_core.list_all_server_tools().await;
 
-    let mut all_tools = Vec::new();
+    match result {
+        Ok(tools) => {
+            let tools_with_defaults: Vec<ServerToolInfo> = tools
+                .into_iter()
+                .map(|tool| {
+                    let mut tool = tool;
+                    // Ensure input_schema has a default if not present
+                    if tool.input_schema.is_none() {
+                        tool.input_schema = Some(InputSchema {
+                            properties: Default::default(),
+                            required: Vec::new(),
+                            r#type: "object".to_string(),
+                        });
+                    }
+                    tool
+                })
+                .collect();
 
-    for (server_id, tools) in &*server_tools {
-        for tool in tools {
-            let mut tool_info = serde_json::Map::new();
-
-            if let Some(obj) = tool.as_object() {
-                for (key, value) in obj {
-                    tool_info.insert(key.clone(), value.clone());
-                }
-            }
-
-            tool_info.insert("server_id".to_string(), json!(server_id));
-
-            // let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("main");
-            // let tool_name = tool.get("name").and_then(|v| v.as_str()).unwrap_or("tool_name");
-
-            // let proxy_id = format!("{}:{}", server_id, tool_id);
-
-            // tool_info.insert("name".to_string(), json!(tool_name));
-
-            if !tool_info.contains_key("description") {
-                tool_info.insert("description".to_string(), json!("Tool from server"));
-            }
-
-            if !tool_info.contains_key("inputSchema") {
-                tool_info.insert(
-                    "inputSchema".to_string(),
-                    json!({
-                        "type": "object",
-                        "properties": {}
-                    }),
-                );
-            }
-
-            all_tools.push(json!(tool_info));
+            Ok(json!({
+                "tools": tools_with_defaults
+            }))
         }
+        Err(e) => Err(json!({
+            "code": -32000,
+            "message": format!("Failed to list tools: {}", e)
+        })),
     }
-
-    Ok(json!({
-        "tools": all_tools
-    }))
 }
 
 async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
-    println!("handle_register_tool: trying to register tool {:?}", params);
-    let registry = fetch_tool_from_registry().await?;
-    let tools = registry.get("tools").unwrap().as_array().unwrap();
-
-    let tool = tools
-        .iter()
-        .find(|tool| tool.get("name").unwrap().as_str() == params.get("tool").unwrap().as_str());
-
-    match tool {
-        Some(tool) => {
-            println!("[PRE] handle_register_tool: tool {:?}", tool);
-
-            let tool_name = tool
-                .get("name")
-                .unwrap()
-                .as_str()
-                .unwrap_or("error")
-                .to_string();
-
-            let description = tool
+    match params.get("name") {
+        Some(name) => {
+            let tool_name = name.as_str().unwrap_or("").to_string();
+            let description = params
                 .get("description")
-                .unwrap()
-                .as_str()
-                .unwrap_or_default()
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let tool_type = params
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("node")
                 .to_string();
 
-            let tool_type = tool
-                .get("runtime")
-                .unwrap_or(&json!("error"))
-                .as_str()
-                .unwrap_or("error")
-                .to_string();
+            let configuration = params.get("configuration").map(|config| {
+                let command = config
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let args = config.get("args").map(|args| {
+                    args.as_array()
+                        .unwrap_or(&Vec::new())
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                });
+                let env = config.get("env").map(|env| {
+                    env.as_object()
+                        .unwrap_or(&serde_json::Map::new())
+                        .iter()
+                        .map(|(k, v)| {
+                            (
+                                k.clone(),
+                                ToolEnvironment {
+                                    description: "".to_string(),
+                                    default: v.as_str().map(|s| s.to_string()),
+                                    required: false,
+                                },
+                            )
+                        })
+                        .collect()
+                });
 
-            let configuration = tool.get("config").map(|config| {
-                json!({
-                    "command": config.get("command").unwrap_or(&json!("error")),
-                    "args": config.get("args").unwrap_or(&json!([]))
-                })
+                ToolConfiguration { command, args, env }
             });
 
-            let distribution = tool.get("distribution").map(|dist| {
-                json!({
-                    "type": dist.get("type").unwrap_or(&json!("error")),
-                    "package": dist.get("package").unwrap_or(&json!("error"))
-                })
+            let distribution = params.get("distribution").map(|dist| Distribution {
+                r#type: dist
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("error")
+                    .to_string(),
+                package: dist
+                    .get("package")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("error")
+                    .to_string(),
             });
 
             let tool = ServerRegistrationRequest {
@@ -233,7 +230,6 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
             let r = mcp_core.register_tool(tool).await;
-            // Asume installation is successful
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(json!({
                 "code": 0,
@@ -385,19 +381,15 @@ async fn handle_invoke_tool(mcp_core: MCPCore, params: Value) -> Result<Value, V
 
     for (sid, tools) in &*server_tools {
         for tool in tools {
-            if let Some(tool_id) = tool.get("id").and_then(|v| v.as_str()) {
-                if tool_id == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
-                }
+            if tool.id == tool_name {
+                server_id = Some(sid.clone());
+                break;
             }
 
             // Also check by name if id doesn't match
-            if let Some(name) = tool.get("name").and_then(|v| v.as_str()) {
-                if name == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
-                }
+            if tool.name == tool_name {
+                server_id = Some(sid.clone());
+                break;
             }
         }
 
@@ -406,34 +398,37 @@ async fn handle_invoke_tool(mcp_core: MCPCore, params: Value) -> Result<Value, V
         }
     }
 
-    let server_id = match server_id {
-        Some(id) => id,
-        None => {
-            return Err(json!({
-                "code": -32602,
-                "message": format!("No server found with tool: {}", tool_name)
-            }))
-        }
-    };
-
-    // Drop the server_tools lock before executing the tool
+    // Drop the locks before proceeding
     drop(server_tools);
+    drop(mcp_state);
 
-    match mcp_state
-        .execute_tool(&server_id, tool_name, arguments)
-        .await
-    {
-        Ok(result) => Ok(json!({
-            "content": [
-                {
-                    "type": "text",
-                    "text": result.to_string()
+    match server_id {
+        Some(server_id) => {
+            let request = ToolExecutionRequest {
+                tool_id: format!("{}:{}", server_id, tool_name),
+                parameters: arguments,
+            };
+
+            match mcp_core.execute_proxy_tool(request).await {
+                Ok(response) => {
+                    if response.success {
+                        Ok(response.result.unwrap_or(json!(null)))
+                    } else {
+                        Err(json!({
+                            "code": -32000,
+                            "message": response.error.unwrap_or_else(|| "Unknown error".to_string())
+                        }))
+                    }
                 }
-            ]
-        })),
-        Err(e) => Err(json!({
-            "code": -32000,
-            "message": format!("Tool execution error: {}", e)
+                Err(e) => Err(json!({
+                    "code": -32000,
+                    "message": format!("Failed to execute tool: {}", e)
+                })),
+            }
+        }
+        None => Err(json!({
+            "code": -32601,
+            "message": format!("Tool '{}' not found", tool_name)
         })),
     }
 }

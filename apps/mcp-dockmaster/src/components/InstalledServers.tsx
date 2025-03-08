@@ -149,27 +149,24 @@ const InstalledServers: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Get all data from MCP client
-      const allData = await MCPClient.getAllServerData();
+      // Get servers and tools data separately
+      const servers = await MCPClient.listServers();
+      const allServerTools = await MCPClient.listAllServerTools();
 
       // Set servers (filtered to only active servers)
-      const activeServers = allData.servers.filter(
+      const activeServers = servers.filter(
         (server: any) => server.process_running,
       );
       setServers(activeServers);
 
-      // Set server tools - make sure we have all tools from all servers
-      const allServerTools = allData.tools || [];
+      // Set server tools
       setServerTools(allServerTools);
-
-      // Get installed tools
-      const tools = await MCPClient.listServers();
 
       // Transform to our internal format with enabled state
       // Ensure we don't have duplicates by using a Map with tool name as key
       const toolsMap = new Map();
 
-      tools.forEach((tool: any) => {
+      servers.forEach((tool: any) => {
         const toolId =
           tool.id ||
           `tool_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;

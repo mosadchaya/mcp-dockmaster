@@ -104,8 +104,8 @@ pub struct ServerRegistrationRequest {
     pub tool_name: String,
     pub description: String,
     pub tool_type: String, // "node", "python", "docker"
-    pub configuration: Option<Value>,
-    pub distribution: Option<Value>,
+    pub configuration: Option<ToolConfiguration>,
+    pub distribution: Option<Distribution>,
 }
 
 /// MCP tool registration response
@@ -166,17 +166,9 @@ pub struct ToolUninstallResponse {
 }
 
 /// MCP server discovery request
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DiscoverServerToolsRequest {
     pub server_id: String,
-}
-
-/// MCP server discovery response
-#[derive(Serialize)]
-pub struct DiscoverServerToolsResponse {
-    pub success: bool,
-    pub tools: Option<Vec<Value>>,
-    pub error: Option<String>,
 }
 
 /// Distribution information for a tool
@@ -188,6 +180,7 @@ pub struct Distribution {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputSchemaProperty {
+    #[serde(default)]
     pub description: String,
     #[serde(default)]
     pub r#type: String,
@@ -204,11 +197,43 @@ pub struct InputSchema {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ServerTool {
+pub struct ServerToolInfo {
+    pub id: String,
     pub name: String,
     pub description: String,
-    pub input_schema: InputSchema,
+    #[serde(default)]
+    #[serde(rename = "inputSchema")]
+    pub input_schema: Option<InputSchema>,
     pub server_id: String,
     #[serde(default)]
     pub proxy_id: Option<String>,
+}
+
+impl ServerToolInfo {
+    /// Create a new ServerToolInfo from a JSON value
+    pub fn from_value(value: Value, server_id: String) -> Result<ServerToolInfo, String> {
+        // Generate id from name before deserializing
+        let name = value
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or("missing name field")?;
+
+        let id = name
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+
+        // Create mutable copy and insert the generated fields
+        let mut obj = value;
+        obj.as_object_mut()
+            .ok_or("value must be an object")?
+            .insert("id".to_string(), Value::String(id));
+        obj.as_object_mut()
+            .unwrap()
+            .insert("server_id".to_string(), Value::String(server_id));
+
+        // Now deserialize the complete object
+        serde_json::from_value(obj).map_err(|e| e.to_string())
+    }
 }

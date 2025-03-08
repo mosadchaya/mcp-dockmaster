@@ -1,7 +1,6 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_all_server_data, list_all_server_tools, list_servers, load_mcp_state_command,
-    register_tool, restart_tool_command, save_mcp_state_command, uninstall_tool,
+    list_all_server_tools, list_servers, register_tool, restart_tool_command, uninstall_tool,
     update_tool_config, update_tool_status,
 };
 use log::{error, info};
@@ -139,9 +138,6 @@ pub async fn run() {
             update_tool_config,
             restart_tool_command,
             uninstall_tool,
-            get_all_server_data,
-            save_mcp_state_command,
-            load_mcp_state_command,
             check_database_exists_command,
             clear_database_command
         ])
