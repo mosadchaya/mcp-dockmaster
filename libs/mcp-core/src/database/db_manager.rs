@@ -207,6 +207,7 @@ impl DBManager {
 
         // 1) Fetch all tools from the `tools` table
         let db_tools: Vec<DBTool> = tools_dsl::tools
+            .order_by(tools_dsl::id.desc())
             .load::<DBTool>(&mut conn)
             .map_err(|e| format!("Failed to query tools: {}", e))?;
 

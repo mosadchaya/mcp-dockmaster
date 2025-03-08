@@ -11,6 +11,8 @@ CREATE TABLE tools (
     distribution_package TEXT
 );
 
+CREATE INDEX idx_tools_id_desc ON tools(id DESC);
+
 CREATE TABLE tool_env (
     tool_id TEXT NOT NULL,
     env_key TEXT NOT NULL,

@@ -10,6 +10,7 @@ use crate::models::types::{
 use crate::types::{RuntimeTool, ToolId};
 use crate::MCPError;
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
 use serde_json::{json, Value};
@@ -18,48 +19,41 @@ use tokio::time::Duration;
 
 use super::mcp_core::MCPCore;
 
+#[async_trait]
 pub trait McpCoreProxyExt {
-    fn register_tool(
+    async fn register_tool(
         &self,
         tool: ToolRegistrationRequest,
-    ) -> impl std::future::Future<Output = Result<ToolRegistrationResponse, String>> + Send;
-    fn list_tools(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<RuntimeTool>, String>> + Send;
-    fn list_all_server_tools(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + Send;
-    fn discover_tools(
+    ) -> Result<ToolRegistrationResponse, String>;
+    async fn list_tools(&self) -> Result<Vec<RuntimeTool>, String>;
+    async fn list_all_server_tools(&self) -> Result<Vec<Value>, String>;
+    async fn discover_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> impl std::future::Future<Output = Result<DiscoverServerToolsResponse, String>> + Send;
-    fn execute_proxy_tool(
+    ) -> Result<DiscoverServerToolsResponse, String>;
+    async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
-    ) -> impl std::future::Future<Output = Result<ToolExecutionResponse, String>> + Send;
-    fn update_tool_status(
+    ) -> Result<ToolExecutionResponse, String>;
+    async fn update_tool_status(
         &self,
         request: ToolUpdateRequest,
-    ) -> impl std::future::Future<Output = Result<ToolUpdateResponse, String>> + Send;
-    fn update_tool_config(
+    ) -> Result<ToolUpdateResponse, String>;
+    async fn update_tool_config(
         &self,
         request: ToolConfigUpdateRequest,
-    ) -> impl std::future::Future<Output = Result<ToolConfigUpdateResponse, String>> + Send;
-    fn uninstall_tool(
+    ) -> Result<ToolConfigUpdateResponse, String>;
+    async fn uninstall_tool(
         &self,
         request: ToolUninstallRequest,
-    ) -> impl std::future::Future<Output = Result<ToolUninstallResponse, String>> + Send;
-    fn get_all_server_data(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Value, String>> + Send;
-    fn restart_tool_command(
-        &self,
-        tool_id: String,
-    ) -> impl std::future::Future<Output = Result<ToolUpdateResponse, String>> + Send;
-    fn init_mcp_server(&self) -> impl std::future::Future<Output = Result<()>> + Send;
-    fn kill_all_processes(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    ) -> Result<ToolUninstallResponse, String>;
+    async fn get_all_server_data(&self) -> Result<Value, String>;
+    async fn restart_tool_command(&self, tool_id: String) -> Result<ToolUpdateResponse, String>;
+    async fn init_mcp_server(&self) -> Result<()>;
+    async fn kill_all_processes(&self) -> Result<()>;
 }
 
+#[async_trait]
 impl McpCoreProxyExt for MCPCore {
     /// Register a new tool with the MCP server
     async fn register_tool(
