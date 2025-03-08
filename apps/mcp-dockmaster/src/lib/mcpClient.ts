@@ -92,12 +92,6 @@ interface DiscoverServerToolsRequest {
   server_id: string;
 }
 
-interface DiscoverServerToolsResponse {
-  success: boolean;
-  tools?: any[];
-  error?: string;
-}
-
 interface ServerToolInfo {
   id: string;
   name: string;

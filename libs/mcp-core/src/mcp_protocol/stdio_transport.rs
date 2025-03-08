@@ -4,7 +4,7 @@ use log::info;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
-use crate::models::types::{InputSchema, InputSchemaProperty, ServerToolInfo};
+use crate::models::types::ServerToolInfo;
 use crate::MCPError;
 
 /// Initialize a connection to an MCP server
