@@ -237,8 +237,6 @@ impl McpCoreProxyExt for MCPCore {
         for tools in (*server_tools).values() {
             all_tools.extend(tools.iter().cloned());
         }
-        info!("Found {} tools", all_tools.len());
-        info!("All tools: {:?}", all_tools);
         Ok(all_tools)
     }
 
@@ -311,9 +309,7 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         let server_id = parts[0];
-        println!("server_id: {}", server_id);
         let tool_id = parts[1];
-        println!("tool_id: {}", tool_id);
 
         // Execute the tool on the server
         let mut process_manager = mcp_state.process_manager.write().await;
