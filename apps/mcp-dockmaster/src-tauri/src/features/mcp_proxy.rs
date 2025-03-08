@@ -41,7 +41,7 @@ pub async fn discover_tools(
     mcp_core: State<'_, MCPCore>,
     request: DiscoverServerToolsRequest,
 ) -> Result<DiscoverServerToolsResponse, String> {
-    mcp_core.discover_tools(request).await
+    mcp_core.list_server_tools(request).await
 }
 
 /// Execute a tool from an MCP server
@@ -78,12 +78,6 @@ pub async fn uninstall_tool(
     request: ToolUninstallRequest,
 ) -> Result<ToolUninstallResponse, String> {
     mcp_core.uninstall_tool(request).await
-}
-
-/// Get all server data in a single function to avoid multiple locks
-#[tauri::command]
-pub async fn get_all_server_data(mcp_core: State<'_, MCPCore>) -> Result<Value, String> {
-    mcp_core.get_all_server_data().await
 }
 
 /// Save the MCP state to the database

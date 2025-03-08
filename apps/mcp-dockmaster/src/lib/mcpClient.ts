@@ -117,6 +117,13 @@ export class MCPClient {
   }
 
   /**
+   * List all available tools from all running MCP servers
+   */
+  static async listAllServerTools(): Promise<any[]> {
+    return await invoke<any[]>('list_all_server_tools');
+  }
+
+  /**
    * Execute a registered tool
    */
   static async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResponse> {
@@ -167,14 +174,6 @@ export class MCPClient {
    */
   static async getClaudeConfig(): Promise<any> {
     return await invoke<any>('get_claude_config');
-  }
-
-  /**
-   * Get all server data in a single call to avoid lock issues
-   * Returns servers, tools, and Claude configuration in a single response
-   */
-  static async getAllServerData(): Promise<any> {
-    return await invoke<any>('get_all_server_data');
   }
 }
 

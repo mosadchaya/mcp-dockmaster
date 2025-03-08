@@ -27,7 +27,7 @@ pub trait McpCoreProxyExt {
     ) -> Result<ToolRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
     async fn list_all_server_tools(&self) -> Result<Vec<Value>, String>;
-    async fn discover_tools(
+    async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
     ) -> Result<DiscoverServerToolsResponse, String>;
@@ -47,7 +47,6 @@ pub trait McpCoreProxyExt {
         &self,
         request: ToolUninstallRequest,
     ) -> Result<ToolUninstallResponse, String>;
-    async fn get_all_server_data(&self) -> Result<Value, String>;
     async fn restart_tool_command(&self, tool_id: String) -> Result<ToolUpdateResponse, String>;
     async fn init_mcp_server(&self) -> Result<()>;
     async fn kill_all_processes(&self) -> Result<()>;
@@ -373,7 +372,7 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// Discover tools from a specific MCP server
-    async fn discover_tools(
+    async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
     ) -> Result<DiscoverServerToolsResponse, String> {
@@ -705,112 +704,6 @@ impl McpCoreProxyExt for MCPCore {
             success: true,
             message: "Tool uninstalled successfully".to_string(),
         })
-    }
-
-    /// Get all server data in a single function to avoid multiple locks
-    async fn get_all_server_data(&self) -> Result<Value, String> {
-        let mcp_state = self.mcp_state.read().await;
-        // Get registry data
-        let registry = mcp_state.tool_registry.read().await;
-        let process_manager = mcp_state.process_manager.read().await;
-        let server_tools = mcp_state.server_tools.read().await;
-
-        // 1. Get registered servers
-        let mut servers = Vec::new();
-        let tool_map = registry.get_all_servers()?;
-
-        for (id, tool_struct) in tool_map {
-            // Convert the Tool struct to a Value
-            let mut tool_value = json!({
-                "name": tool_struct.name,
-                "description": tool_struct.description,
-                "enabled": tool_struct.enabled,
-                "tool_type": tool_struct.tool_type,
-                "id": id,
-            });
-
-            // Add optional fields if they exist
-            if let Some(entry_point) = &tool_struct.entry_point {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert("entry_point".to_string(), json!(entry_point));
-                }
-            }
-
-            if let Some(configuration) = &tool_struct.configuration {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "configuration".to_string(),
-                        json!({
-                            "command": configuration.command,
-                            "args": configuration.args
-                        }),
-                    );
-                }
-            }
-
-            if let Some(distribution) = &tool_struct.distribution {
-                if let Some(obj) = tool_value.as_object_mut() {
-                    obj.insert(
-                        "distribution".to_string(),
-                        serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
-                    );
-                }
-            }
-
-            // Add process status - check the processes map
-            if let Some(obj) = tool_value.as_object_mut() {
-                let process_running = process_manager.processes.contains_key(&id);
-                obj.insert("process_running".to_string(), json!(process_running));
-
-                // Add number of available tools from this server
-                let server_tool_count =
-                    server_tools.get(&id).map_or_else(|| 0, |tools| tools.len());
-                obj.insert("tool_count".to_string(), json!(server_tool_count));
-            }
-
-            servers.push(tool_value);
-        }
-
-        // 2. Get all server tools
-        let mut all_tools = Vec::new();
-        for (server_id, tools) in &*server_tools {
-            for tool in tools {
-                // Extract the basic tool information
-                let mut tool_info = serde_json::Map::new();
-
-                // Copy the original tool properties
-                if let Some(obj) = tool.as_object() {
-                    for (key, value) in obj {
-                        tool_info.insert(key.clone(), value.clone());
-                    }
-                }
-
-                // Add server_id
-                tool_info.insert("server_id".to_string(), json!(server_id));
-
-                // Create a proxy ID
-                let tool_id = tool.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                let proxy_id = format!("{}:{}", server_id, tool_id);
-                tool_info.insert("proxy_id".to_string(), json!(proxy_id));
-
-                all_tools.push(json!(tool_info));
-            }
-        }
-
-        info!(
-            "All tools: {}",
-            serde_json::to_string_pretty(&all_tools).unwrap_or_else(|_| format!("{:?}", all_tools))
-        );
-        info!(
-            "Servers: {}",
-            serde_json::to_string_pretty(&servers).unwrap_or_else(|_| format!("{:?}", servers))
-        );
-
-        // Return all data in one response
-        Ok(json!({
-            "servers": servers,
-            "tools": all_tools
-        }))
     }
 
     /// Restart a tool by its ID
