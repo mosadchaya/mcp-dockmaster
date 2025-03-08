@@ -7,10 +7,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::models::tool_db::{DBServer, DBServerEnv, NewServer, NewServerEnv, UpdateServer};
-use crate::models::types::{Distribution, ServerDefinition, ToolConfiguration, ToolEnvironment};
+use crate::models::tool_db::{DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, NewServerTool, UpdateServer, UpdateServerTool};
+use crate::models::types::{Distribution, InputSchema, ServerDefinition, ServerToolInfo, ToolConfiguration, ToolEnvironment};
 use crate::schema::server_env::dsl as env_dsl;
-use crate::schema::server_tools::dsl as server_dsl;
+use crate::schema::server_tools::dsl as server_tools_dsl;
 use crate::schema::servers::dsl as tools_dsl;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
@@ -417,7 +417,7 @@ impl DBManager {
             diesel::delete(tools_dsl::servers).execute(conn)?;
 
             // Delete server tools
-            diesel::delete(server_dsl::server_tools).execute(conn)?;
+            diesel::delete(server_tools_dsl::server_tools).execute(conn)?;
 
             Ok(())
         })
@@ -442,11 +442,137 @@ impl DBManager {
         Ok(count > 0)
     }
 
-    /// Safely close the database connection
+   /// Safely close the database connection
     pub fn close(self) -> Result<(), String> {
         // The connection pool will be dropped when self is dropped
         // No explicit handling needed
         info!("Database connection closed");
+        Ok(())
+    }
+
+    /// Save a ServerToolInfo to the database
+    pub fn save_server_tool(&self, tool: &ServerToolInfo) -> Result<(), String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        // Serialize the input_schema to JSON if it exists
+        let input_schema_json = if let Some(schema) = &tool.input_schema {
+            Some(serde_json::to_string(schema)
+                .map_err(|e| format!("Failed to serialize input schema: {}", e))?)
+        } else {
+            None
+        };
+
+        // Create the new server tool record
+        let new_tool = NewServerTool {
+            id: tool.id.clone(),
+            name: tool.name.clone(),
+            description: tool.description.clone(),
+            input_schema: input_schema_json.clone(),
+            server_id: tool.server_id.clone(),
+            proxy_id: tool.proxy_id.clone(),
+        };
+
+        // Insert or update the server tool
+        diesel::insert_into(server_tools_dsl::server_tools)
+            .values(&new_tool)
+            .on_conflict((server_tools_dsl::id, server_tools_dsl::server_id))
+            .do_update()
+            .set(UpdateServerTool {
+                name: Some(tool.name.clone()),
+                description: Some(tool.description.clone()),
+                input_schema: Some(input_schema_json),
+                proxy_id: Some(tool.proxy_id.clone()),
+            })
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to save server tool: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Get a ServerToolInfo by ID and server_id
+    pub fn get_server_tool(&self, tool_id: &str, server_id: &str) -> Result<ServerToolInfo, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        let db_tool: DBServerTool = server_tools_dsl::server_tools
+            .filter(server_tools_dsl::id.eq(tool_id))
+            .filter(server_tools_dsl::server_id.eq(server_id))
+            .first::<DBServerTool>(&mut conn)
+            .map_err(|e| format!("Failed to get server tool {}: {}", tool_id, e))?;
+
+        // Parse the input_schema from JSON if it exists
+        let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
+            Some(serde_json::from_str::<InputSchema>(schema_json)
+                .map_err(|e| format!("Failed to parse input schema: {}", e))?)
+        } else {
+            None
+        };
+
+        Ok(ServerToolInfo {
+            id: db_tool.id,
+            name: db_tool.name,
+            description: db_tool.description,
+            input_schema,
+            server_id: db_tool.server_id,
+            proxy_id: db_tool.proxy_id,
+        })
+    }
+
+    /// Get all ServerToolInfo for a server
+    pub fn get_server_tools(&self, server_id: &str) -> Result<Vec<ServerToolInfo>, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        let db_tools: Vec<DBServerTool> = server_tools_dsl::server_tools
+            .filter(server_tools_dsl::server_id.eq(server_id))
+            .load::<DBServerTool>(&mut conn)
+            .map_err(|e| format!("Failed to get server tools for {}: {}", server_id, e))?;
+
+        let mut tools = Vec::new();
+        for db_tool in db_tools {
+            // Parse the input_schema from JSON if it exists
+            let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
+                Some(serde_json::from_str::<InputSchema>(schema_json)
+                    .map_err(|e| format!("Failed to parse input schema: {}", e))?)
+            } else {
+                None
+            };
+
+            tools.push(ServerToolInfo {
+                id: db_tool.id,
+                name: db_tool.name,
+                description: db_tool.description,
+                input_schema,
+                server_id: db_tool.server_id,
+                proxy_id: db_tool.proxy_id,
+            });
+        }
+
+        Ok(tools)
+    }
+
+    /// Delete a ServerToolInfo by ID and server_id
+    pub fn delete_server_tool(&self, tool_id: &str, server_id: &str) -> Result<(), String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        diesel::delete(
+            server_tools_dsl::server_tools
+                .filter(server_tools_dsl::id.eq(tool_id))
+                .filter(server_tools_dsl::server_id.eq(server_id)),
+        )
+        .execute(&mut conn)
+        .map_err(|e| format!("Failed to delete server tool: {}", e))?;
+
         Ok(())
     }
 }

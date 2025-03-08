@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{database::db_manager::DBManager, models::types::ServerDefinition};
+use crate::{database::db_manager::DBManager, models::types::{ServerDefinition, ServerToolInfo}};
 
 /// ServerRegistry: database logic only
 ///
@@ -39,5 +39,25 @@ impl ServerRegistry {
     /// Delete a server
     pub fn delete_server(&self, tool_id: &str) -> Result<(), String> {
         self.db_manager.delete_server(tool_id)
+    }
+
+    /// Save a server tool
+    pub fn save_server_tool(&self, tool: &ServerToolInfo) -> Result<(), String> {
+        self.db_manager.save_server_tool(tool)
+    }
+
+    /// Get a server tool by ID and server_id
+    pub fn get_server_tool(&self, tool_id: &str, server_id: &str) -> Result<ServerToolInfo, String> {
+        self.db_manager.get_server_tool(tool_id, server_id)
+    }
+
+    /// Get all server tools for a server
+    pub fn get_server_tools(&self, server_id: &str) -> Result<Vec<ServerToolInfo>, String> {
+        self.db_manager.get_server_tools(server_id)
+    }
+
+    /// Delete a server tool
+    pub fn delete_server_tool(&self, tool_id: &str, server_id: &str) -> Result<(), String> {
+        self.db_manager.delete_server_tool(tool_id, server_id)
     }
 }
