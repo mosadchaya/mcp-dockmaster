@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import "./Home.css";
 
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
@@ -11,7 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@radix-ui/react-collapsible";
-import { Button } from "./ui/button";
+import { Button } from "../components/ui/button";
 import {
   ArrowRight,
   ChevronDown,
@@ -21,8 +20,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Separator } from "./ui/separator";
-import { Badge } from "./ui/badge";
+import { Separator } from "../components/ui/separator";
+import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface PrerequisiteStatus {
@@ -69,7 +68,7 @@ const Home: React.FC = () => {
   const checkPrerequisites = async () => {
     setIsChecking(true);
     setPrerequisites((prev) =>
-      prev.map((item) => ({ ...item, loading: true }))
+      prev.map((item) => ({ ...item, loading: true })),
     );
 
     try {
@@ -135,7 +134,7 @@ const Home: React.FC = () => {
     } catch (error) {
       console.error("Failed to check prerequisites:", error);
       setPrerequisites((prev) =>
-        prev.map((item) => ({ ...item, loading: false }))
+        prev.map((item) => ({ ...item, loading: false })),
       );
     } finally {
       setIsChecking(false);
@@ -159,18 +158,18 @@ const Home: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-full px-6 flex flex-col gap-8 py-10 max-w-4xl mx-auto w-full">
-      <div className="flex flex-col space-y-1.5 ">
-        <h1 className="font-semibold tracking-tight text-2xl">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
+      <div className="flex flex-col space-y-1.5">
+        <h1 className="text-2xl font-semibold tracking-tight">
           Welcome to MPC Dockmaster
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Select an option from the sidebar to get started.
         </p>
       </div>
-      <div className="space-y-2 ">
+      <div className="space-y-2">
         <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Using the proxy tool, you will be able to integrate with MCP clients
           like Claude offering all the tools you configure in MPC Dockmaster.
         </p>
@@ -183,24 +182,24 @@ const Home: React.FC = () => {
           <CollapsibleTrigger asChild>
             <Button
               variant="outline"
-              className="shadow-none flex w-full items-center justify-between gap-2"
+              className="flex w-full items-center justify-between gap-2 shadow-none"
             >
               <span className="flex items-center gap-2">
                 <ArrowRight className="h-4 w-4" />
                 Show MCP Configuration
               </span>
               {showMCPConfig ? (
-                <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <ChevronUp className="text-muted-foreground h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
               )}
             </Button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="rounded-md border bg-muted/30 p-4 space-y-8">
+          <CollapsibleContent className="bg-muted/30 space-y-8 rounded-md border p-4">
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold">Claude Configuration</h4>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Use this configuration to connect Claude to your MCP servers:
                 </p>
               </div>
@@ -211,10 +210,10 @@ const Home: React.FC = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="absolute right-2 top-2 h-8 w-8 p-0 text-muted-foreground cursor-pointer"
+                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
                   onClick={() =>
                     copyToClipboard(
-                      JSON.stringify(mcpClientProxy.claude, null, 2)
+                      JSON.stringify(mcpClientProxy.claude, null, 2),
                     )
                   }
                 >
@@ -227,7 +226,7 @@ const Home: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold">Cursor Configuration</h4>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Use this configuration to connect Cursor to your MCP servers:
                 </p>
               </div>
@@ -238,10 +237,10 @@ const Home: React.FC = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="absolute right-2 top-2 h-8 w-8 p-0 text-muted-foreground cursor-pointer"
+                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
                   onClick={() =>
                     copyToClipboard(
-                      JSON.stringify(mcpClientProxy.cursor, null, 2)
+                      JSON.stringify(mcpClientProxy.cursor, null, 2),
                     )
                   }
                 >
@@ -274,13 +273,16 @@ const Home: React.FC = () => {
         <div className="space-y-4">
           <div className="grid gap-4">
             {prerequisites.map((prerequisite) => (
-              <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/10">
+              <div
+                key={prerequisite.name}
+                className="hover:bg-muted/10 flex items-center justify-between rounded-lg border p-4 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <div
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full",
                       prerequisite.installed && "bg-green-500/10",
-                      !prerequisite.installed && "bg-red-500/10"
+                      !prerequisite.installed && "bg-red-500/10",
                     )}
                   >
                     <img
@@ -291,7 +293,7 @@ const Home: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-medium">{prerequisite.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                       {prerequisite.installed
                         ? "Installed and running"
                         : "Not installed or not running"}
