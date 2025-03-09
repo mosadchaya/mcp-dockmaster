@@ -660,7 +660,20 @@ const InstalledServers: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
                     <Label className="text-right text-xs pt-1">Package</Label>
-                    <div className="col-span-3 text-sm font-mono">{currentInfoServer.distribution.package}</div>
+                    <div className="col-span-3">
+                      {currentInfoServer.distribution.type === "npm" ? (
+                        <a 
+                          href={`https://www.npmjs.com/package/${currentInfoServer.distribution.package}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline text-sm font-mono"
+                        >
+                          {currentInfoServer.distribution.package}
+                        </a>
+                      ) : (
+                        <span className="text-sm font-mono">{currentInfoServer.distribution.package}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
