@@ -165,7 +165,6 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-  const toggleToolStatus = async (id: string) => {
   const uninstallServer = async (id: string) => {
     try {
       // Update the UI optimistically
@@ -195,7 +194,7 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-
+  const toggleToolStatus = async (id: string) => {
     try {
       // Find the current server to get its current enabled state
       const server = servers.find(server => server.id === id);
