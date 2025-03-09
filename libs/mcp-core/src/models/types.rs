@@ -209,6 +209,12 @@ pub struct ServerToolInfo {
     pub server_id: String,
     #[serde(default)]
     pub proxy_id: Option<String>,
+    #[serde(default = "default_is_active")]
+    pub is_active: bool,
+}
+
+fn default_is_active() -> bool {
+    true
 }
 
 impl ServerToolInfo {

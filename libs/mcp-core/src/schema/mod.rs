@@ -8,6 +8,7 @@ diesel::table! {
         input_schema -> Nullable<Text>,
         server_id -> Text,
         proxy_id -> Nullable<Text>,
+        is_active -> Bool,
     }
 }
 

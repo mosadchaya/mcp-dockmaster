@@ -482,6 +482,7 @@ impl DBManager {
             input_schema: input_schema_json.clone(),
             server_id: tool.server_id.clone(),
             proxy_id: tool.proxy_id.clone(),
+            is_active: tool.is_active,
         };
 
         // Insert or update the server tool
@@ -494,6 +495,7 @@ impl DBManager {
                 description: Some(tool.description.clone()),
                 input_schema: Some(input_schema_json),
                 proxy_id: Some(tool.proxy_id.clone()),
+                is_active: Some(tool.is_active),
             })
             .execute(&mut conn)
             .map_err(|e| format!("Failed to save server tool: {}", e))?;
@@ -535,6 +537,7 @@ impl DBManager {
             input_schema,
             server_id: db_tool.server_id,
             proxy_id: db_tool.proxy_id,
+            is_active: db_tool.is_active,
         })
     }
 
@@ -569,6 +572,7 @@ impl DBManager {
                 input_schema,
                 server_id: db_tool.server_id,
                 proxy_id: db_tool.proxy_id,
+                is_active: db_tool.is_active,
             });
         }
 
