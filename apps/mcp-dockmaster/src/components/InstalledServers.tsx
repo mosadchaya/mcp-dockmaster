@@ -154,7 +154,9 @@ const InstalledServers: React.FC = () => {
       const activeServers = servers.filter(
         (server: RuntimeServer) => server.process_running,
       );
-      setServers(activeServers);
+      // Sort servers by ID to maintain consistent order
+      const sortedServers = [...activeServers].sort((a, b) => a.id.localeCompare(b.id));
+      setServers(sortedServers);
 
       // Set server tools
       setServerTools(allServerTools);
@@ -243,8 +245,11 @@ const InstalledServers: React.FC = () => {
     try {
       const tools = await MCPClient.discoverTools({ server_id: serverId });
       console.log("Tools discovered:", tools);
-      // Reload all data after discovery
-      loadData();
+      
+      // Update only the server tools without reloading all servers
+      // This prevents unnecessary reordering of servers
+      const allServerTools = await MCPClient.listAllServerTools();
+      setServerTools(allServerTools);
     } catch (error) {
       console.error(`Failed to discover tools for server ${serverId}:`, error);
     }
