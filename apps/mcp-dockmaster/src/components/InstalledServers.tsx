@@ -7,15 +7,23 @@ import {
   SERVER_UNINSTALLED 
 } from "../lib/events";
 import "./InstalledServers.css";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Settings } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
-import { Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Badge } from "./ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Label } from "./ui/label";
 
 // Add a simple notification component
 interface NotificationProps {
@@ -56,6 +64,8 @@ const InstalledServers: React.FC = () => {
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
   const [currentConfigTool, setCurrentConfigTool] =
     useState<RuntimeServer | null>(null);
+  const [infoPopupVisible, setInfoPopupVisible] = useState(false);
+  const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -416,6 +426,17 @@ const InstalledServers: React.FC = () => {
     setCurrentConfigTool(null);
     setEnvVarValues({});
   };
+  
+  const openInfoPopup = (server: RuntimeServer, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the click from toggling the expanded state
+    setCurrentInfoServer(server);
+    setInfoPopupVisible(true);
+  };
+  
+  const closeInfoPopup = () => {
+    setInfoPopupVisible(false);
+    setCurrentInfoServer(null);
+  };
 
   const toggleExpandTool = (serverId: string, e: React.MouseEvent) => {
     // Don't toggle if clicking on status toggle
@@ -508,6 +529,74 @@ const InstalledServers: React.FC = () => {
   };
 
   // Configuration popup component
+  const renderInfoPopup = () => {
+    if (!infoPopupVisible || !currentInfoServer) return null;
+    
+    return (
+      <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{currentInfoServer.name} Information</DialogTitle>
+            <DialogDescription>
+              Details about this server and its tools.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {currentInfoServer.description && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Description</Label>
+                <div className="col-span-3">{currentInfoServer.description}</div>
+              </div>
+            )}
+            {currentInfoServer.sourceUrl && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Source URL</Label>
+                <div className="col-span-3">
+                  <a 
+                    href={currentInfoServer.sourceUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    {currentInfoServer.sourceUrl}
+                  </a>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Status</Label>
+              <div className="col-span-3">
+                {currentInfoServer.process_running ? (
+                  <span className="text-green-500">Running</span>
+                ) : (
+                  <span className="text-red-500">Stopped</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Tools</Label>
+              <div className="col-span-3">{currentInfoServer.tool_count} tools available</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                uninstallServer(currentInfoServer.id);
+                closeInfoPopup();
+              }}
+            >
+              Uninstall Server
+            </Button>
+            <Button variant="outline" onClick={closeInfoPopup}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderConfigPopup = () => {
     if (!configPopupVisible || !currentConfigTool) return null;
 
@@ -647,6 +736,22 @@ const InstalledServers: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{server.name}</CardTitle>
                   <div className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Button
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => {
+                            openInfoPopup(server, e);
+                          }}
+                        >
+                          <Info className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Server Information
+                      </TooltipContent>
+                    </Tooltip>
+                    
                     {server.configuration &&
                       server.configuration.env &&
                       Object.keys(server.configuration.env).length > 0 && (
@@ -738,6 +843,7 @@ const InstalledServers: React.FC = () => {
       )}
 
       {renderConfigPopup()}
+      {renderInfoPopup()}
     </div>
   );
 };
