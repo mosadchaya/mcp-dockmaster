@@ -1,5 +1,7 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// Import version from package.json
+const packageJson = { version: "0.1.0" };
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
@@ -10,6 +12,7 @@ import InitMpcOverlay from "./components/init-mpc-overlay";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarInset,
@@ -18,6 +21,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
+  SidebarSeparator,
   SidebarTrigger,
 } from "./components/ui/sidebar";
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
@@ -30,6 +34,9 @@ import {
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import { TooltipProvider } from "./components/ui/tooltip";
+
+// Get app version from package.json
+const appVersion = packageJson.version;
 
 function NavItem({
   icon: Icon,
@@ -91,6 +98,12 @@ function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
+      <SidebarFooter>
+        <div className="text-sidebar-foreground/70 text-xs text-center">
+          App Version: {appVersion}
+        </div>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
