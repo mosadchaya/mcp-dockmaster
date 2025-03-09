@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
@@ -148,9 +148,9 @@ const Home: React.FC = () => {
     }
   };
 
-  const openInstallUrl = async (toolName: string) => {
+  const openInstallUrl = async (toolName: "Node.js" | "UV (Python)" | "Docker") => {
     try {
-      await open(installUrls[toolName]);
+      await openUrl(installUrls[toolName]);
     } catch (error) {
       console.error(`Failed to open install URL for ${toolName}:`, error);
       toast.error(`Failed to open installation page for ${toolName}`);
@@ -342,7 +342,7 @@ const Home: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="ml-2"
-                        onClick={() => openInstallUrl(prerequisite.name)}
+                        onClick={() => openInstallUrl(prerequisite.name as "Node.js" | "UV (Python)" | "Docker")}
                       >
                         Install
                       </Button>
