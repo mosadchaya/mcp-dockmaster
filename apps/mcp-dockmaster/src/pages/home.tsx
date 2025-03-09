@@ -36,7 +36,7 @@ const mcpClientProxy = {
     mcpServers: {
       "mcp-dockmaster": {
         args: [
-          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "/path/to/mcp_dockmaster/apps/mcp-proxy-server/build/index.js",
           "--stdio",
         ],
         command: "node",
@@ -47,7 +47,7 @@ const mcpClientProxy = {
     mcpServers: {
       "mcp-dockmaster": {
         args: [
-          "/path/to/mcp_dockmaster/apps/mcp-runner/build/index.js",
+          "/path/to/mcp_dockmaster/apps/mcp-proxy-server/build/index.js",
           "--stdio",
         ],
         command: "node",

@@ -5,7 +5,7 @@ This is a monorepo for the MCP Dockmaster project, managed with NX.
 ## Structure
 
 - `apps/mcp-dockmaster`: The main Tauri application
-- `apps/mcp-runner`: The MCP proxy server
+- `apps/mcp-proxy-server`: The MCP proxy server
 
 ## Getting Started
 
@@ -38,7 +38,7 @@ npx nx tauri:dev mcp-dockmaster
 To build the MCP Runner:
 
 ```bash
-npx nx build mcp-runner
+npx nx build mcp-proxy-server
 ```
 
 ### Running commands across all projects
