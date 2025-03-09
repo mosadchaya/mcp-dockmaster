@@ -1,6 +1,6 @@
 use crate::{
     error::{MCPError, MCPResult},
-    models::types::{ToolConfiguration, ToolId, ToolType},
+    models::types::{ServerConfiguration, ServerId, ToolType},
 };
 use log::{error, info};
 use serde_json::json;
@@ -19,12 +19,12 @@ pub struct SpawnedProcess {
 
 impl SpawnedProcess {
     pub async fn new(
-        tool_id: &ToolId,
-        tool_type: &ToolType,
-        config: &ToolConfiguration,
+        tool_id: &ServerId,
+        tools_type: &ToolType,
+        config: &ServerConfiguration,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
-        match tool_type {
+        match tools_type {
             ToolType::Node => Self::spawn_nodejs_process(tool_id, config, env_vars).await,
             ToolType::Python => Self::spawn_python_process(tool_id, config, env_vars).await,
             ToolType::Docker => Self::spawn_docker_process(tool_id, config, env_vars).await,
@@ -39,15 +39,17 @@ impl SpawnedProcess {
     }
 
     async fn spawn_nodejs_process(
-        tool_id: &ToolId,
-        config: &ToolConfiguration,
+        tool_id: &ServerId,
+        config: &ServerConfiguration,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
         info!("Spawning Node.js process for tool ID: {}", tool_id);
 
-        let command = config.command.as_ref()
+        let command = config
+            .command
+            .as_ref()
             .ok_or_else(|| format!("Command is required for Node.js tool {}", tool_id))?;
-            
+
         if !command.contains("npx") && !command.contains("node") {
             error!("Entry point doesn't exist and doesn't look like an npm package or node command for tool {}: {}", tool_id, command);
             return Err(format!("Entry point file '{}' does not exist", command));
@@ -80,15 +82,17 @@ impl SpawnedProcess {
     }
 
     async fn spawn_python_process(
-        tool_id: &ToolId,
-        config: &ToolConfiguration,
+        tool_id: &ServerId,
+        config: &ServerConfiguration,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
         info!("Spawning Python process for tool ID: {}", tool_id);
-        
-        let command = config.command.as_ref()
+
+        let command = config
+            .command
+            .as_ref()
             .ok_or_else(|| format!("Command is required for Python tool {}", tool_id))?;
-            
+
         info!("Using Python command: {}", command);
 
         let mut cmd = Command::new(command);
@@ -104,13 +108,15 @@ impl SpawnedProcess {
     }
 
     async fn spawn_docker_process(
-        tool_id: &ToolId,
-        config: &ToolConfiguration,
+        tool_id: &ServerId,
+        config: &ServerConfiguration,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
         info!("Spawning Docker process for tool ID: {}", tool_id);
 
-        let command = config.command.as_ref()
+        let command = config
+            .command
+            .as_ref()
             .ok_or_else(|| format!("Command is required for Docker tool {}", tool_id))?;
 
         if command != "docker" {
@@ -147,7 +153,7 @@ impl SpawnedProcess {
 
     async fn setup_process(
         mut cmd: Command,
-        tool_id: &ToolId,
+        tool_id: &ServerId,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
         use std::process::Stdio;

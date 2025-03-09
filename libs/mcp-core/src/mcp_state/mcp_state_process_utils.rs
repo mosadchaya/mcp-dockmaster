@@ -5,7 +5,7 @@ use tokio::process::Child;
 
 use crate::{
     mcp_protocol::initialize_server_connection,
-    types::{ToolConfiguration, ToolEnvironment, ToolId, ToolType},
+    types::{ServerConfiguration, ServerEnvironment, ServerId, ToolType},
     SpawnedProcess,
 };
 
@@ -13,7 +13,7 @@ use crate::{
 pub async fn spawn_process(
     configuration: &Value,
     tool_id: &str,
-    tool_type: &str,
+    tools_type: &str,
     env_vars: Option<&HashMap<String, String>>,
 ) -> Result<
     (
@@ -38,7 +38,7 @@ pub async fn spawn_process(
         })
         .unwrap_or_default();
 
-    let config = ToolConfiguration {
+    let config = ServerConfiguration {
         command: Some(command.to_string()),
         args: Some(args),
         env: env_vars.map(|vars| {
@@ -46,7 +46,7 @@ pub async fn spawn_process(
                 .map(|(k, v)| {
                     (
                         k.clone(),
-                        ToolEnvironment {
+                        ServerEnvironment {
                             description: "".to_string(),
                             default: Some(v.clone()),
                             required: false,
@@ -57,15 +57,15 @@ pub async fn spawn_process(
         }),
     };
 
-    let tool_type = match tool_type {
+    let tools_type = match tools_type {
         "node" => ToolType::Node,
         "python" => ToolType::Python,
         "docker" => ToolType::Docker,
-        _ => return Err(format!("Unsupported tool type: {}", tool_type)),
+        _ => return Err(format!("Unsupported tool type: {}", tools_type)),
     };
 
-    let tool_id = ToolId::new(tool_id.to_string());
-    let mut dm_process = SpawnedProcess::new(&tool_id, &tool_type, &config, env_vars).await?;
+    let tool_id = ServerId::new(tool_id.to_string());
+    let mut dm_process = SpawnedProcess::new(&tool_id, &tools_type, &config, env_vars).await?;
     let _ = initialize_server_connection(
         tool_id.as_str(),
         &mut dm_process.stdin,

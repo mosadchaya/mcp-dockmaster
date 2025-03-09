@@ -1,26 +1,26 @@
 // Event types
-export const TOOL_INSTALLED = 'tool_installed';
-export const TOOL_UNINSTALLED = 'tool_uninstalled';
-export const TOOL_STATUS_CHANGED = 'tool_status_changed';
+export const SERVER_INSTALLED = 'server_installed';
+export const SERVER_UNINSTALLED = 'server_uninstalled';
+export const SERVER_STATUS_CHANGED = 'server_status_changed';
 
 // Event dispatcher
-export const dispatchToolEvent = (eventType: string, toolId: string) => {
+export const dispatchServerEvent = (eventType: string, serverId: string) => {
   const event = new CustomEvent(eventType, { 
-    detail: { toolId },
+    detail: { toolId: serverId },
     bubbles: true 
   });
   document.dispatchEvent(event);
 };
 
 // Helper functions
-export const dispatchToolInstalled = (toolId: string) => {
-  dispatchToolEvent(TOOL_INSTALLED, toolId);
+export const dispatchServerInstalled = (serverId: string) => {
+  dispatchServerEvent(SERVER_INSTALLED, serverId);
 };
 
-export const dispatchToolUninstalled = (toolId: string) => {
-  dispatchToolEvent(TOOL_UNINSTALLED, toolId);
+export const dispatchServerUninstalled = (serverId: string) => {
+  dispatchServerEvent(SERVER_UNINSTALLED, serverId);
 };
 
-export const dispatchToolStatusChanged = (toolId: string) => {
-  dispatchToolEvent(TOOL_STATUS_CHANGED, toolId);
+export const dispatchServerStatusChanged = (serverId: string) => {
+  dispatchServerEvent(SERVER_STATUS_CHANGED, serverId);
 }; 

@@ -19,7 +19,7 @@ export class MCPSearch {
     return {
       name: tool.name, 
       fullDescription: tool.fullDescription, 
-      id: tool.name,
+      id: tool.id,
       installed: tool.installed,
       categories: tool.categories,
       config: tool.config.env
