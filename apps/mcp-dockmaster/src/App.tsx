@@ -7,6 +7,7 @@ import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
 import About from "./pages/about";
+import Feedback from "./pages/feedback";
 import InitMpcOverlay from "./components/init-mpc-overlay";
 
 import {
@@ -31,6 +32,7 @@ import {
   RegistryIcon,
   ServersIcon,
 } from "./components/icons";
+import { MessageSquare } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -78,6 +80,7 @@ function AppSidebar() {
       to: "/registry",
     },
     { id: "about", label: "About", icon: AboutIcon, to: "/about" },
+    { id: "feedback", label: "Feedback", icon: MessageSquare, to: "/feedback" },
   ];
 
   return (
@@ -125,6 +128,7 @@ const AppRoutes = () => {
                 <Route path="/installed" element={<InstalledServers />} />
                 <Route path="/registry" element={<Registry />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/feedback" element={<Feedback />} />
                 <Route element={<Navigate replace to={"/"} />} path="*" />
               </Routes>
             </SidebarInset>
