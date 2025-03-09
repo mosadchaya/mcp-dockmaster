@@ -69,13 +69,13 @@ function AppSidebar() {
     { id: "home", label: "Home", icon: HomeIcon, to: "/" },
     {
       id: "installed",
-      label: "My Applications",
+      label: "Servers Installed",
       icon: ServersIcon,
       to: "/installed",
     },
     {
       id: "registry",
-      label: "AI App Store",
+      label: "MCP Server Registry",
       icon: RegistryIcon,
       to: "/registry",
     },
