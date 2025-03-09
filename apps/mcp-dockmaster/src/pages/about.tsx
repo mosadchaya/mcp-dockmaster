@@ -77,8 +77,8 @@ const About = () => {
             </div>
           ) : (
             <form
-              // Replace YOUR_FORM_ID with the actual form ID from Formspree
-              action="https://formspree.io/f/YOUR_FORM_ID"
+              // Using the provided Formspree form ID
+              action="https://formspree.io/f/mgvawbkv"
               method="POST"
               className="space-y-4"
               onSubmit={() => setFormSuccess(true)}
