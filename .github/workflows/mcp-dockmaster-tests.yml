@@ -1,4 +1,4 @@
-name: MCP Dockmaster Tauri Tests
+name: PR Checks
 
 on:
   push:
@@ -52,12 +52,15 @@ jobs:
           key: ${{ runner.os }}-cargo-dockmaster-${{ hashFiles('apps/mcp-dockmaster/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-
-
-      - name: Run Tauri tests
-        working-directory: apps/mcp-dockmaster/src-tauri
-        run: cargo test
           
-      - name: Run clippy
+      - name: Lint
         working-directory: apps/mcp-dockmaster/src-tauri
-        run: cargo clippy -- -D warnings
+        run: npx nx run-many -t lint
+
+      - name: Build
+        working-directory: apps/mcp-dockmaster/src-tauri
+        run: npx nx run-many -t build
+
+      - name: Test
+        working-directory: apps/mcp-dockmaster/src-tauri
+        run: npx nx run-many -t test
