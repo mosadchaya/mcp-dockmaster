@@ -69,12 +69,11 @@ impl McpCoreProxyExt for MCPCore {
         } else {
             info!("Configuration not provided");
         }
-
         let registry = self.tool_registry.write().await;
 
         // Generate a simple tool ID (in production, use UUIDs)
-        let tool_id = format!("server_{}", registry.get_all_servers()?.len() + 1);
-        info!("Generated server ID: {}", tool_id);
+        let server_id = request.server_id.clone();
+        info!("Generated server ID: {}", server_id);
 
         // Create the Tool struct
         let server = ServerDefinition {
@@ -88,7 +87,7 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Save the tool in the registry
-        registry.save_server(&tool_id, &server)?;
+        registry.save_server(&server_id, &server)?;
         drop(registry);
 
         let mcp_state_clone = self.mcp_state.clone();
@@ -96,7 +95,7 @@ impl McpCoreProxyExt for MCPCore {
             // Create a default empty tools list
             let mcp_state = mcp_state_clone.write().await;
             let mut server_tools = mcp_state.server_tools.write().await;
-            server_tools.insert(tool_id.clone(), Vec::new());
+            server_tools.insert(server_id.clone(), Vec::new());
         }
 
         // Extract environment variables from the tool configuration
@@ -124,7 +123,7 @@ impl McpCoreProxyExt for MCPCore {
         // Spawn process based on tool type
         let spawn_result = spawn_process(
             &config_value,
-            &tool_id,
+            &server_id,
             &request.tools_type,
             env_vars.as_ref(),
         )
@@ -133,30 +132,30 @@ impl McpCoreProxyExt for MCPCore {
         let mcp_state_clone = self.mcp_state.clone();
         match spawn_result {
             Ok((process, stdin, stdout)) => {
-                info!("Process spawned successfully for tool ID: {}", tool_id);
+                info!("Process spawned successfully for tool ID: {}", server_id);
                 {
                     let mcp_state = mcp_state_clone.write().await;
                     let mut process_manager = mcp_state.process_manager.write().await;
                     process_manager
                         .processes
-                        .insert(tool_id.clone(), Some(process));
+                        .insert(server_id.clone(), Some(process));
                     process_manager
                         .process_ios
-                        .insert(tool_id.clone(), (stdin, stdout));
+                        .insert(server_id.clone(), (stdin, stdout));
                 }
                 // Wait a moment for the server to start
                 info!("Waiting for server to initialize...");
                 tokio::time::sleep(Duration::from_secs(3)).await;
 
                 // Try to discover tools from this server with a timeout to avoid hanging
-                info!("Attempting to discover tools from server {}", tool_id);
+                info!("Attempting to discover tools from server {}", server_id);
                 let discover_result = tokio::time::timeout(Duration::from_secs(15), async {
                     let mcp_state = mcp_state_clone.write().await;
                     let mut process_manager = mcp_state.process_manager.write().await;
-                    if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&tool_id) {
-                        discover_server_tools(&tool_id, stdin, stdout).await
+                    if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&server_id) {
+                        discover_server_tools(&server_id, stdin, stdout).await
                     } else {
-                        Err(format!("Server {} not found or not running", tool_id))
+                        Err(format!("Server {} not found or not running", server_id))
                     }
                 })
                 .await;
@@ -167,27 +166,27 @@ impl McpCoreProxyExt for MCPCore {
                         info!(
                             "Successfully discovered {} tools from {}",
                             tools.len(),
-                            tool_id
+                            server_id
                         );
                         let mcp_state = mcp_state_clone.write().await;
                         let mut server_tools = mcp_state.server_tools.write().await;
-                        server_tools.insert(tool_id.clone(), tools);
+                        server_tools.insert(server_id.clone(), tools);
                     }
                     Ok(Err(e)) => {
-                        error!("Error discovering tools from server {}: {}", tool_id, e);
+                        error!("Error discovering tools from server {}: {}", server_id, e);
                     }
                     Err(_) => {
-                        error!("Timeout while discovering tools from server {}", tool_id);
-                        info!("Added default tool for server {} after timeout", tool_id);
+                        error!("Timeout while discovering tools from server {}", server_id);
+                        info!("Added default tool for server {} after timeout", server_id);
                     }
                 }
             }
             Err(e) => {
-                error!("Failed to spawn process for {}: {}", tool_id, e);
+                error!("Failed to spawn process for {}: {}", server_id, e);
                 return Ok(ServerRegistrationResponse {
                     success: false,
                     message: format!("Tool registered but failed to start process: {}", e),
-                    tool_id: Some(tool_id),
+                    tool_id: Some(server_id),
                 });
             }
         }
@@ -196,7 +195,7 @@ impl McpCoreProxyExt for MCPCore {
         Ok(ServerRegistrationResponse {
             success: true,
             message: format!("Tool '{}' registered successfully", request.server_name),
-            tool_id: Some(tool_id),
+            tool_id: Some(server_id),
         })
     }
 
