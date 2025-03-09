@@ -12,6 +12,7 @@
       }
     },
     "test": {
+      "dependsOn": ["mcp-core:build", "mcp-server-hello-world:build"],
       "executor": "nx:run-commands",
       "options": {
         "cwd": "libs/mcp-core",
