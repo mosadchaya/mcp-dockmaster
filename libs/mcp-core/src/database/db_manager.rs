@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{
-    DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, 
-    NewServerTool, UpdateServer, UpdateServerTool
+    DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, NewServerTool, UpdateServer,
+    UpdateServerTool,
 };
 use crate::models::types::{
-    Distribution, InputSchema, ServerConfiguration, ServerDefinition, 
-    ServerEnvironment, ServerToolInfo, ToolConfiguration, ToolEnvironment,
+    Distribution, InputSchema, ServerConfiguration, ServerDefinition, ServerEnvironment,
+    ServerToolInfo,
 };
 use crate::schema::server_env::dsl as env_dsl;
 use crate::schema::server_tools::dsl as server_tools_dsl;
@@ -449,7 +449,7 @@ impl DBManager {
         Ok(count > 0)
     }
 
-   /// Safely close the database connection
+    /// Safely close the database connection
     pub fn close(self) -> Result<(), String> {
         // The connection pool will be dropped when self is dropped
         // No explicit handling needed
@@ -466,8 +466,10 @@ impl DBManager {
 
         // Serialize the input_schema to JSON if it exists
         let input_schema_json = if let Some(schema) = &tool.input_schema {
-            Some(serde_json::to_string(schema)
-                .map_err(|e| format!("Failed to serialize input schema: {}", e))?)
+            Some(
+                serde_json::to_string(schema)
+                    .map_err(|e| format!("Failed to serialize input schema: {}", e))?,
+            )
         } else {
             None
         };
@@ -500,7 +502,11 @@ impl DBManager {
     }
 
     /// Get a ServerToolInfo by ID and server_id
-    pub fn get_server_tool(&self, tool_id: &str, server_id: &str) -> Result<ServerToolInfo, String> {
+    pub fn get_server_tool(
+        &self,
+        tool_id: &str,
+        server_id: &str,
+    ) -> Result<ServerToolInfo, String> {
         let mut conn = self
             .pool
             .get()
@@ -514,8 +520,10 @@ impl DBManager {
 
         // Parse the input_schema from JSON if it exists
         let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
-            Some(serde_json::from_str::<InputSchema>(schema_json)
-                .map_err(|e| format!("Failed to parse input schema: {}", e))?)
+            Some(
+                serde_json::from_str::<InputSchema>(schema_json)
+                    .map_err(|e| format!("Failed to parse input schema: {}", e))?,
+            )
         } else {
             None
         };
@@ -546,8 +554,10 @@ impl DBManager {
         for db_tool in db_tools {
             // Parse the input_schema from JSON if it exists
             let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
-                Some(serde_json::from_str::<InputSchema>(schema_json)
-                    .map_err(|e| format!("Failed to parse input schema: {}", e))?)
+                Some(
+                    serde_json::from_str::<InputSchema>(schema_json)
+                        .map_err(|e| format!("Failed to parse input schema: {}", e))?,
+                )
             } else {
                 None
             };

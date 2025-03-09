@@ -3,6 +3,7 @@ mod tests {
     use mcp_core::{
         database::db_manager::DBManager,
         models::types::{InputSchema, InputSchemaProperty, ServerToolInfo},
+        types::ServerDefinition,
     };
     use serial_test::serial;
     use std::collections::HashMap;
@@ -26,11 +27,11 @@ mod tests {
 
         // Create a test server first
         let server_id = "test_server";
-        let server = mcp_core::models::types::ServerDefinition {
+        let server = ServerDefinition {
             name: "Test Server".to_string(),
             description: "A test server".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -92,11 +93,11 @@ mod tests {
 
         // Create a test server
         let server_id = "test_server";
-        let server = mcp_core::models::types::ServerDefinition {
+        let server = ServerDefinition {
             name: "Test Server".to_string(),
             description: "A test server".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -141,11 +142,11 @@ mod tests {
 
         // Create a test server
         let server_id = "test_server";
-        let server = mcp_core::models::types::ServerDefinition {
+        let server = ServerDefinition {
             name: "Test Server".to_string(),
             description: "A test server".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -180,11 +181,11 @@ mod tests {
 
         // Create a test server
         let server_id = "test_server";
-        let server = mcp_core::models::types::ServerDefinition {
+        let server = ServerDefinition {
             name: "Test Server".to_string(),
             description: "A test server".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -231,11 +232,11 @@ mod tests {
 
         // Create a test server
         let server_id = "test_server";
-        let server = mcp_core::models::types::ServerDefinition {
+        let server = ServerDefinition {
             name: "Test Server".to_string(),
             description: "A test server".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
