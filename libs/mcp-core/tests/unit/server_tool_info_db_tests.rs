@@ -61,6 +61,7 @@ mod tests {
             input_schema: Some(input_schema),
             server_id: server_id.to_string(),
             proxy_id: Some("proxy1".to_string()),
+            is_active: true,
         };
 
         // Save the tool
@@ -74,6 +75,7 @@ mod tests {
         assert_eq!(retrieved_tool.description, tool.description);
         assert_eq!(retrieved_tool.server_id, tool.server_id);
         assert_eq!(retrieved_tool.proxy_id, tool.proxy_id);
+        assert_eq!(retrieved_tool.is_active, tool.is_active);
 
         // Check that the input_schema was correctly serialized and deserialized
         let retrieved_schema = retrieved_tool.input_schema.unwrap();
@@ -112,6 +114,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: None,
+            is_active: true,
         };
 
         let tool2 = ServerToolInfo {
@@ -121,6 +124,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: None,
+            is_active: true,
         };
 
         // Save the tools
@@ -161,6 +165,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: None,
+            is_active: true,
         };
 
         // Save the tool
@@ -200,6 +205,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: None,
+            is_active: true,
         };
 
         // Save the tool
@@ -213,6 +219,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: Some("new_proxy".to_string()),
+            is_active: true,
         };
 
         db.save_server_tool(&updated_tool).unwrap();
@@ -223,7 +230,67 @@ mod tests {
         assert_eq!(retrieved_tool.name, "Updated Tool");
         assert_eq!(retrieved_tool.description, "An updated test tool");
         assert_eq!(retrieved_tool.proxy_id, Some("new_proxy".to_string()));
+        assert_eq!(retrieved_tool.is_active, true);
     }
+
+    #[test]
+    #[serial]
+    fn test_is_active_field() {
+        let (db, _temp) = setup_temp_db();
+
+        // Create a test server
+        let server_id = "test_server";
+        let server = ServerDefinition {
+            name: "Test Server".to_string(),
+            description: "A test server".to_string(),
+            enabled: true,
+            tools_type: "node".to_string(),
+            entry_point: None,
+            configuration: None,
+            distribution: None,
+        };
+        db.save_server(server_id, &server).unwrap();
+
+        // Create a test tool with is_active set to false
+        let tool = ServerToolInfo {
+            id: "test_tool".to_string(),
+            name: "Test Tool".to_string(),
+            description: "A test tool".to_string(),
+            input_schema: None,
+            server_id: server_id.to_string(),
+            proxy_id: None,
+            is_active: false,
+        };
+
+        // Save the tool
+        db.save_server_tool(&tool).unwrap();
+
+        // Get the tool back
+        let retrieved_tool = db.get_server_tool("test_tool", server_id).unwrap();
+
+        // Verify is_active is false
+        assert_eq!(retrieved_tool.is_active, false);
+
+        // Update the tool to set is_active to true
+        let updated_tool = ServerToolInfo {
+            id: "test_tool".to_string(),
+            name: "Test Tool".to_string(),
+            description: "A test tool".to_string(),
+            input_schema: None,
+            server_id: server_id.to_string(),
+            proxy_id: None,
+            is_active: true,
+        };
+
+        db.save_server_tool(&updated_tool).unwrap();
+
+        // Get the updated tool
+        let retrieved_updated_tool = db.get_server_tool("test_tool", server_id).unwrap();
+
+        // Verify is_active is now true
+        assert_eq!(retrieved_updated_tool.is_active, true);
+    }
+
 
     #[test]
     #[serial]
@@ -251,6 +318,7 @@ mod tests {
             input_schema: None,
             server_id: server_id.to_string(),
             proxy_id: None,
+            is_active: true,
         };
 
         // Save the tool

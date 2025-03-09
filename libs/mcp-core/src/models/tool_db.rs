@@ -90,6 +90,7 @@ pub struct DBServerTool {
     pub input_schema: Option<String>,
     pub server_id: String,
     pub proxy_id: Option<String>,
+    pub is_active: bool,
 }
 
 /// For inserting a new row into the `server_tools` table
@@ -102,6 +103,7 @@ pub struct NewServerTool {
     pub input_schema: Option<String>,
     pub server_id: String,
     pub proxy_id: Option<String>,
+    pub is_active: bool,
 }
 
 /// For updating an existing row in the `server_tools` table
@@ -113,4 +115,5 @@ pub struct UpdateServerTool {
     pub description: Option<String>,
     pub input_schema: Option<Option<String>>,
     pub proxy_id: Option<Option<String>>,
+    pub is_active: Option<bool>,
 }
