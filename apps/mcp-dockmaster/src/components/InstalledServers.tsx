@@ -555,20 +555,35 @@ const InstalledServers: React.FC = () => {
           </div>
 
           <div className="config-popup-actions">
-            <button
-              className="save-env-vars-button"
-              onClick={(e) => saveEnvVars(currentConfigTool.id, e)}
-              disabled={savingConfig}
-            >
-              {savingConfig ? "Saving..." : "Save"}
-            </button>
-            <button
-              className="cancel-env-vars-button"
-              onClick={cancelEditingEnvVars}
-              disabled={savingConfig}
-            >
-              Cancel
-            </button>
+            <div className="flex justify-between w-full">
+              <Button
+                variant="destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  uninstallServer(currentConfigTool.id);
+                  cancelEditingEnvVars(e);
+                }}
+                disabled={savingConfig}
+              >
+                Uninstall
+              </Button>
+              <div className="flex gap-2">
+                <button
+                  className="save-env-vars-button"
+                  onClick={(e) => saveEnvVars(currentConfigTool.id, e)}
+                  disabled={savingConfig}
+                >
+                  {savingConfig ? "Saving..." : "Save"}
+                </button>
+                <button
+                  className="cancel-env-vars-button"
+                  onClick={cancelEditingEnvVars}
+                  disabled={savingConfig}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -649,17 +664,6 @@ const InstalledServers: React.FC = () => {
                       )}
 
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          uninstallServer(server.id);
-                        }}
-                        className="mr-2"
-                      >
-                        Uninstall
-                      </Button>
                       <span
                         className={cn(
                           "text-sm",
