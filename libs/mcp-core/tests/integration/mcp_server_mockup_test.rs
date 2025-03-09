@@ -29,7 +29,7 @@ mod tests {
         // Get the absolute path to the script
         let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
         let script_path = current_dir
-            .join("tests/integration/resources/mcp-server-hello-world/build/index.js")
+            .join("../../dist/apps/mcp-server-hello-world/index.js")
             .to_string_lossy()
             .into_owned();
 
