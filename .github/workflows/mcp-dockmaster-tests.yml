@@ -1,16 +1,9 @@
 name: PR Checks
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'apps/mcp-dockmaster/src-tauri/**'
-      - '.github/workflows/mcp-dockmaster-tests.yml'
   pull_request:
-    branches: [ main ]
-    paths:
-      - 'apps/mcp-dockmaster/src-tauri/**'
-      - '.github/workflows/mcp-dockmaster-tests.yml'
+    branches: [main]
+
   workflow_dispatch:
 
 jobs:
@@ -20,13 +13,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          
+          node-version: "20"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
 
@@ -34,14 +27,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libglib2.0-dev libwebkit2gtk-4.1-dev build-essential wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
-        
+
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           components: rustfmt, clippy
-          
+
       - name: Cache Cargo dependencies
         uses: actions/cache@v3
         with:
@@ -49,18 +42,20 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             apps/mcp-dockmaster/src-tauri/target
+            apps/mcp-dockmaster-cli/target
+            libs/mcp-core/target
           key: ${{ runner.os }}-cargo-dockmaster-${{ hashFiles('apps/mcp-dockmaster/src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-          
+
       - name: Lint
         working-directory: apps/mcp-dockmaster/src-tauri
-        run: npx nx run-many -t lint
+        run: npx nx run-many -t lint --verbose
 
       - name: Build
         working-directory: apps/mcp-dockmaster/src-tauri
-        run: npx nx run-many -t build
+        run: npx nx run-many -t build --verbose
 
       - name: Test
         working-directory: apps/mcp-dockmaster/src-tauri
-        run: npx nx run-many -t test
+        run: npx nx run-many -t test --verbose
