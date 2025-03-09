@@ -8,8 +8,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    tool_env (tool_id, env_key) {
-        tool_id -> Text,
+    server_env (server_id, env_key) {
+        server_id -> Text,
         env_key -> Text,
         env_value -> Text,
         env_description -> Text,
@@ -18,7 +18,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    tools (id) {
+    servers (id) {
         id -> Text,
         name -> Text,
         description -> Text,
@@ -32,10 +32,6 @@ diesel::table! {
     }
 }
 
-diesel::joinable!(tool_env -> tools (tool_id));
+diesel::joinable!(server_env -> servers (server_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    server_tools,
-    tool_env,
-    tools,
-);
+diesel::allow_tables_to_appear_in_same_query!(server_tools, server_env, servers,);

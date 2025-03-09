@@ -1,23 +1,23 @@
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use directories::ProjectDirs;
 use log::info;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
-use crate::models::types::{Distribution, Tool, ToolConfiguration, ToolEnvironment};
+use crate::models::tool_db::{DBServer, DBServerEnv, NewServer, NewServerEnv, UpdateServer};
+use crate::models::types::{Distribution, ServerDefinition, ToolConfiguration, ToolEnvironment};
+use crate::schema::server_env::dsl as env_dsl;
 use crate::schema::server_tools::dsl as server_dsl;
-use crate::schema::tool_env::dsl as env_dsl;
-use crate::schema::tools::dsl as tools_dsl;
+use crate::schema::servers::dsl as tools_dsl;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
 type SqlitePool = Pool<ConnectionManager<SqliteConnection>>;
 
+#[derive(Clone)]
 /// Database manager for persisting application state
 pub struct DBManager {
     pool: Arc<SqlitePool>,
@@ -26,7 +26,9 @@ pub struct DBManager {
 impl DBManager {
     /// Initialize the database manager with the default database path
     pub fn new() -> Result<Self, String> {
-        let db_path = get_database_path()?;
+        let storage_path = crate::utils::default_storage_path()?;
+        let db_path = storage_path.join("mcp_dockmaster.db");
+        info!("Database path: {:?}", db_path);
         Self::with_path(db_path)
     }
 
@@ -59,14 +61,21 @@ impl DBManager {
             .build(manager)
             .map_err(|e| format!("Failed to create connection pool: {}", e))?;
 
-        // Get a connection to initialize the database
-        let mut conn = pool
+        let db_manager = Self {
+            pool: Arc::new(pool),
+        };
+
+        info!("Database initialized at: {:?}", db_path);
+        Ok(db_manager)
+    }
+
+    pub fn apply_migrations(&self) -> Result<(), String> {
+        info!("Applying migrations");
+        // Run migrations
+        let mut conn = self
+            .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
-
-        info!("Running migrations for database at {:?}", db_path);
-
-        // Run migrations
         let migration_result = conn.run_pending_migrations(MIGRATIONS);
         match &migration_result {
             Ok(migrations) => {
@@ -117,31 +126,27 @@ impl DBManager {
             .execute(&mut conn)
             .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
 
-        let db_manager = Self {
-            pool: Arc::new(pool),
-        };
-
-        info!("Database initialized at: {:?}", db_path);
-        Ok(db_manager)
+        info!("Migrations applied successfully");
+        Ok(())
     }
 
-    /// Get a tool by ID
-    pub fn get_tool(&self, tool_id_str: &str) -> Result<Tool, String> {
+    /// Get a server by ID
+    pub fn get_server(&self, tool_id_str: &str) -> Result<ServerDefinition, String> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // 1) Fetch from `tools` table
-        let db_tool: DBTool = tools_dsl::tools
+        let db_tool: DBServer = tools_dsl::servers
             .filter(tools_dsl::id.eq(tool_id_str))
-            .first::<DBTool>(&mut conn)
+            .first::<DBServer>(&mut conn)
             .map_err(|e| format!("Failed to get tool {}: {}", tool_id_str, e))?;
 
         // 2) Fetch environment variables from `tool_env` table
-        let env_rows: Vec<DBToolEnv> = env_dsl::tool_env
-            .filter(env_dsl::tool_id.eq(tool_id_str))
-            .load::<DBToolEnv>(&mut conn)
+        let env_rows: Vec<DBServerEnv> = env_dsl::server_env
+            .filter(env_dsl::server_id.eq(tool_id_str))
+            .load::<DBServerEnv>(&mut conn)
             .map_err(|e| format!("Failed to get env vars for {}: {}", tool_id_str, e))?;
 
         // Convert environment variables into a HashMap
@@ -173,7 +178,7 @@ impl DBManager {
             None
         };
 
-        let tool = Tool {
+        let server = ServerDefinition {
             name: db_tool.name,
             description: db_tool.description,
             enabled: db_tool.enabled,
@@ -191,30 +196,31 @@ impl DBManager {
             distribution,
         };
 
-        Ok(tool)
+        Ok(server)
     }
 
-    /// Get all tools
-    pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
+    /// Get all servers
+    pub fn get_all_servers(&self) -> Result<HashMap<String, ServerDefinition>, String> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // 1) Fetch all tools from the `tools` table
-        let db_tools: Vec<DBTool> = tools_dsl::tools
-            .load::<DBTool>(&mut conn)
+        let db_tools: Vec<DBServer> = tools_dsl::servers
+            .order_by(tools_dsl::id.desc())
+            .load::<DBServer>(&mut conn)
             .map_err(|e| format!("Failed to query tools: {}", e))?;
 
         // 2) Fetch all environment variables
-        let all_env_rows: Vec<DBToolEnv> = env_dsl::tool_env
-            .load::<DBToolEnv>(&mut conn)
+        let all_env_rows: Vec<DBServerEnv> = env_dsl::server_env
+            .load::<DBServerEnv>(&mut conn)
             .map_err(|e| format!("Failed to query environment variables: {}", e))?;
 
         // Group environment variables by tool_id
         let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
         for row in all_env_rows {
-            let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_default();
+            let tool_env_map = env_map_by_tool.entry(row.server_id.clone()).or_default();
             tool_env_map.insert(
                 row.env_key.clone(),
                 ToolEnvironment {
@@ -246,7 +252,7 @@ impl DBManager {
             // Get environment variables for this tool
             let env_map = env_map_by_tool.remove(&db_tool.id).unwrap_or_default();
 
-            let tool = Tool {
+            let tool = ServerDefinition {
                 name: db_tool.name.clone(),
                 description: db_tool.description.clone(),
                 enabled: db_tool.enabled,
@@ -270,8 +276,8 @@ impl DBManager {
         Ok(tools_map)
     }
 
-    /// Save or update a tool
-    pub fn save_tool(&self, tool_id_str: &str, tool: &Tool) -> Result<(), String> {
+    /// Save or update a server
+    pub fn save_server(&self, server_id_str: &str, tool: &ServerDefinition) -> Result<(), String> {
         let mut conn = self
             .pool
             .get()
@@ -298,8 +304,8 @@ impl DBManager {
             .unwrap_or_default();
 
         // Prepare upsert struct
-        let new_tool = NewTool {
-            id: tool_id_str,
+        let new_tool = NewServer {
+            id: server_id_str,
             name: &tool.name,
             description: &tool.description,
             tool_type: &tool.tool_type,
@@ -316,7 +322,7 @@ impl DBManager {
         };
 
         // For updates, we need to create an UpdateTool struct
-        let update_tool = UpdateTool {
+        let update_tool = UpdateServer {
             name: Some(&tool.name),
             description: Some(&tool.description),
             tool_type: Some(&tool.tool_type),
@@ -333,7 +339,7 @@ impl DBManager {
         };
 
         // Insert or update main row
-        diesel::insert_into(tools_dsl::tools)
+        diesel::insert_into(tools_dsl::servers)
             .values(&new_tool)
             .on_conflict(tools_dsl::id)
             .do_update()
@@ -343,19 +349,19 @@ impl DBManager {
 
         // Now handle environment variables in tool_env
         // 1) Delete old environment variables
-        diesel::delete(env_dsl::tool_env.filter(env_dsl::tool_id.eq(tool_id_str)))
+        diesel::delete(env_dsl::server_env.filter(env_dsl::server_id.eq(server_id_str)))
             .execute(&mut conn)
             .map_err(|e| format!("Failed to clear old env: {}", e))?;
 
         // 2) Insert new environment variables
         if let Some(config) = &tool.configuration {
             if let Some(env) = &config.env {
-                let new_env_rows: Vec<NewToolEnv> = env
+                let new_env_rows: Vec<NewServerEnv> = env
                     .iter()
                     .map(|(k, v)| {
                         let default_value = v.default.clone().unwrap_or_default();
-                        NewToolEnv {
-                            tool_id: tool_id_str.to_string(),
+                        NewServerEnv {
+                            server_id: server_id_str.to_string(),
                             env_key: k.to_string(),
                             env_value: default_value,
                             env_description: v.description.clone(),
@@ -365,7 +371,7 @@ impl DBManager {
                     .collect();
 
                 if !new_env_rows.is_empty() {
-                    diesel::insert_into(env_dsl::tool_env)
+                    diesel::insert_into(env_dsl::server_env)
                         .values(&new_env_rows)
                         .execute(&mut conn)
                         .map_err(|e| format!("Failed to save env vars: {}", e))?;
@@ -377,19 +383,19 @@ impl DBManager {
     }
 
     /// Delete a tool by ID
-    pub fn delete_tool(&self, tool_id_str: &str) -> Result<(), String> {
+    pub fn delete_server(&self, tool_id_str: &str) -> Result<(), String> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
         // Delete environment variables first (foreign key constraint will ensure this happens)
-        diesel::delete(env_dsl::tool_env.filter(env_dsl::tool_id.eq(tool_id_str)))
+        diesel::delete(env_dsl::server_env.filter(env_dsl::server_id.eq(tool_id_str)))
             .execute(&mut conn)
             .map_err(|e| format!("Failed to delete tool environment variables: {}", e))?;
 
         // Delete the tool
-        diesel::delete(tools_dsl::tools.filter(tools_dsl::id.eq(tool_id_str)))
+        diesel::delete(tools_dsl::servers.filter(tools_dsl::id.eq(tool_id_str)))
             .execute(&mut conn)
             .map_err(|e| format!("Failed to delete tool: {}", e))?;
 
@@ -405,10 +411,10 @@ impl DBManager {
 
         conn.transaction::<_, diesel::result::Error, _>(|conn| {
             // Delete environment variables first (due to foreign key constraints)
-            diesel::delete(env_dsl::tool_env).execute(conn)?;
+            diesel::delete(env_dsl::server_env).execute(conn)?;
 
             // Delete tools
-            diesel::delete(tools_dsl::tools).execute(conn)?;
+            diesel::delete(tools_dsl::servers).execute(conn)?;
 
             // Delete server tools
             diesel::delete(server_dsl::server_tools).execute(conn)?;
@@ -428,7 +434,7 @@ impl DBManager {
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let count: i64 = tools_dsl::tools
+        let count: i64 = tools_dsl::servers
             .count()
             .get_result(&mut conn)
             .map_err(|e| format!("Failed to check database: {}", e))?;
@@ -443,34 +449,4 @@ impl DBManager {
         info!("Database connection closed");
         Ok(())
     }
-}
-
-/// Get the path to the database file
-fn get_database_path() -> Result<PathBuf, String> {
-    let proj_dirs = ProjectDirs::from("com", "mcp", "dockmaster")
-        .ok_or_else(|| "Failed to determine project directories".to_string())?;
-
-    let data_dir = proj_dirs.data_dir();
-
-    // Ensure the data directory exists
-    if !data_dir.exists() {
-        fs::create_dir_all(data_dir)
-            .map_err(|e| format!("Failed to create data directory: {}", e))?;
-    }
-
-    // Check if the directory is writable
-    let test_file = data_dir.join(".write_test");
-    match fs::File::create(&test_file) {
-        Ok(_) => {
-            // Clean up the test file
-            let _ = fs::remove_file(&test_file);
-        }
-        Err(e) => {
-            return Err(format!("Data directory is not writable: {}", e));
-        }
-    }
-
-    let db_path = data_dir.join("mcp_dockmaster.db");
-    info!("Database path: {:?}", db_path);
-    Ok(db_path)
 }

@@ -1,3 +1,8 @@
+use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
+use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
+use crate::models::types::ServerToolInfo;
+use crate::registry::server_registry::ServerRegistry;
+use crate::MCPError;
 use log::{error, info, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -5,37 +10,30 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use crate::mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process};
-use crate::process_manager::ProcessManager;
-use crate::registry::ToolRegistry;
-use crate::MCPError;
+use super::process_manager::ProcessManager;
 
 /// MCPState: the main service layer
 ///
 /// This module coordinates database operations, process management, and discovered tools.
-/// It serves as the central orchestration layer that connects the database (ToolRegistry),
+/// It serves as the central orchestration layer that connects the database (ServerRegistry),
 /// process management (ProcessManager), and JSON-RPC operations (mcp_proxy).
 #[derive(Clone)]
 pub struct MCPState {
-    pub tool_registry: Arc<RwLock<ToolRegistry>>,
+    pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub process_manager: Arc<RwLock<ProcessManager>>,
-    pub server_tools: Arc<RwLock<HashMap<String, Vec<Value>>>>,
-}
-
-impl Default for MCPState {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
 }
 
 impl MCPState {
-    pub fn new() -> Self {
-        let registry = ToolRegistry::new()
-            .expect("Failed to create ToolRegistry during MCPState initialization");
+    pub fn new(
+        tool_registry: Arc<RwLock<ServerRegistry>>,
+        process_manager: Arc<RwLock<ProcessManager>>,
+        server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
+    ) -> Self {
         Self {
-            tool_registry: Arc::new(RwLock::new(registry)),
-            process_manager: Arc::new(RwLock::new(ProcessManager::new())),
-            server_tools: Arc::new(RwLock::new(HashMap::new())),
+            tool_registry,
+            process_manager,
+            server_tools,
         }
     }
 
@@ -76,7 +74,7 @@ impl MCPState {
         // Get tool from database
         let tool_data = {
             let registry = self.tool_registry.read().await;
-            registry.get_tool(tool_id)?
+            registry.get_server(tool_id)?
         };
 
         // Check if tool_type is empty
@@ -139,10 +137,9 @@ impl MCPState {
                     tool_id
                 );
                 // Convert ToolEnvironment -> just the defaults
-                let simple_env_map: HashMap<String, String> = env_map.iter()
-                    .filter_map(|(k, tool_env)| {
-                        tool_env.default.clone().map(|v| (k.clone(), v))
-                    })
+                let simple_env_map: HashMap<String, String> = env_map
+                    .iter()
+                    .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
                     .collect();
                 Some(simple_env_map)
             } else {
@@ -233,19 +230,40 @@ impl MCPState {
     }
 
     /// Discover tools from a server
-    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<Value>, String> {
+    pub async fn discover_server_tools(
+        &self,
+        server_id: &str,
+    ) -> Result<Vec<ServerToolInfo>, String> {
         let mut process_manager = self.process_manager.write().await;
         let (stdin, stdout) = match process_manager.process_ios.get_mut(server_id) {
             Some(io) => io,
             None => return Err(format!("Server {} not found or not running", server_id)),
         };
 
-        discover_server_tools(server_id, stdin, stdout).await
-    }
+        let tools = discover_server_tools(server_id, stdin, stdout).await?;
 
+        // Update the server_tools map with the discovered tools
+        let mut server_tools = self.server_tools.write().await;
+        server_tools.insert(server_id.to_string(), tools.clone());
+
+        Ok(tools)
+    }
+}
+
+pub trait McpStateProcessMonitor {
+    async fn start_process_monitor(self);
+}
+
+impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
     // Start a background task that periodically checks if processes are running
-    pub fn start_process_monitor(self: Arc<Self>) {
+    async fn start_process_monitor(self) {
         info!("Starting process monitor task");
+
+        let self_clone_read_guard = self.read().await;
+        let tool_registry = self_clone_read_guard.tool_registry.clone();
+        let process_manager = self_clone_read_guard.process_manager.clone();
+        drop(self_clone_read_guard);
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
 
@@ -254,8 +272,8 @@ impl MCPState {
 
                 // Get all tools from database
                 let tools_result = {
-                    let registry = self.tool_registry.read().await;
-                    registry.get_all_tools()
+                    let registry = tool_registry.read().await;
+                    registry.get_all_servers()
                 };
 
                 let tools = match tools_result {
@@ -271,7 +289,7 @@ impl MCPState {
                     if tool.enabled {
                         // Check if process is running
                         let process_running = {
-                            let process_manager = self.process_manager.read().await;
+                            let process_manager = process_manager.read().await;
                             process_manager
                                 .processes
                                 .get(&id_str)
@@ -280,7 +298,8 @@ impl MCPState {
 
                         if !process_running {
                             warn!("Process for tool {} is not running but should be. Will attempt restart.", id_str);
-                            if let Err(e) = self.restart_tool(&id_str).await {
+                            let self_clone_write_guard = self.write().await;
+                            if let Err(e) = self_clone_write_guard.restart_tool(&id_str).await {
                                 error!("Failed to restart tool {}: {}", id_str, e);
                             } else {
                                 info!("Successfully restarted tool: {}", id_str);
