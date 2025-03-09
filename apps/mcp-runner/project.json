@@ -3,17 +3,54 @@
   "projectType": "application",
   "sourceRoot": "apps/mcp-runner",
   "targets": {
-    "build": {
+    "build:windows": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tsc",
+        "commands": [
+          "rimraf ../../dist/apps/mcp-proxy-server/mcp-proxy-server-x86_64-pc-windows-msvc",
+          "deno compile --allow-all --target=x86_64-pc-windows-msvc --output=../../dist/apps/mcp-proxy-server/mcp-proxy-server-x86_64-pc-windows-msvc src/index.ts"
+        ],
+        "parallel": false,
+        "cwd": "apps/mcp-runner"
+      }
+    },
+    "build:macos": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "rimraf ../../dist/apps/mcp-proxy-server/mcp-proxy-server-aarch64-apple-darwin",
+          "deno compile --allow-all --target=aarch64-apple-darwin --output=../../dist/apps/mcp-proxy-server/mcp-proxy-server-aarch64-apple-darwin src/index.ts",
+          "chmod +x ../../dist/apps/mcp-proxy-server/mcp-proxy-server-aarch64-apple-darwin"
+        ],
+        "parallel": false,
+        "cwd": "apps/mcp-runner"
+      }
+    },
+    "build:linux": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "rimraf ../../dist/apps/mcp-proxy-server/mcp-proxy-server-x86_64-unknown-linux-gnu",
+          "deno compile --allow-all --target=x86_64-unknown-linux-gnu --output=../../dist/apps/mcp-proxy-server/mcp-proxy-server-x86_64-unknown-linux-gnu src/index.ts",
+          "chmod +x ../../dist/apps/mcp-proxy-server/mcp-proxy-server-x86_64-unknown-linux-gnu"
+        ],
+        "parallel": false,
+        "cwd": "apps/mcp-runner"
+      }
+    },
+    "build": {
+      "dependsOn": ["build:windows", "build:macos", "build:linux"],
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": ["echo 'Compiled successfully for all platforms'"],
+        "parallel": false,
         "cwd": "apps/mcp-runner"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx ts-node-dev --respawn src/index.ts",
+        "command": "deno run --allow-all src/index.ts",
         "cwd": "apps/mcp-runner"
       }
     },

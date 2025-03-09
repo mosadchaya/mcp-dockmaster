@@ -2,8 +2,8 @@
  * MCP Proxy Server
  * This server proxies MCP Protocol commands to a server running on localhost:3000
  */
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Server } from "npm:@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -11,12 +11,12 @@ import {
   ReadResourceRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
-import { Tools } from './types';
-import { proxyRequest } from "./proxyRequest";
-import { debugLog } from "./logger";
-import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index";
+} from "npm:@modelcontextprotocol/sdk/types.js";
+import { z } from "npm:zod";
+import { Tools } from './types.ts';
+import { proxyRequest } from "./proxyRequest.ts";
+import { debugLog } from "./logger.ts";
+import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index.ts";
 
 debugLog('Starting MCP Proxy Server script');
 
@@ -154,5 +154,5 @@ async function main() {
 
 main().catch((error) => {
   console.error("Server error:", error);
-  process.exit(1);
+  Deno.exit(1);
 });

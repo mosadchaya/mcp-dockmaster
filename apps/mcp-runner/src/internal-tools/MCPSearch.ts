@@ -1,6 +1,7 @@
-import lunr from "lunr";
-import { proxyRequest } from "../proxyRequest";
-import { RegistryTool, Tool, Tools } from "../types";
+// @ts-types="npm:@types/lunr"
+import lunr from "npm:lunr";
+import { proxyRequest } from "../proxyRequest.ts";
+import { RegistryTool, Tool } from "../types.ts";
 
 type ExtendedRegistryTool = RegistryTool & {
   installed: boolean;
