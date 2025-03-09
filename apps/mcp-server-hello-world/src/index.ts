@@ -20,7 +20,6 @@ const server = new Server({
 });
 
 const init = async () => {  
-  console.log("Initializing MCP Server Hello World");
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
@@ -40,7 +39,6 @@ const init = async () => {
     }
     return { toolResult: { error: "Method not found" }, content: [], isError: true };
   });
-  console.log("MCP Server Hello World initialized");
 };
 
 init();
