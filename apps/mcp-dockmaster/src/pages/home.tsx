@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-opener";
 
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
@@ -57,6 +58,12 @@ const mcpClientProxy = {
 };
 
 const Home: React.FC = () => {
+  const installUrls = {
+    "Node.js": "https://nodejs.org/",
+    "UV (Python)": "https://github.com/astral-sh/uv",
+    "Docker": "https://www.docker.com/get-started/"
+  };
+  
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
     { name: "Node.js", installed: false, loading: true, icon: nodeIcon },
     { name: "UV (Python)", installed: false, loading: true, icon: pythonIcon },
@@ -138,6 +145,15 @@ const Home: React.FC = () => {
       );
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  const openInstallUrl = async (toolName: string) => {
+    try {
+      await open(installUrls[toolName]);
+    } catch (error) {
+      console.error(`Failed to open install URL for ${toolName}:`, error);
+      toast.error(`Failed to open installation page for ${toolName}`);
     }
   };
 
@@ -306,20 +322,32 @@ const Home: React.FC = () => {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
                 ) : (
-                  <span className="status-indicator">
-                    {prerequisite.installed ? (
-                      <Badge className="bg-green-500 text-white hover:bg-green-600">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge
+                  <div className="flex items-center gap-2">
+                    <span className="status-indicator">
+                      {prerequisite.installed ? (
+                        <Badge className="bg-green-500 text-white hover:bg-green-600">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-red-500 bg-red-500/10 text-red-500"
+                        >
+                          Inactive
+                        </Badge>
+                      )}
+                    </span>
+                    {!prerequisite.installed && (
+                      <Button
+                        size="sm"
                         variant="outline"
-                        className="border-red-500 bg-red-500/10 text-red-500"
+                        className="ml-2"
+                        onClick={() => openInstallUrl(prerequisite.name)}
                       >
-                        Inactive
-                      </Badge>
+                        Install
+                      </Button>
                     )}
-                  </span>
+                  </div>
                 )}
               </div>
             ))}
