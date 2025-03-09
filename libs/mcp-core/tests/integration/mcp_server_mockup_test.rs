@@ -40,7 +40,7 @@ mod tests {
             server_id: "hello_world".to_string(),
             server_name: "Hello World".to_string(),
             description: "A simple hello world tool".to_string(),
-            tool_types: "node".to_string(),
+            tools_type: "node".to_string(),
             configuration: Some(ServerConfiguration {
                 command: Some("node".to_string()),
                 args: Some(vec![
