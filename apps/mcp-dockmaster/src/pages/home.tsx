@@ -342,7 +342,7 @@ const Home: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="ml-2"
-                        onClick={() => openInstallUrl(prerequisite.name)}
+                        onClick={() => openInstallUrl(prerequisite.name as "Node.js" | "UV (Python)" | "Docker")}
                       >
                         Install
                       </Button>
