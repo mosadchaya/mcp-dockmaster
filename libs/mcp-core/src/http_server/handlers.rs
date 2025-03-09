@@ -12,10 +12,10 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, InputSchema, ServerRegistrationRequest, ServerToolInfo, ToolConfiguration,
-    ToolEnvironment, ToolExecutionRequest,
+    Distribution, InputSchema, ServerRegistrationRequest, ServerToolInfo, ServerConfiguration,
+    ServerEnvironment, ToolExecutionRequest,
 };
-use crate::types::ToolConfigUpdateRequest;
+use crate::types::ServerConfigUpdateRequest;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -191,29 +191,6 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     }
 }
 
-// async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
-//     println!("handle_register_tool: trying to register tool {:?}", params);
-//     let mcp_state = state.write().await;
-//     let registry = fetch_tool_from_registry().await?;
-//     let tools = registry.get("tools").unwrap().as_array().unwrap();
-
-//     let tool = tools
-//         .iter()
-//         .find(|tool| tool.get("id").unwrap().as_str() == params.get("tool_id").unwrap().as_str());
-
-//     match tool {
-//         Some(tool) => {
-//             println!("[PRE] handle_register_tool: tool {:?}", tool);
-
-//             let tool_name = tool
-//                 .get("name")
-//                 .unwrap()
-//                 .as_str()
-//                 .unwrap_or("error")
-//                 .to_string();
-
-//             let description = tool
-
 async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     match params.get("name") {
         Some(name) => {
@@ -249,7 +226,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                         .map(|(k, v)| {
                             (
                                 k.clone(),
-                                ToolEnvironment {
+                                ServerEnvironment {
                                     description: "".to_string(),
                                     default: v.as_str().map(|s| s.to_string()),
                                     required: false,
@@ -259,7 +236,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                         .collect()
                 });
 
-                ToolConfiguration { command, args, env }
+                ServerConfiguration { command, args, env }
             });
 
             let distribution = params.get("distribution").map(|dist| Distribution {
@@ -283,16 +260,16 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                 .to_string();
 
             let tool = ServerRegistrationRequest {
-                tool_id,
-                tool_name,
+                server_id: tool_id,
+                server_name: tool_name,
                 description,
-                tool_type,
+                tool_types: tool_type,
                 configuration,
                 distribution,
             };
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
-            let r = mcp_core.register_tool(tool).await;
+            let r = mcp_core.register_server(tool).await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(json!({
                 "code": 0,
@@ -567,13 +544,13 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
     };
 
     // Create the config update request
-    let config_request = ToolConfigUpdateRequest {
-        tool_id: tool_id.to_string(),
+    let config_request = ServerConfigUpdateRequest {
+        server_id: tool_id.to_string(),
         config,
     };
 
     // Update the tool configuration
-    match mcp_core.update_tool_config(config_request).await {
+    match mcp_core.update_server_config(config_request).await {
         Ok(response) => {
             if !response.success {
                 return Err(json!({
@@ -583,7 +560,7 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             }
 
             // After successful config update, restart the tool
-            match mcp_core.restart_tool_command(tool_id.to_string()).await {
+            match mcp_core.restart_server_command(tool_id.to_string()).await {
                 Ok(restart_response) => {
                     if restart_response.success {
                         Ok(json!({

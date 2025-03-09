@@ -20,17 +20,17 @@ struct Cli {
 enum Commands {
     /// Register a new tool
     Register {
-        /// Tool name
+        /// Server name
         #[arg(short, long)]
         name: String,
 
-        /// Tool description
+        /// Server description
         #[arg(short, long)]
         description: String,
 
-        /// Tool type (node, python, docker)
+        /// Server type (node, python, docker)
         #[arg(short, long)]
-        tool_type: String,
+        tools_type: String,
 
         /// Entry point (command or file path)
         #[arg(short, long)]
@@ -53,9 +53,9 @@ enum Commands {
 
     /// Update a tool's status
     Update {
-        /// Tool ID
+        /// Server ID
         #[arg(short, long)]
-        tool_id: String,
+        server_id: String,
 
         /// Enable or disable the tool
         #[arg(short, long)]
@@ -64,9 +64,9 @@ enum Commands {
 
     /// Update a tool's configuration
     Config {
-        /// Tool ID
+        /// Server ID
         #[arg(short, long)]
-        tool_id: String,
+        server_id: String,
 
         /// Environment variable (format: KEY=VALUE)
         #[arg(short, long)]
@@ -84,7 +84,7 @@ enum Commands {
     Restart {
         /// Tool ID
         #[arg(short, long)]
-        tool_id: String,
+        server_id: String,
     },
 
     /// Clear the database
@@ -176,16 +176,19 @@ async fn main() {
             println!("Tool execution is not directly supported through the CLI.");
             println!("Please use the MCP Dockmaster UI to execute tools.");
         }
-        Commands::Update { tool_id, enabled } => {
-            info!("Updating tool status: {} (enabled={})", tool_id, enabled);
+        Commands::Update { server_id, enabled } => {
+            info!(
+                "Updating server status: {} (enabled={})",
+                server_id, enabled
+            );
 
             // We can't directly create ToolUpdateRequest due to private fields
             // Instead, we'll use a different approach to update tool status
             println!("Tool status update is not directly supported through the CLI.");
             println!("Please use the MCP Dockmaster UI to update tool status.");
         }
-        Commands::Config { tool_id, .. } => {
-            info!("Updating tool configuration: {}", tool_id);
+        Commands::Config { server_id, .. } => {
+            info!("Updating server configuration: {}", server_id);
 
             // We can't directly create ToolConfigUpdateRequest due to private fields
             // Instead, we'll use a different approach to update tool configuration
@@ -200,17 +203,17 @@ async fn main() {
             println!("Tool uninstallation is not directly supported through the CLI.");
             println!("Please use the MCP Dockmaster UI to uninstall tools.");
         }
-        Commands::Restart { tool_id } => {
-            info!("Restarting tool: {}", tool_id);
+        Commands::Restart { server_id } => {
+            info!("Restarting server: {}", server_id);
 
-            // Restart the tool using the direct function
-            match mcp_core.restart_tool_command(tool_id.clone()).await {
+            // Restart the server using the direct function
+            match mcp_core.restart_server_command(server_id.clone()).await {
                 Ok(_) => {
-                    println!("Tool restarted successfully");
+                    println!("Server restarted successfully");
                 }
                 Err(e) => {
-                    error!("Error restarting tool: {}", e);
-                    println!("Error restarting tool: {}", e);
+                    error!("Error restarting server: {}", e);
+                    println!("Error restarting server: {}", e);
                 }
             }
         }

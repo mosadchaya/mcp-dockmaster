@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{DBServer, DBServerEnv, NewServer, NewServerEnv, UpdateServer};
-use crate::models::types::{Distribution, ServerDefinition, ToolConfiguration, ToolEnvironment};
+use crate::models::types::{Distribution, ServerDefinition, ServerConfiguration, ServerEnvironment};
 use crate::schema::server_env::dsl as env_dsl;
 use crate::schema::server_tools::dsl as server_dsl;
 use crate::schema::servers::dsl as tools_dsl;
@@ -154,7 +154,7 @@ impl DBManager {
         for row in env_rows {
             env_map.insert(
                 row.env_key,
-                ToolEnvironment {
+                ServerEnvironment {
                     description: row.env_description,
                     default: Some(row.env_value),
                     required: row.env_required,
@@ -184,7 +184,7 @@ impl DBManager {
             enabled: db_tool.enabled,
             tool_type: db_tool.tool_type,
             entry_point: db_tool.entry_point,
-            configuration: Some(ToolConfiguration {
+            configuration: Some(ServerConfiguration {
                 command: db_tool.command,
                 args: parsed_args,
                 env: if env_map.is_empty() {
@@ -218,12 +218,12 @@ impl DBManager {
             .map_err(|e| format!("Failed to query environment variables: {}", e))?;
 
         // Group environment variables by tool_id
-        let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
+        let mut env_map_by_tool: HashMap<String, HashMap<String, ServerEnvironment>> = HashMap::new();
         for row in all_env_rows {
             let tool_env_map = env_map_by_tool.entry(row.server_id.clone()).or_default();
             tool_env_map.insert(
                 row.env_key.clone(),
-                ToolEnvironment {
+                ServerEnvironment {
                     description: row.env_description,
                     default: Some(row.env_value),
                     required: row.env_required,
@@ -258,7 +258,7 @@ impl DBManager {
                 enabled: db_tool.enabled,
                 tool_type: db_tool.tool_type.clone(),
                 entry_point: db_tool.entry_point.clone(),
-                configuration: Some(ToolConfiguration {
+                configuration: Some(ServerConfiguration {
                     command: db_tool.command.clone(),
                     args: parsed_args,
                     env: if env_map.is_empty() {

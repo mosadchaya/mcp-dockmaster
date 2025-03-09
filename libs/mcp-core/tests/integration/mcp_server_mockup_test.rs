@@ -55,7 +55,7 @@ mod tests {
 
         // Register tool
         let response = mcp_core
-            .register_tool(serde_json::from_value(request).unwrap())
+            .register_server(serde_json::from_value(request).unwrap())
             .await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
