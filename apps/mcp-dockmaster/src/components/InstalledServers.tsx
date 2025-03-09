@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig } from "../lib/mcpClient";
-import { dispatchServerStatusChanged, SERVER_STATUS_CHANGED } from "../lib/events";
+import { 
+  dispatchServerStatusChanged, 
+  dispatchServerUninstalled, 
+  SERVER_STATUS_CHANGED, 
+  SERVER_UNINSTALLED 
+} from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -103,15 +108,36 @@ const InstalledServers: React.FC = () => {
       }
     };
 
+    // Add this new handler
+    const handleServerUninstalled = (event: CustomEvent) => {
+      const { toolId } = event.detail;
+      console.log("Server uninstalled:", toolId);
+      
+      // Refresh all data
+      loadData();
+    };
+
     document.addEventListener(
       SERVER_STATUS_CHANGED,
       handleServerStatusChanged as EventListener,
+    );
+    
+    // Add this new event listener
+    document.addEventListener(
+      SERVER_UNINSTALLED,
+      handleServerUninstalled as EventListener,
     );
 
     return () => {
       document.removeEventListener(
         SERVER_STATUS_CHANGED,
         handleServerStatusChanged as EventListener,
+      );
+      
+      // Remove the new event listener
+      document.removeEventListener(
+        SERVER_UNINSTALLED,
+        handleServerUninstalled as EventListener,
       );
     };
   }, [servers]);
@@ -140,6 +166,36 @@ const InstalledServers: React.FC = () => {
   };
 
   const toggleToolStatus = async (id: string) => {
+  const uninstallServer = async (id: string) => {
+    try {
+      // Update the UI optimistically
+      setServers((prev) => prev.filter((server) => server.id !== id));
+      
+      // Call the backend API to uninstall the server
+      const response = await MCPClient.uninstallServer({
+        server_id: id,
+      });
+      
+      if (response.success) {
+        // Dispatch event that a server was uninstalled
+        dispatchServerUninstalled(id);
+        addNotification(`Server uninstalled successfully`, "success");
+      } else {
+        // If the API call fails, revert the UI change
+        console.error("Failed to uninstall server:", response.message);
+        addNotification(`Failed to uninstall server: ${response.message}`, "error");
+        // Refresh the list to ensure UI is in sync with backend
+        loadData();
+      }
+    } catch (error) {
+      console.error("Error uninstalling server:", error);
+      addNotification("Error uninstalling server", "error");
+      // Refresh the list to ensure UI is in sync with backend
+      loadData();
+    }
+  };
+
+
     try {
       // Find the current server to get its current enabled state
       const server = servers.find(server => server.id === id);
@@ -520,6 +576,18 @@ const InstalledServers: React.FC = () => {
     );
   };
 
+  // Helper function to check if a server has missing required ENV variables
+  const hasUnsetRequiredEnvVars = (server: RuntimeServer): boolean => {
+    if (!server.configuration?.env) return false;
+    
+    // Check if any required env vars are not set
+    return Object.entries(server.configuration.env).some(([key, value]) => {
+      // If the env var is required and has no default value, it needs attention
+      return value.required && 
+        (!value.default || value.default.trim() === '');
+    });
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
       {/* Notifications */}
@@ -582,6 +650,17 @@ const InstalledServers: React.FC = () => {
                       )}
 
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          uninstallServer(server.id);
+                        }}
+                        className="mr-2"
+                      >
+                        Uninstall
+                      </Button>
                       <span
                         className={cn(
                           "text-sm",
@@ -605,9 +684,19 @@ const InstalledServers: React.FC = () => {
               </CardHeader>
 
               <CardContent className="space-y-3 pb-0">
-                <CardDescription className="mt-1 line-clamp-2">
-                  {server.description}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <CardDescription className="mt-1 line-clamp-2">
+                    {server.description}
+                  </CardDescription>
+                  {hasUnsetRequiredEnvVars(server) && (
+                    <Badge 
+                      variant="outline" 
+                      className="bg-amber-100 text-amber-800 border-amber-300 ml-2"
+                    >
+                      Needs Attention
+                    </Badge>
+                  )}
+                </div>
 
                 <div
                   className="server-status-indicator"
