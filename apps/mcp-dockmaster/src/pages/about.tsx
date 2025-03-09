@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const About = () => {
-  const [showGoogleForm, setShowGoogleForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [formSuccess, setFormSuccess] = useState(false);
   
   const handleShowForm = () => {
-    setShowGoogleForm(true);
+    setShowForm(true);
   };
 
   return (
@@ -67,21 +70,48 @@ const About = () => {
           and how we can improve your experience.
         </p>
         
-        {showGoogleForm ? (
-          <div className="w-full">
-            <iframe 
-              src="https://docs.google.com/forms/d/e/1FAIpQLSdCxm5hhRvD5SU9-6fPbxqvDsKqKGkLJBV0KMN9vFibBRKgXw/viewform?embedded=true" 
-              width="100%" 
-              height="700" 
-              frameBorder="0" 
-              marginHeight={0} 
-              marginWidth={0}
-              title="Feedback Form"
-              className="rounded-md"
+        {showForm ? (
+          formSuccess ? (
+            <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-4">
+              Thank you for your feedback! We'll get back to you soon.
+            </div>
+          ) : (
+            <form
+              // Replace YOUR_FORM_ID with the actual form ID from Formspree
+              action="https://formspree.io/f/YOUR_FORM_ID"
+              method="POST"
+              className="space-y-4"
+              onSubmit={() => setFormSuccess(true)}
             >
-              Loading form...
-            </iframe>
-          </div>
+              <div>
+                <label htmlFor="feedback" className="block text-sm font-medium mb-1">Your Feedback</label>
+                <Textarea 
+                  id="feedback" 
+                  name="feedback" 
+                  placeholder="Please share your thoughts, suggestions, or questions..." 
+                  required 
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="contact" className="block text-sm font-medium mb-1">Contact Information</label>
+                <Input 
+                  id="contact" 
+                  name="contact" 
+                  type="text" 
+                  placeholder="Email or phone number" 
+                  required 
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">How can we reach you if we have questions?</p>
+              </div>
+              
+              <Button type="submit">
+                Send Feedback
+              </Button>
+            </form>
+          )
         ) : (
           <div className="flex flex-col items-start">
             <p className="mb-4">Click the button below to open our feedback form.</p>
