@@ -6,6 +6,7 @@ mod tests {
         core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
         init_logging,
         models::types::ToolExecutionRequest,
+        types::{ServerConfiguration, ServerRegistrationRequest},
     };
 
     use super::*;
@@ -29,34 +30,36 @@ mod tests {
         // Get the absolute path to the script
         let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
         let script_path = current_dir
-            .join("tests/integration/resources/mcp-server-hello-world/build/index.js")
+            .join("../../dist/apps/mcp-server-hello-world/index.js")
             .to_string_lossy()
             .into_owned();
 
         eprintln!("Script path: {}", script_path);
 
-        // Create registration request
-        let request = json!({
-            "tool_name": "hello_world",
-            "description": "A simple hello world tool",
-            "tool_type": "node",
-            "authentication": null,
-            "configuration": {
-                "command": "node",
-                "args": ["--experimental-modules", "--no-warnings", script_path]
-            },
-            "distribution": null
-        });
+        let registration_request = ServerRegistrationRequest {
+            server_id: "hello_world".to_string(),
+            server_name: "Hello World".to_string(),
+            description: "A simple hello world tool".to_string(),
+            tools_type: "node".to_string(),
+            configuration: Some(ServerConfiguration {
+                command: Some("node".to_string()),
+                args: Some(vec![
+                    "--experimental-modules".to_string(),
+                    "--no-warnings".to_string(),
+                    script_path.clone(),
+                ]),
+                env: None,
+            }),
+            distribution: None,
+        };
 
         eprintln!(
-            "Registering tool with configuration: {}",
-            serde_json::to_string_pretty(&request).unwrap()
+            "Registering tool with configuration: {:?}",
+            registration_request
         );
 
         // Register tool
-        let response = mcp_core
-            .register_tool(serde_json::from_value(request).unwrap())
-            .await?;
+        let response = mcp_core.register_server(registration_request).await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
         eprintln!("Received tool_id from registration: {}", tool_id);

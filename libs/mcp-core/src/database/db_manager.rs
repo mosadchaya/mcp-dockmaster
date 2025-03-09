@@ -7,8 +7,14 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::models::tool_db::{DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, NewServerTool, UpdateServer, UpdateServerTool};
-use crate::models::types::{Distribution, InputSchema, ServerDefinition, ServerToolInfo, ToolConfiguration, ToolEnvironment};
+use crate::models::tool_db::{
+    DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, 
+    NewServerTool, UpdateServer, UpdateServerTool
+};
+use crate::models::types::{
+    Distribution, InputSchema, ServerConfiguration, ServerDefinition, 
+    ServerEnvironment, ServerToolInfo, ToolConfiguration, ToolEnvironment,
+};
 use crate::schema::server_env::dsl as env_dsl;
 use crate::schema::server_tools::dsl as server_tools_dsl;
 use crate::schema::servers::dsl as tools_dsl;
@@ -154,7 +160,7 @@ impl DBManager {
         for row in env_rows {
             env_map.insert(
                 row.env_key,
-                ToolEnvironment {
+                ServerEnvironment {
                     description: row.env_description,
                     default: Some(row.env_value),
                     required: row.env_required,
@@ -182,9 +188,9 @@ impl DBManager {
             name: db_tool.name,
             description: db_tool.description,
             enabled: db_tool.enabled,
-            tool_type: db_tool.tool_type,
+            tools_type: db_tool.tools_type,
             entry_point: db_tool.entry_point,
-            configuration: Some(ToolConfiguration {
+            configuration: Some(ServerConfiguration {
                 command: db_tool.command,
                 args: parsed_args,
                 env: if env_map.is_empty() {
@@ -218,12 +224,13 @@ impl DBManager {
             .map_err(|e| format!("Failed to query environment variables: {}", e))?;
 
         // Group environment variables by tool_id
-        let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
+        let mut env_map_by_tool: HashMap<String, HashMap<String, ServerEnvironment>> =
+            HashMap::new();
         for row in all_env_rows {
             let tool_env_map = env_map_by_tool.entry(row.server_id.clone()).or_default();
             tool_env_map.insert(
                 row.env_key.clone(),
-                ToolEnvironment {
+                ServerEnvironment {
                     description: row.env_description,
                     default: Some(row.env_value),
                     required: row.env_required,
@@ -256,9 +263,9 @@ impl DBManager {
                 name: db_tool.name.clone(),
                 description: db_tool.description.clone(),
                 enabled: db_tool.enabled,
-                tool_type: db_tool.tool_type.clone(),
+                tools_type: db_tool.tools_type.clone(),
                 entry_point: db_tool.entry_point.clone(),
-                configuration: Some(ToolConfiguration {
+                configuration: Some(ServerConfiguration {
                     command: db_tool.command.clone(),
                     args: parsed_args,
                     env: if env_map.is_empty() {
@@ -308,7 +315,7 @@ impl DBManager {
             id: server_id_str,
             name: &tool.name,
             description: &tool.description,
-            tool_type: &tool.tool_type,
+            tools_type: &tool.tools_type,
             enabled: tool.enabled,
             entry_point: tool.entry_point.as_deref(),
             command: if command_str.is_empty() {
@@ -325,7 +332,7 @@ impl DBManager {
         let update_tool = UpdateServer {
             name: Some(&tool.name),
             description: Some(&tool.description),
-            tool_type: Some(&tool.tool_type),
+            tools_type: Some(&tool.tools_type),
             enabled: Some(tool.enabled),
             entry_point: Some(tool.entry_point.as_deref()),
             command: Some(if command_str.is_empty() {

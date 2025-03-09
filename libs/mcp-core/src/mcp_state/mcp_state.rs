@@ -67,20 +67,20 @@ impl MCPState {
         execute_server_tool(server_id, tool_id, parameters, stdin, stdout).await
     }
 
-    /// Restart a tool by its ID
-    pub async fn restart_tool(&self, tool_id: &str) -> Result<(), String> {
-        info!("Attempting to restart tool: {}", tool_id);
+    /// Restart a server by its ID
+    pub async fn restart_server(&self, server_id: &str) -> Result<(), String> {
+        info!("Attempting to restart server: {}", server_id);
 
         // Get tool from database
-        let tool_data = {
+        let server_data = {
             let registry = self.tool_registry.read().await;
-            registry.get_server(tool_id)?
+            registry.get_server(server_id)?
         };
 
-        // Check if tool_type is empty
-        if tool_data.tool_type.is_empty() {
-            error!("Missing tool_type for tool {}", tool_id);
-            return Err(format!("Missing tool_type for tool {}", tool_id));
+        // Check if tools_type is empty
+        if server_data.tools_type.is_empty() {
+            error!("Missing tools_type for server {}", server_id);
+            return Err(format!("Missing tools_type for server {}", server_id));
         }
 
         // Check if the process is already running
@@ -88,53 +88,55 @@ impl MCPState {
             let process_manager = self.process_manager.read().await;
             process_manager
                 .processes
-                .get(tool_id)
+                .get(server_id)
                 .is_some_and(|p| p.is_some())
         };
 
         if process_running {
             info!(
-                "Tool {} is already running, killing process before restart",
-                tool_id
+                "Server {} is already running, killing process before restart",
+                server_id
             );
 
             // Get the process and kill it
             {
                 let mut process_manager = self.process_manager.write().await;
-                if let Some(Some(process)) = process_manager.processes.get_mut(tool_id) {
+                if let Some(Some(process)) = process_manager.processes.get_mut(server_id) {
                     if let Err(e) = kill_process(process).await {
-                        error!("Failed to kill process for tool {}: {}", tool_id, e);
+                        error!("Failed to kill process for server {}: {}", server_id, e);
                         return Err(format!("Failed to kill process: {}", e));
                     }
-                    info!("Successfully killed process for tool {}", tool_id);
+                    info!("Successfully killed process for server {}", server_id);
                 }
 
                 // Remove the process from the registry
-                process_manager.processes.insert(tool_id.to_string(), None);
+                process_manager
+                    .processes
+                    .insert(server_id.to_string(), None);
 
                 // Remove the process IOs
-                process_manager.process_ios.remove(tool_id);
+                process_manager.process_ios.remove(server_id);
             }
         }
 
         // Check if the tool is enabled
-        if !tool_data.enabled {
-            info!("Tool {} is disabled, not restarting", tool_id);
+        if !server_data.enabled {
+            info!("Server {} is disabled, not restarting", server_id);
             return Ok(());
         }
 
         info!(
-            "Tool {} is enabled and not running, starting process",
-            tool_id
+            "Server {} is enabled and not running, starting process",
+            server_id
         );
 
         // Extract environment variables from the tool configuration
-        let env_vars = if let Some(configuration) = &tool_data.configuration {
+        let env_vars = if let Some(configuration) = &server_data.configuration {
             if let Some(env_map) = &configuration.env {
                 info!(
-                    "Extracted {} environment variables for tool {}",
+                    "Extracted {} environment variables for server {}",
                     env_map.len(),
-                    tool_id
+                    server_id
                 );
                 // Convert ToolEnvironment -> just the defaults
                 let simple_env_map: HashMap<String, String> = env_map
@@ -143,79 +145,87 @@ impl MCPState {
                     .collect();
                 Some(simple_env_map)
             } else {
-                info!("No environment variables found for tool {}", tool_id);
+                info!("No environment variables found for server {}", server_id);
                 None
             }
         } else {
-            info!("No configuration found for tool {}", tool_id);
+            info!("No configuration found for server {}", server_id);
             None
         };
 
         // Get the configuration from the tool data
-        let config_value = if let Some(configuration) = &tool_data.configuration {
-            info!("Using configuration from tool data for {}", tool_id);
+        let config_value = if let Some(configuration) = &server_data.configuration {
+            info!("Using configuration from server data for {}", server_id);
             json!({
                 "command": configuration.command,
                 "args": configuration.args
             })
-        } else if !tool_data.entry_point.clone().unwrap_or_default().is_empty() {
+        } else if !server_data
+            .entry_point
+            .clone()
+            .unwrap_or_default()
+            .is_empty()
+        {
             info!(
                 "Creating simple configuration with entry_point for {}",
-                tool_id
+                server_id
             );
             json!({
-                "command": tool_data.entry_point
+                "command": server_data.entry_point
             })
         } else {
-            error!("Missing configuration for tool {}", tool_id);
-            return Err(format!("Missing configuration for tool {}", tool_id));
+            error!("Missing configuration for server {}", server_id);
+            return Err(format!("Missing configuration for server {}", server_id));
         };
 
         // Spawn process based on tool type
         let spawn_result = spawn_process(
             &config_value,
-            tool_id,
-            &tool_data.tool_type,
+            server_id,
+            &server_data.tools_type,
             env_vars.as_ref(),
         )
         .await;
 
         match spawn_result {
             Ok((process, stdin, stdout)) => {
-                info!("Successfully spawned process for tool: {}", tool_id);
+                info!("Successfully spawned process for server: {}", server_id);
                 {
                     let mut process_manager = self.process_manager.write().await;
                     process_manager
                         .processes
-                        .insert(tool_id.to_string(), Some(process));
+                        .insert(server_id.to_string(), Some(process));
                     process_manager
                         .process_ios
-                        .insert(tool_id.to_string(), (stdin, stdout));
+                        .insert(server_id.to_string(), (stdin, stdout));
                 }
 
                 // Wait longer for the server to start
                 {
-                    info!("Waiting for server to start for tool: {}", tool_id);
+                    info!("Waiting for server to start for server: {}", server_id);
                     let sleep_future = tokio::time::sleep(Duration::from_secs(5));
                     sleep_future.await;
-                    info!("Finished waiting for server to start for tool: {}", tool_id);
+                    info!(
+                        "Finished waiting for server to start for server: {}",
+                        server_id
+                    );
                 }
 
                 // Try to discover tools from this server
-                match self.discover_server_tools(tool_id).await {
+                match self.discover_server_tools(server_id).await {
                     Ok(tools) => {
                         {
                             let mut server_tools = self.server_tools.write().await;
-                            server_tools.insert(tool_id.to_string(), tools.clone());
+                            server_tools.insert(server_id.to_string(), tools.clone());
                         }
                         info!(
                             "Successfully discovered {} tools for {}",
                             tools.len(),
-                            tool_id
+                            server_id
                         );
                     }
                     Err(e) => {
-                        error!("Failed to discover tools from server {}: {}", tool_id, e);
+                        error!("Failed to discover tools from server {}: {}", server_id, e);
                         // Continue even if discovery fails
                     }
                 }
@@ -223,7 +233,7 @@ impl MCPState {
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                error!("Failed to spawn process for server {}: {}", server_id, e);
                 Err(format!("Failed to spawn process: {}", e))
             }
         }
@@ -307,7 +317,7 @@ impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
                         if !process_running {
                             warn!("Process for tool {} is not running but should be. Will attempt restart.", id_str);
                             let self_clone_write_guard = self.write().await;
-                            if let Err(e) = self_clone_write_guard.restart_tool(&id_str).await {
+                            if let Err(e) = self_clone_write_guard.restart_server(&id_str).await {
                                 error!("Failed to restart tool {}: {}", id_str, e);
                             } else {
                                 info!("Successfully restarted tool: {}", id_str);

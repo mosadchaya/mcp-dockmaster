@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import MCPClient from "../lib/mcpClient";
-import { dispatchToolStatusChanged, TOOL_STATUS_CHANGED } from "../lib/events";
+import MCPClient, { ServerToolInfo } from "../lib/mcpClient";
+import { dispatchServerStatusChanged, SERVER_STATUS_CHANGED } from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -62,18 +62,10 @@ interface Server {
   process_running: boolean;
 }
 
-interface ServerTool {
-  id: string;
-  name: string;
-  description: string;
-  server_id: string;
-  proxy_id: string;
-}
-
 const InstalledServers: React.FC = () => {
   const [installedTools, setInstalledTools] = useState<InstalledTool[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
-  const [serverTools, setServerTools] = useState<ServerTool[]>([]);
+  const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
@@ -116,35 +108,35 @@ const InstalledServers: React.FC = () => {
 
   // Add event listeners for tool status changes
   useEffect(() => {
-    const handleToolStatusChanged = (event: CustomEvent) => {
-      const { toolId } = event.detail;
-      console.log("Tool status changed:", toolId);
+    const handleServerStatusChanged = (event: CustomEvent) => {
+      const { serverId } = event.detail;
+      console.log("Server status changed:", serverId);
 
-      // If toolId is 'all', refresh all data
-      if (toolId === "all") {
+      // If serverId is 'all', refresh all data
+      if (serverId === "all") {
         loadData();
         return;
       }
 
       // Otherwise, just refresh the specific tool
-      const tool = installedTools.find((t) => t.id === toolId);
-      if (tool) {
+      const server = servers.find((s) => s.id === serverId);
+      if (server) {
         loadData();
       }
     };
 
     document.addEventListener(
-      TOOL_STATUS_CHANGED,
-      handleToolStatusChanged as EventListener,
+      SERVER_STATUS_CHANGED,
+      handleServerStatusChanged as EventListener,
     );
 
     return () => {
       document.removeEventListener(
-        TOOL_STATUS_CHANGED,
-        handleToolStatusChanged as EventListener,
+        SERVER_STATUS_CHANGED,
+        handleServerStatusChanged as EventListener,
       );
     };
-  }, [installedTools]);
+  }, [servers]);
 
   const loadData = async () => {
     setLoading(true);
@@ -218,14 +210,14 @@ const InstalledServers: React.FC = () => {
       );
 
       // Call the backend API to update the tool status
-      const response = await MCPClient.updateToolStatus({
-        tool_id: id,
+      const response = await MCPClient.updateServerStatus({
+        server_id: id,
         enabled: !tool.enabled,
       });
 
       if (response.success) {
         // Dispatch event that a tool's status was changed
-        dispatchToolStatusChanged(id);
+        dispatchServerStatusChanged(id);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to update tool status:", response.message);
@@ -319,8 +311,8 @@ const InstalledServers: React.FC = () => {
       console.log(`Updating configuration for tool: ${toolId}`, envVarValues);
 
       // Update the tool configuration
-      const response = await MCPClient.updateToolConfig({
-        tool_id: toolId,
+      const response = await MCPClient.updateServerConfig({
+        server_id: toolId,
         config: envVarValues,
       });
 
@@ -364,7 +356,7 @@ const InstalledServers: React.FC = () => {
                 "success",
               );
               // Dispatch event to update UI
-              dispatchToolStatusChanged(toolId);
+              dispatchServerStatusChanged(toolId);
             } else {
               console.error(
                 `Failed to restart tool ${toolId}:`,

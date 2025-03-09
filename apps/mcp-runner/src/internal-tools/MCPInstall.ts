@@ -5,12 +5,12 @@ export class MCPInstall {
   public static name = 'install_mcp_servers_and_tools';
   public static isInitialized = false;
 
-  public static async install(name: string) {
+  public static async install(tool_id: string) {
     if (!MCPInstall.isInitialized) {
       throw new Error("MCPInstall is not initialized");
     }
     const result = await proxyRequest('registry/install', {
-      tool: name
+      tool_id: tool_id
     });
     return {
       content: [{
@@ -34,14 +34,14 @@ export class MCPInstall {
       "inputSchema": {
         "description": "Name of the MCP Server or Tool to install.",
         "properties": {
-          "name": {
-            "description": "Name of the MCP Server or Tool to install.",
-            "title": "Name",
+          "tool_id": {
+            "description": "The tool 'id' of the MCP Server or Tool to install.",
+            "title": "Tool ID",
             "type": "string"
           }
         },
         "required": [
-          "name"
+          "tool_id"
         ],
         "title": "Install MCP Server",
         "type": "object"

@@ -29,3 +29,4 @@ lerna-debug.log*
 target/
 apps/mcp-runner/file_aggregator.sh
 libs/mcp-core/output.txt
+libs/mcp-core/tests/integration/resources/mcp-server-hello-world/build
