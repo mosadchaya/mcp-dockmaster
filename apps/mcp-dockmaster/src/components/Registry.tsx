@@ -8,6 +8,7 @@ import {
   dispatchServerInstalled,
   dispatchServerUninstalled,
 } from "../lib/events";
+import ImportServerDialog from "./ImportServerDialog";
 import "./Registry.css";
 
 // Import runner icons
@@ -382,10 +383,18 @@ const Registry: React.FC = () => {
     gap: 16,
   });
 
+  // Handle import from GitHub URL
+  const handleImportFromGitHub = async (server: RegistryServer) => {
+    await installServer(server);
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+          <ImportServerDialog onImport={handleImportFromGitHub} />
+        </div>
         <p className="text-muted-foreground text-sm">
           Discover and install AI applications and MCP tools.
         </p>
