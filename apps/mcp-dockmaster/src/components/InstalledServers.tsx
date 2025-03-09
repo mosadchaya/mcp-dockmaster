@@ -498,7 +498,9 @@ const InstalledServers: React.FC = () => {
           <div className="empty-tools-message">
             <p>
               {server.process_running
-                ? 'No tools discovered from this server yet. Click "Refresh Tools" to discover available tools.'
+                ? hasUnsetRequiredEnvVars(server)
+                  ? <span className="warning-text">This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear.</span>
+                  : 'No tools discovered from this server yet. Click "Refresh Tools" to discover available tools.'
                 : "Server is not running. Start the server to discover available tools."}
             </p>
           </div>
@@ -622,7 +624,7 @@ const InstalledServers: React.FC = () => {
       </div>
       <div className="flex flex-col space-y-1.5">
         <h1 className="text-2xl font-semibold tracking-tight">
-          My Applications
+          Servers Installed
         </h1>
         <p className="text-muted-foreground text-sm">
           Manage your installed AI applications and MCP tools.
@@ -697,12 +699,19 @@ const InstalledServers: React.FC = () => {
                     {server.description}
                   </CardDescription>
                   {hasUnsetRequiredEnvVars(server) && (
-                    <Badge 
-                      variant="outline" 
-                      className="bg-amber-100 text-amber-800 border-amber-300 ml-2"
-                    >
-                      Needs Attention
-                    </Badge>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge 
+                          variant="outline" 
+                          className="bg-amber-100 text-amber-800 border-amber-300 ml-2"
+                        >
+                          Needs Attention
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear.
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
 

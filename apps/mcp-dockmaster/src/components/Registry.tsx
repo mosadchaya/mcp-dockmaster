@@ -385,7 +385,7 @@ const Registry: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">AI App Store</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
         <p className="text-muted-foreground text-sm">
           Discover and install AI applications and MCP tools.
         </p>
