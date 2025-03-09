@@ -1,4 +1,4 @@
-import { Tools } from "../types";
+import { Tools } from "../types.ts";
 import { MCPConfig } from "./MCPConfig";
 import { MCPInstall } from "./MCPInstall";
 import { MCPSearch } from "./MCPSearch";
