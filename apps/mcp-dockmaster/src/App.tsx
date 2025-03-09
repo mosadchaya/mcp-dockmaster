@@ -1,7 +1,7 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Import version from package.json
-const packageJson = { version: "0.1.0" };
+import packageJson from "../../../package.json";
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
