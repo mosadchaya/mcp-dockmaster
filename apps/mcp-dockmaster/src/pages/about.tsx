@@ -44,9 +44,9 @@ const About = () => {
     setFormError("");
     
     try {
-      // Web3Forms access key
+      // Web3Forms access key should be set as an environment variable in production
       const formData = new FormData();
-      formData.append("access_key", "1234567890abcdef1234567890abcdef");
+      formData.append("access_key", import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "YOUR_ACCESS_KEY_HERE");
       formData.append("feedback", data.feedback);
       formData.append("contact", data.contact);
       formData.append("subject", "New Feedback from MCP Dockmaster");
