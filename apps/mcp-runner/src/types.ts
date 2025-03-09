@@ -31,6 +31,7 @@ export interface Properties {
         maximum?: number;
         title: string;
         type: string;
+        additionalProperties?: boolean;
     }
 }
 

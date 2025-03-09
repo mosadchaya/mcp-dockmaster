@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import MCPClient from "../lib/mcpClient";
-import { getAvailableTools, getCategories } from "../lib/registry";
+import MCPClient, { RegistryServer } from "../lib/mcpClient";
+import { getAvailableServers, getCategories } from "../lib/registry";
 import {
-  TOOL_UNINSTALLED,
-  TOOL_INSTALLED,
-  dispatchToolInstalled,
-  dispatchToolUninstalled,
+  SERVER_UNINSTALLED,
+  SERVER_INSTALLED,
+  dispatchServerInstalled,
+  dispatchServerUninstalled,
 } from "../lib/events";
 import "./Registry.css";
 
@@ -27,35 +27,8 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { Search, ChevronRight, ChevronLeft, Link } from "lucide-react";
 
-interface RegistryTool {
-  id: string;
-  name: string;
-  description: string;
-  fullDescription: string;
-  publisher: {
-    id: string;
-    name: string;
-    url: string;
-  };
-  runtime: string;
-  installed: boolean;
-  isOfficial?: boolean;
-  sourceUrl?: string;
-  distribution?: {
-    type: string;
-    package: string;
-  };
-  config?: {
-    command: string;
-    args: string[];
-    env: Record<string, any>;
-  };
-  license?: string;
-  categories?: string[];
-}
-
 const Registry: React.FC = () => {
-  const [availableTools, setAvailableTools] = useState<RegistryTool[]>([]);
+  const [availableServers, setAvailableServers] = useState<RegistryServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState<string | null>(null);
@@ -66,23 +39,23 @@ const Registry: React.FC = () => {
 
   // Load tools and categories on initial mount
   useEffect(() => {
-    loadAvailableTools();
+    loadAvailableServers();
     loadCategories();
 
     // Add event listener for visibility change to reload tools when component becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        loadAvailableTools();
+        loadAvailableServers();
         loadCategories();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", loadAvailableTools);
+    window.addEventListener("focus", loadAvailableServers);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", loadAvailableTools);
+      window.removeEventListener("focus", loadAvailableServers);
     };
   }, []);
 
@@ -91,7 +64,7 @@ const Registry: React.FC = () => {
     // When a tool is uninstalled, update its status in the registry
     const handleToolUninstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) =>
+      setAvailableServers((prev) =>
         prev.map((tool) =>
           tool.id === toolId ? { ...tool, installed: false } : tool,
         ),
@@ -101,7 +74,7 @@ const Registry: React.FC = () => {
     // When a tool is installed elsewhere, update its status in the registry
     const handleToolInstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) =>
+      setAvailableServers((prev) =>
         prev.map((tool) =>
           tool.id === toolId ? { ...tool, installed: true } : tool,
         ),
@@ -110,55 +83,55 @@ const Registry: React.FC = () => {
 
     // Add event listeners
     document.addEventListener(
-      TOOL_UNINSTALLED,
+      SERVER_UNINSTALLED,
       handleToolUninstalled as EventListener,
     );
     document.addEventListener(
-      TOOL_INSTALLED,
+      SERVER_INSTALLED,
       handleToolInstalled as EventListener,
     );
 
     // Clean up event listeners on unmount
     return () => {
       document.removeEventListener(
-        TOOL_UNINSTALLED,
+        SERVER_UNINSTALLED,
         handleToolUninstalled as EventListener,
       );
       document.removeEventListener(
-        TOOL_INSTALLED,
+        SERVER_INSTALLED,
         handleToolInstalled as EventListener,
       );
     };
   }, []);
 
-  const loadAvailableTools = async () => {
+  const loadAvailableServers = async () => {
     setLoading(true);
     try {
       // Get tools from registry
-      const registryTools = await getAvailableTools();
+      const registryTools = await getAvailableServers();
 
       // Get installed tools to check status
-      const installedTools = await MCPClient.listServers();
-      console.log("installedTools: ", installedTools);
+      const installedServers = await MCPClient.listServers();
+      console.log("installedServers: ", installedServers);
 
       // Create a map to ensure we don't have duplicate tools by name
-      const uniqueToolsMap = new Map();
+      const uniqueServersMap = new Map();
 
       // Process registry tools and mark as installed if they match installed tools
       registryTools.forEach((tool) => {
         // Check if tool is installed by ID or by name (in case IDs don't match)
-        const isInstalled = installedTools.some(
-          (installedTool) =>
-            installedTool.id === tool.id ||
-            installedTool.name.toLowerCase() === tool.name.toLowerCase(),
+        const isInstalled = installedServers.some(
+          (installedServer) =>
+            installedServer.id === tool.id ||
+            installedServer.name.toLowerCase() === tool.name.toLowerCase(),
         );
 
         // Use lowercase name as key to avoid case-sensitivity issues
         const key = tool.name.toLowerCase();
 
         // Only add if not already in the map
-        if (!uniqueToolsMap.has(key)) {
-          uniqueToolsMap.set(key, {
+        if (!uniqueServersMap.has(key)) {
+          uniqueServersMap.set(key, {
             ...tool,
             installed: isInstalled,
           });
@@ -166,9 +139,9 @@ const Registry: React.FC = () => {
       });
 
       // Convert map values to array
-      const toolsWithStatus = Array.from(uniqueToolsMap.values());
+      const serversWithStatus = Array.from(uniqueServersMap.values());
 
-      setAvailableTools(toolsWithStatus);
+      setAvailableServers(serversWithStatus);
     } catch (error) {
       console.error("Failed to load available tools:", error);
     } finally {
@@ -185,134 +158,138 @@ const Registry: React.FC = () => {
     }
   };
 
-  const installTool = async (tool: RegistryTool) => {
+  const installServer = async (server: RegistryServer) => {
     // Double-check if the tool is already installed before proceeding
-    const installedTools = await MCPClient.listServers();
-    console.log("installedTools: ", installedTools);
+    const installedServers = await MCPClient.listServers();
+    console.log("installedServers: ", installedServers);
 
-    const isAlreadyInstalled = installedTools.some(
-      (installedTool) =>
-        installedTool.id === tool.id ||
-        installedTool.name.toLowerCase() === tool.name.toLowerCase(),
+    const isAlreadyInstalled = installedServers.some(
+      (installedServer) =>
+        installedServer.id === server.id ||
+        installedServer.name.toLowerCase() === server.name.toLowerCase(),
     );
 
     if (isAlreadyInstalled) {
       // Tool is already installed, update UI and don't try to install again
-      setAvailableTools((prev) =>
+      setAvailableServers((prev) =>
         prev.map((item) =>
-          item.id === tool.id ? { ...item, installed: true } : item,
+          item.id === server.id ? { ...item, installed: true } : item,
         ),
       );
       return;
     }
 
-    setInstalling(tool.id);
+    setInstalling(server.id);
     try {
       // For now, use a default entry point based on the tool type
-      const entryPoint = getDefaultEntryPoint(tool.name);
+      const entryPoint = getDefaultEntryPoint(server.name);
 
       // Prepare authentication if needed
       let authentication = null;
-      if (tool.config && tool.config.env) {
+      if (server.config && server.config.env) {
         // For now, we don't have a way to collect env vars from the user
         // In a real implementation, you would prompt the user for these values
-        authentication = { env: tool.config.env };
+        authentication = { env: server.config.env };
       }
 
       console.log(
-        "Registering tool:",
-        JSON.stringify(tool, null, 2),
-        tool.runtime,
+        "Registering server:",
+        JSON.stringify(server, null, 2),
+        server.runtime,
         entryPoint,
         authentication,
       );
-      const response = await MCPClient.registerTool({
-        tool_id: tool.id,
-        tool_name: tool.name,
-        description: tool.description,
-        tool_type: tool.runtime,
-        configuration: tool.config,
-        distribution: tool.distribution,
+
+      const response = await MCPClient.registerServer({
+        server_id: server.id,
+        server_name: server.name,
+        description: server.description,
+        tools_type: server.runtime,
+        configuration: server.config,
+        distribution: server.distribution,
         authentication: authentication,
       });
 
       if (response.success) {
         // Update tool as installed
-        setAvailableTools((prev) =>
+        setAvailableServers((prev) =>
           prev.map((item) =>
-            item.id === tool.id ? { ...item, installed: true } : item,
+            item.id === server.id ? { ...item, installed: true } : item,
           ),
         );
 
         // Dispatch event that a tool was installed
-        dispatchToolInstalled(tool.id);
+        dispatchServerInstalled(server.id);
       }
     } catch (error) {
-      console.error("Failed to install tool:", error);
+      console.error("Failed to install server:", error);
     } finally {
       setInstalling(null);
     }
   };
 
-  const uninstallTool = async (id: string) => {
+  const uninstallServer = async (id: string) => {
     try {
+      console.log("Uninstalling server:", id);
       setUninstalling(id);
 
       // Update the UI optimistically
-      setAvailableTools((prev) =>
-        prev.map((tool) =>
-          tool.id === id ? { ...tool, installed: false } : tool,
+      setAvailableServers((prev) =>
+        prev.map((server: RegistryServer) =>
+          server.id === id ? { ...server, installed: false } : server,
         ),
       );
 
       // Get the tool from the registry
-      const registryTool = availableTools.find((tool) => tool.id === id);
-      if (!registryTool) {
-        console.error("Tool not found in registry:", id);
+      const registryServer = availableServers.find((server) => server.id === id);
+      if (!registryServer) {
+        console.error("Server not found in registry:", id);
         return;
       }
 
       // Get the actual tool ID from the backend by matching names
-      const installedTools = await MCPClient.listServers();
-      const matchingTool = installedTools.find(
-        (tool) => tool.name.toLowerCase() === registryTool.name.toLowerCase(),
+      const installedServers = await MCPClient.listServers();
+      const matchingServer = installedServers.find(
+        (server) => server.name.toLowerCase() === registryServer.name.toLowerCase(),
       );
 
-      if (!matchingTool) {
-        console.error("Tool not found in installed tools:", registryTool.name);
+      console.log("matchingServer: ", matchingServer);
+
+      if (!matchingServer) {
+        console.error("Tool not found in installed tools:", registryServer.name);
         // Revert UI change
-        setAvailableTools((prev) =>
-          prev.map((tool) =>
-            tool.id === id ? { ...tool, installed: true } : tool,
+        setAvailableServers((prev) =>
+          prev.map((server) =>
+            server.id === id ? { ...server, installed: true } : server,
           ),
         );
         return;
       }
 
       // Use the actual tool ID from the backend
-      const actualToolId = matchingTool.id;
+      const actualServerId = matchingServer.id;
 
       // Call the backend API to uninstall the tool
-      const response = await MCPClient.uninstallTool({
-        tool_id: actualToolId,
+      const response = await MCPClient.uninstallServer({
+        server_id: actualServerId,
       });
 
       if (response.success) {
         // Dispatch event that a tool was uninstalled with the registry ID for UI updates
-        dispatchToolUninstalled(id);
+        dispatchServerUninstalled(id);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall tool:", response.message);
-        setAvailableTools((prev) =>
+        setAvailableServers((prev) =>
           prev.map((tool) =>
             tool.id === id ? { ...tool, installed: true } : tool,
           ),
         );
       }
     } catch (error) {
-      console.error("Error uninstalling tool:", error);
+      console.error("Error uninstalling server:", error);
       // Refresh the list to ensure UI is in sync with backend
-      loadAvailableTools();
+      loadAvailableServers();
     } finally {
       setUninstalling(null);
     }
@@ -321,7 +298,7 @@ const Registry: React.FC = () => {
   // Helper function to get a default entry point based on tool type and name
   const getDefaultEntryPoint = (toolName: string): string => {
     // Try to find the tool in the available tools to get its distribution info
-    const tool = availableTools.find((t) => t.name === toolName);
+    const tool = availableServers.find((t) => t.name === toolName);
 
     if (tool && tool.distribution && tool.config) {
       // Run the command with the args if provided
@@ -378,7 +355,7 @@ const Registry: React.FC = () => {
   };
   const parentRef = React.useRef<HTMLDivElement>(null);
 
-  const filteredTools = availableTools.filter((tool) => {
+  const filteredTools = availableServers.filter((tool) => {
     const matchesSearch = searchTerm
       ? tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -555,7 +532,7 @@ const Registry: React.FC = () => {
                           {tool.installed ? (
                             <Button
                               variant="destructive"
-                              onClick={() => uninstallTool(tool.id)}
+                              onClick={() => uninstallServer(tool.id)}
                               disabled={uninstalling === tool.id}
                               type="button"
                             >
@@ -568,7 +545,7 @@ const Registry: React.FC = () => {
                               variant="outline"
                               type="button"
                               onClick={() =>
-                                !tool.installed && installTool(tool)
+                                !tool.installed && installServer(tool)
                               }
                               disabled={
                                 tool.installed || installing === tool.id

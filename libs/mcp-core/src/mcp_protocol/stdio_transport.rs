@@ -239,8 +239,6 @@ pub async fn discover_server_tools(
 
     // According to MCP spec, tools should be in the result field
     if let Some(result) = response.get("result") {
-        info!("Result: {:?}", result);
-
         // MCP returns tools directly in the result field as array
         if let Some(tools_array) = result.as_array() {
             info!("Found {} tools in result array", tools_array.len());

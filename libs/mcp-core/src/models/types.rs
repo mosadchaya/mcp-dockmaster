@@ -5,9 +5,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolId(String);
+pub struct ServerId(String);
 
-impl ToolId {
+impl ServerId {
     pub fn new(id: String) -> Self {
         Self(id)
     }
@@ -17,21 +17,21 @@ impl ToolId {
     }
 }
 
-impl Hash for ToolId {
+impl Hash for ServerId {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl PartialEq for ToolId {
+impl PartialEq for ServerId {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for ToolId {}
+impl Eq for ServerId {}
 
-impl fmt::Display for ToolId {
+impl fmt::Display for ServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -51,19 +51,20 @@ pub struct ToolConfigUpdateResponse {
     pub success: bool,
     pub message: String,
 }
+
 /// Tool configuration for command and arguments
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolConfiguration {
+pub struct ServerConfiguration {
     #[serde(default)]
     pub command: Option<String>,
     #[serde(default)]
     pub args: Option<Vec<String>>,
     #[serde(default)]
-    pub env: Option<HashMap<String, ToolEnvironment>>,
+    pub env: Option<HashMap<String, ServerEnvironment>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolEnvironment {
+pub struct ServerEnvironment {
     #[serde(default)]
     pub description: String,
     #[serde(default)]
@@ -80,11 +81,11 @@ pub struct ServerDefinition {
     pub name: String,
     pub description: String,
     pub enabled: bool,
-    pub tool_type: String,
+    pub tools_type: String,
     #[serde(default)]
     pub entry_point: Option<String>,
     #[serde(default)]
-    pub configuration: Option<ToolConfiguration>,
+    pub configuration: Option<ServerConfiguration>,
     #[serde(default)]
     pub distribution: Option<Distribution>,
 }
@@ -93,7 +94,7 @@ pub struct ServerDefinition {
 pub struct RuntimeServer {
     #[serde(flatten)]
     pub definition: ServerDefinition,
-    pub id: ToolId,
+    pub id: ServerId,
     pub process_running: bool,
     pub tool_count: usize,
 }
@@ -101,16 +102,17 @@ pub struct RuntimeServer {
 /// MCP server registration request
 #[derive(Debug, Deserialize)]
 pub struct ServerRegistrationRequest {
-    pub tool_name: String,
+    pub server_id: String,
+    pub server_name: String,
     pub description: String,
-    pub tool_type: String, // "node", "python", "docker"
-    pub configuration: Option<ToolConfiguration>,
+    pub tools_type: String, // "node", "python", "docker"
+    pub configuration: Option<ServerConfiguration>,
     pub distribution: Option<Distribution>,
 }
 
 /// MCP tool registration response
 #[derive(Debug, Serialize)]
-pub struct ToolRegistrationResponse {
+pub struct ServerRegistrationResponse {
     pub success: bool,
     pub message: String,
     pub tool_id: Option<String>,
@@ -133,8 +135,8 @@ pub struct ToolExecutionResponse {
 
 /// MCP tool update request
 #[derive(Deserialize)]
-pub struct ToolUpdateRequest {
-    pub tool_id: String,
+pub struct ServerUpdateRequest {
+    pub server_id: String,
     pub enabled: bool,
 }
 
@@ -147,20 +149,20 @@ pub struct ToolUpdateResponse {
 
 /// MCP tool config update request
 #[derive(Deserialize)]
-pub struct ToolConfigUpdateRequest {
-    pub tool_id: String,
+pub struct ServerConfigUpdateRequest {
+    pub server_id: String,
     pub config: HashMap<String, String>,
 }
 
 /// MCP tool uninstall request
 #[derive(Deserialize)]
 pub struct ToolUninstallRequest {
-    pub tool_id: String,
+    pub server_id: String,
 }
 
 /// MCP tool uninstall response
 #[derive(Serialize)]
-pub struct ToolUninstallResponse {
+pub struct ServerUninstallResponse {
     pub success: bool,
     pub message: String,
 }

@@ -1,7 +1,7 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    list_all_server_tools, list_servers, register_tool, restart_tool_command, uninstall_tool,
-    update_tool_config, update_tool_status,
+    list_all_server_tools, list_servers, register_server, restart_server_command, uninstall_server,
+    update_server_config, update_server_status,
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
@@ -54,7 +54,10 @@ fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         let mcp_core = mcp_core.inner().clone();
         handle.spawn(async move {
-            mcp_core.kill_all_processes().await;
+            let result = mcp_core.kill_all_processes().await;
+            if let Err(e) = result {
+                error!("Failed to kill all MCP processes: {}", e);
+            }
         });
     }
 }
@@ -62,7 +65,10 @@ fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
 fn init_services(app_handle: tauri::AppHandle) {
     tokio::spawn(async move {
         let mcp_core = app_handle.state::<MCPCore>();
-        mcp_core.init().await;
+        let result = mcp_core.init().await;
+        if let Err(e) = result {
+            error!("Failed to initialize MCP services: {:?}", e);
+        }
 
         // Set the initialization complete flag
         commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -129,15 +135,15 @@ pub async fn run() {
             commands::check_uv_installed,
             commands::check_docker_installed,
             commands::check_initialization_complete,
-            register_tool,
+            register_server,
             list_servers,
             list_all_server_tools,
             discover_tools,
             execute_proxy_tool,
-            update_tool_status,
-            update_tool_config,
-            restart_tool_command,
-            uninstall_tool,
+            update_server_status,
+            update_server_config,
+            restart_server_command,
+            uninstall_server,
             check_database_exists_command,
             clear_database_command
         ])

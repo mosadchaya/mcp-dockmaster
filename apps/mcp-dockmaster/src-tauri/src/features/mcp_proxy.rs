@@ -4,10 +4,10 @@ use mcp_core::{
         mcp_core_proxy_ext::McpCoreProxyExt,
     },
     models::types::{
-        DiscoverServerToolsRequest, ServerRegistrationRequest, ServerToolInfo,
-        ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest,
-        ToolExecutionResponse, ToolRegistrationResponse, ToolUninstallRequest,
-        ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+        DiscoverServerToolsRequest, ServerConfigUpdateRequest, ServerRegistrationRequest,
+        ServerRegistrationResponse, ServerToolInfo, ServerUninstallResponse, ServerUpdateRequest,
+        ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
+        ToolUninstallRequest, ToolUpdateResponse,
     },
     types::RuntimeServer,
 };
@@ -16,11 +16,11 @@ use tauri::State;
 
 /// Register a new tool with the MCP server
 #[tauri::command]
-pub async fn register_tool(
+pub async fn register_server(
     mcp_core: State<'_, MCPCore>,
     request: ServerRegistrationRequest,
-) -> Result<ToolRegistrationResponse, String> {
-    mcp_core.register_tool(request).await
+) -> Result<ServerRegistrationResponse, String> {
+    mcp_core.register_server(request).await
 }
 
 /// List all registered tools
@@ -57,29 +57,29 @@ pub async fn execute_proxy_tool(
 
 /// Update a tool's status (enabled/disabled)
 #[tauri::command]
-pub async fn update_tool_status(
+pub async fn update_server_status(
     mcp_core: State<'_, MCPCore>,
-    request: ToolUpdateRequest,
+    request: ServerUpdateRequest,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core.update_tool_status(request).await
+    mcp_core.update_server_status(request).await
 }
 
 /// Update a tool's configuration (environment variables)
 #[tauri::command]
-pub async fn update_tool_config(
+pub async fn update_server_config(
     mcp_core: State<'_, MCPCore>,
-    request: ToolConfigUpdateRequest,
+    request: ServerConfigUpdateRequest,
 ) -> Result<ToolConfigUpdateResponse, String> {
-    mcp_core.update_tool_config(request).await
+    mcp_core.update_server_config(request).await
 }
 
 /// Uninstall a registered tool
 #[tauri::command]
-pub async fn uninstall_tool(
+pub async fn uninstall_server(
     mcp_core: State<'_, MCPCore>,
     request: ToolUninstallRequest,
-) -> Result<ToolUninstallResponse, String> {
-    mcp_core.uninstall_tool(request).await
+) -> Result<ServerUninstallResponse, String> {
+    mcp_core.uninstall_server(request).await
 }
 
 /// Check if the database exists and has data
@@ -96,9 +96,9 @@ pub async fn clear_database_command(mcp_core: State<'_, MCPCore>) -> Result<(), 
 
 /// Restart a tool by its ID
 #[tauri::command(rename_all = "camelCase")]
-pub async fn restart_tool_command(
+pub async fn restart_server_command(
     mcp_core: State<'_, MCPCore>,
-    tool_id: String,
+    server_id: String,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core.restart_tool_command(tool_id).await
+    mcp_core.restart_server_command(server_id).await
 }
