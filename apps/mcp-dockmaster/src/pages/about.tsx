@@ -1,74 +1,11 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-
-const feedbackSchema = z.object({
-  feedback: z.string().min(5, {
-    message: "Feedback must be at least 5 characters.",
-  }),
-  contact: z.string().min(1, {
-    message: "Please provide a way to contact you.",
-  }),
-});
-
-type FeedbackFormValues = z.infer<typeof feedbackSchema>;
 
 const About = () => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formSuccess, setFormSuccess] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const form = useForm<FeedbackFormValues>({
-    resolver: zodResolver(feedbackSchema),
-    defaultValues: {
-      feedback: "",
-      contact: "",
-    },
-  });
-
-  const onSubmit = async (data: FeedbackFormValues) => {
-    setIsSubmitting(true);
-    setFormError("");
-    
-    try {
-      // Web3Forms access key should be set as an environment variable in production
-      const formData = new FormData();
-      formData.append("access_key", import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "YOUR_ACCESS_KEY_HERE");
-      formData.append("feedback", data.feedback);
-      formData.append("contact", data.contact);
-      formData.append("subject", "New Feedback from MCP Dockmaster");
-      
-      const response = await fetch("https://api.web3forms.com/submit", {
-        method: "POST",
-        body: formData,
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        setFormSuccess(true);
-        form.reset();
-      } else {
-        setFormError("Something went wrong. Please try again.");
-      }
-    } catch (error) {
-      setFormError("An error occurred. Please try again later.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const [showGoogleForm, setShowGoogleForm] = useState(false);
+  
+  const handleShowForm = () => {
+    setShowGoogleForm(true);
   };
 
   return (
@@ -130,55 +67,28 @@ const About = () => {
           and how we can improve your experience.
         </p>
         
-        {formSuccess ? (
-          <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-4">
-            Thank you for your feedback! We'll get back to you soon.
+        {showGoogleForm ? (
+          <div className="w-full">
+            <iframe 
+              src="https://docs.google.com/forms/d/e/1FAIpQLSdCxm5hhRvD5SU9-6fPbxqvDsKqKGkLJBV0KMN9vFibBRKgXw/viewform?embedded=true" 
+              width="100%" 
+              height="700" 
+              frameBorder="0" 
+              marginHeight={0} 
+              marginWidth={0}
+              title="Feedback Form"
+              className="rounded-md"
+            >
+              Loading form...
+            </iframe>
           </div>
         ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="feedback"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Feedback</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Please share your thoughts, suggestions, or questions..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="contact"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contact Information</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Email or phone number" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      How can we reach you if we have questions?
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {formError && (
-                <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4">
-                  {formError}
-                </div>
-              )}
-              
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Sending..." : "Send Feedback"}
-              </Button>
-            </form>
-          </Form>
+          <div className="flex flex-col items-start">
+            <p className="mb-4">Click the button below to open our feedback form.</p>
+            <Button onClick={handleShowForm}>
+              Open Feedback Form
+            </Button>
+          </div>
         )}
       </section>
     </div>
