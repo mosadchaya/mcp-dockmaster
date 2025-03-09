@@ -33,7 +33,34 @@ const Feedback = () => {
               action="https://formspree.io/f/mgvawbkv"
               method="POST"
               className="space-y-4"
-              onSubmit={() => setFormSuccess(true)}
+              onSubmit={(e) => {
+                e.preventDefault();
+                
+                // Get form data
+                const formData = new FormData(e.target as HTMLFormElement);
+                
+                // Submit form data to Formspree
+                fetch("https://formspree.io/f/mgvawbkv", {
+                  method: "POST",
+                  body: formData,
+                  headers: {
+                    Accept: "application/json",
+                  },
+                })
+                  .then((response) => {
+                    if (response.ok) {
+                      setFormSuccess(true);
+                    } else {
+                      // Handle error
+                      console.error("Form submission failed");
+                      alert("Form submission failed. Please try again.");
+                    }
+                  })
+                  .catch((error) => {
+                    console.error("Form submission error:", error);
+                    alert("Form submission failed. Please try again.");
+                  });
+              }}
             >
               <div>
                 <label htmlFor="feedback" className="block text-sm font-medium mb-1">Your Feedback</label>
