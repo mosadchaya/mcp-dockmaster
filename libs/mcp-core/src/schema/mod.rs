@@ -1,9 +1,14 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    server_tools (server_id) {
+    server_tools (id, server_id) {
+        id -> Text,
+        name -> Text,
+        description -> Text,
+        input_schema -> Nullable<Text>,
         server_id -> Text,
-        tool_data -> Text,
+        proxy_id -> Nullable<Text>,
+        is_active -> Bool,
     }
 }
 

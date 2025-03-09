@@ -1,4 +1,4 @@
-use crate::schema::{server_env, servers};
+use crate::schema::{server_env, server_tools, servers};
 use diesel::prelude::*;
 
 /// This struct corresponds to a row in the `tools` table.
@@ -78,4 +78,42 @@ pub struct UpdateServerEnv<'a> {
     pub env_value: Option<&'a str>,
     pub env_description: Option<&'a str>,
     pub env_required: Option<bool>,
+}
+
+/// This struct corresponds to a row in the `server_tools` table.
+#[derive(Debug, Queryable, Selectable)]
+#[diesel(table_name = server_tools)]
+pub struct DBServerTool {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub input_schema: Option<String>,
+    pub server_id: String,
+    pub proxy_id: Option<String>,
+    pub is_active: bool,
+}
+
+/// For inserting a new row into the `server_tools` table
+#[derive(Debug, Insertable)]
+#[diesel(table_name = server_tools)]
+pub struct NewServerTool {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub input_schema: Option<String>,
+    pub server_id: String,
+    pub proxy_id: Option<String>,
+    pub is_active: bool,
+}
+
+/// For updating an existing row in the `server_tools` table
+#[derive(Debug, AsChangeset)]
+#[diesel(table_name = server_tools)]
+#[diesel(primary_key(id, server_id))]
+pub struct UpdateServerTool {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub input_schema: Option<Option<String>>,
+    pub proxy_id: Option<Option<String>>,
+    pub is_active: Option<bool>,
 }

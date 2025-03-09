@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import MCPClient, { ServerToolInfo } from "../lib/mcpClient";
+import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig } from "../lib/mcpClient";
 import { dispatchServerStatusChanged, SERVER_STATUS_CHANGED } from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -41,38 +41,16 @@ const Notification: React.FC<NotificationProps> = ({
   );
 };
 
-interface InstalledTool {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
-  server_id?: string;
-  process_running?: boolean;
-  server_name?: string;
-  config?: {
-    env: Record<string, any>;
-  };
-}
-
-interface Server {
-  id: string;
-  name: string;
-  tool_count: number;
-  enabled: boolean;
-  process_running: boolean;
-}
-
 const InstalledServers: React.FC = () => {
-  const [installedTools, setInstalledTools] = useState<InstalledTool[]>([]);
-  const [servers, setServers] = useState<Server[]>([]);
+  const [servers, setServers] = useState<RuntimeServer[]>([]);
   const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
   const [currentConfigTool, setCurrentConfigTool] =
-    useState<InstalledTool | null>(null);
+    useState<RuntimeServer | null>(null);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -90,10 +68,10 @@ const InstalledServers: React.FC = () => {
 
   // Effect to handle expanded tool changes
   useEffect(() => {
-    if (expandedToolId) {
-      console.log("Tool expanded:", expandedToolId);
+    if (expandedServerId) {
+      console.log("Tool expanded:", expandedServerId);
       // Find the tool that was expanded
-      const tool = installedTools.find((t) => t.id === expandedToolId);
+      const tool = serverTools.find((t) => t.server_id === expandedServerId);
       if (tool?.server_id) {
         console.log("Expanded tool has server_id:", tool.server_id);
         // Instead of calling loadData which would trigger another render,
@@ -104,7 +82,7 @@ const InstalledServers: React.FC = () => {
         }
       }
     }
-  }, [expandedToolId]);
+  }, [expandedServerId]);
 
   // Add event listeners for tool status changes
   useEffect(() => {
@@ -144,51 +122,16 @@ const InstalledServers: React.FC = () => {
       // Get servers and tools data separately
       const servers = await MCPClient.listServers();
       const allServerTools = await MCPClient.listAllServerTools();
+      console.log("All server tools:", allServerTools);
 
       // Set servers (filtered to only active servers)
       const activeServers = servers.filter(
-        (server: any) => server.process_running,
+        (server: RuntimeServer) => server.process_running,
       );
       setServers(activeServers);
 
       // Set server tools
       setServerTools(allServerTools);
-
-      // Transform to our internal format with enabled state
-      // Ensure we don't have duplicates by using a Map with tool name as key
-      const toolsMap = new Map();
-
-      servers.forEach((tool: any) => {
-        const toolId =
-          tool.id ||
-          `tool_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
-        // Find server info for this tool
-        const serverTool = allServerTools.find(
-          (st: any) => st.server_id === tool.id,
-        );
-        const server = serverTool
-          ? activeServers.find((s: any) => s.id === serverTool.server_id)
-          : null;
-
-        // Only add if not already in the map (avoid duplicates)
-        if (!toolsMap.has(tool.name.toLowerCase())) {
-          toolsMap.set(tool.name.toLowerCase(), {
-            id: toolId,
-            name: tool.name,
-            description: tool.description,
-            enabled: tool.enabled !== undefined ? tool.enabled : true,
-            server_id: serverTool?.server_id,
-            server_name: server?.name,
-            process_running: server?.process_running,
-            config: tool.configuration || { env: {} },
-          });
-        }
-      });
-
-      // Convert map values to array
-      const installedTools = Array.from(toolsMap.values());
-
-      setInstalledTools(installedTools);
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
@@ -198,37 +141,37 @@ const InstalledServers: React.FC = () => {
 
   const toggleToolStatus = async (id: string) => {
     try {
-      // Find the current tool to get its current enabled state
-      const tool = installedTools.find((tool) => tool.id === id);
-      if (!tool) return;
+      // Find the current server to get its current enabled state
+      const server = servers.find(server => server.id === id);
+      if (!server) return;
 
       // Update the UI optimistically
-      setInstalledTools((prev) =>
-        prev.map((tool) =>
-          tool.id === id ? { ...tool, enabled: !tool.enabled } : tool,
+      setServers(prev =>
+        prev.map(server =>
+          server.id === id ? { ...server, enabled: !server.enabled } : server,
         ),
       );
 
-      // Call the backend API to update the tool status
+      // Call the backend API to update the server status
       const response = await MCPClient.updateServerStatus({
         server_id: id,
-        enabled: !tool.enabled,
+        enabled: !server.enabled,
       });
 
       if (response.success) {
-        // Dispatch event that a tool's status was changed
+        // Dispatch event that a server's status was changed
         dispatchServerStatusChanged(id);
       } else {
         // If the API call fails, revert the UI change
-        console.error("Failed to update tool status:", response.message);
-        setInstalledTools((prev) =>
-          prev.map((tool) =>
-            tool.id === id ? { ...tool, enabled: tool.enabled } : tool,
+        console.error("Failed to update server status:", response.message);
+        setServers(prev =>
+          prev.map(server =>
+            server.id === id ? { ...server, enabled: server.enabled } : server,
           ),
         );
       }
     } catch (error) {
-      console.error("Error toggling tool status:", error);
+      console.error("Error toggling server status:", error);
       // Refresh the list to ensure UI is in sync with backend
       loadData();
     }
@@ -243,7 +186,8 @@ const InstalledServers: React.FC = () => {
     }
 
     try {
-      await MCPClient.discoverTools({ server_id: serverId });
+      const tools = await MCPClient.discoverTools({ server_id: serverId });
+      console.log("Tools discovered:", tools);
       // Reload all data after discovery
       loadData();
     } catch (error) {
@@ -251,26 +195,26 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-  const startEditingEnvVars = (toolId: string, e: React.MouseEvent) => {
+  const startEditingEnvVars = (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
 
-    // Find the tool to get its current env vars
-    const tool = installedTools.find((t) => t.id === toolId);
-    if (!tool || !tool.config) return;
+    // Find the server to get its current env vars
+    const server = servers.find((s) => s.id === serverId);
+    if (!server || !server.configuration?.env) return;
 
     // Initialize the env var values with current values
     const initialValues: Record<string, string> = {};
-    Object.entries(tool.config.env).forEach(([key, value]) => {
+    Object.entries(server.configuration.env || {}).forEach(([key, value]) => {
       // If the value is an object with a description, it might not have a value yet
       if (typeof value === "object" && value !== null) {
-        initialValues[key] = "";
+        initialValues[key] = (value as RuntimeEnvConfig).default || "";
       } else {
         initialValues[key] = String(value);
       }
     });
 
     setEnvVarValues(initialValues);
-    setCurrentConfigTool(tool);
+    setCurrentConfigTool(server);
     setConfigPopupVisible(true);
   };
 
@@ -295,98 +239,111 @@ const InstalledServers: React.FC = () => {
     );
   };
 
-  const saveEnvVars = async (toolId: string, e: React.MouseEvent) => {
+  const saveEnvVars = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setSavingConfig(true);
 
     try {
-      // Find the tool to update
-      const tool = installedTools.find((t) => t.id === toolId);
-      if (!tool) {
-        console.error(`Tool with ID ${toolId} not found`);
-        addNotification(`Tool with ID ${toolId} not found`, "error");
+      // Find the server to update
+      const server = servers.find((s) => s.id === serverId);
+      if (!server) {
+        console.error(`Server with ID ${serverId} not found`);
+        addNotification(`Server with ID ${serverId} not found`, "error");
         return;
       }
 
-      console.log(`Updating configuration for tool: ${toolId}`, envVarValues);
+      console.log(`Updating configuration for server: ${serverId}`, envVarValues);
 
-      // Update the tool configuration
+      // Convert envVarValues to a flat key-value object for the API
+      const flatConfig: Record<string, string> = {};
+      Object.entries(envVarValues).forEach(([key, value]) => {
+        flatConfig[key] = value;
+      });
+
+      // Update the server configuration
       const response = await MCPClient.updateServerConfig({
-        server_id: toolId,
-        config: envVarValues,
+        server_id: serverId,
+        config: flatConfig,
       });
 
       if (response.success) {
-        console.log(`Tool ${toolId} configuration updated successfully`);
+        console.log(`Server ${serverId} configuration updated successfully`);
         addNotification(
-          `Configuration for ${tool.name} updated successfully`,
+          `Configuration for ${server.name} updated successfully`,
           "success",
         );
 
-        // Update the tool in the local state
-        setInstalledTools((prev) =>
-          prev.map((t) =>
-            t.id === toolId
+        // Update the server in the local state with the new env values
+        setServers((prev) =>
+          prev.map((s) =>
+            s.id === serverId
               ? {
-                  ...t,
-                  config: {
-                    ...t.config,
-                    env: { ...envVarValues },
+                  ...s,
+                  configuration: {
+                    ...s.configuration,
+                    env: Object.entries(envVarValues).reduce((acc, [key, value]) => {
+                      acc[key] = {
+                        default: value,
+                        description: s.configuration?.env?.[key]?.description || "",
+                        required: s.configuration?.env?.[key]?.required || false,
+                      };
+                      return acc;
+                    }, {} as Record<string, RuntimeEnvConfig>),
                   },
                 }
-              : t,
+              : s,
           ),
         );
 
-        // Restart the tool with the new configuration if it's enabled
-        if (tool.enabled) {
+        // Restart the server with the new configuration if it's enabled
+        if (server.enabled) {
           console.log(
-            `Tool ${toolId} is enabled, restarting with new configuration...`,
+            `Server ${serverId} is enabled, restarting with new configuration...`,
           );
-          addNotification(`Restarting ${tool.name}...`, "info");
+          addNotification(`Restarting ${server.name}...`, "info");
 
           try {
-            const restartResponse = await MCPClient.restartTool(toolId);
+            const restartResponse = await MCPClient.restartTool(serverId);
             if (restartResponse.success) {
               console.log(
-                `Tool ${toolId} restarted successfully with new configuration`,
+                `Server ${serverId} restarted successfully with new configuration`,
               );
               addNotification(
-                `${tool.name} restarted successfully with new configuration`,
+                `${server.name} restarted successfully with new configuration`,
                 "success",
               );
               // Dispatch event to update UI
-              dispatchServerStatusChanged(toolId);
+              dispatchServerStatusChanged(serverId);
             } else {
               console.error(
-                `Failed to restart tool ${toolId}:`,
+                `Failed to restart server ${serverId}:`,
                 restartResponse.message,
               );
               addNotification(
-                `Failed to restart ${tool.name}: ${restartResponse.message}`,
+                `Failed to restart ${server.name}: ${restartResponse.message}`,
                 "error",
               );
             }
           } catch (restartError) {
-            console.error(`Error restarting tool ${toolId}:`, restartError);
-            addNotification(`Error restarting ${tool.name}`, "error");
+            console.error(`Error restarting server ${serverId}:`, restartError);
+            addNotification(`Error restarting ${server.name}`, "error");
           }
         } else {
-          console.log(`Tool ${toolId} is disabled, not restarting`);
+          console.log(`Server ${serverId} is disabled, not restarting`);
         }
 
         // Close the popup
         setConfigPopupVisible(false);
         setCurrentConfigTool(null);
       } else {
-        console.error("Failed to update tool configuration:", response.message);
+        console.error("Failed to update server configuration:", response.message);
         addNotification(
           `Failed to update configuration: ${response.message}`,
           "error",
         );
       }
     } catch (error) {
-      console.error("Error updating tool configuration:", error);
+      console.error("Error updating server configuration:", error);
       addNotification("Error updating configuration", "error");
     } finally {
       setSavingConfig(false);
@@ -400,67 +357,40 @@ const InstalledServers: React.FC = () => {
     setEnvVarValues({});
   };
 
-  const toggleExpandTool = (toolId: string, e: React.MouseEvent) => {
+  const toggleExpandTool = (serverId: string, e: React.MouseEvent) => {
     // Don't toggle if clicking on status toggle
     const target = e.target as HTMLElement;
     if (target.closest(".app-status-indicator")) {
       return;
     }
 
-    console.log("Toggling tool expansion for:", toolId);
+    console.log("Toggling tool expansion for:", serverId);
 
     // If the tool is already expanded, collapse it
-    if (expandedToolId === toolId) {
+    if (expandedServerId === serverId) {
       console.log("Collapsing tool");
-      setExpandedToolId(null);
+      setExpandedServerId(null);
     } else {
       console.log("Expanding tool");
-      setExpandedToolId(toolId);
+      setExpandedServerId(serverId);
 
       // If the tool has a server_id and the server is running, refresh the tools
-      const tool = installedTools.find((t) => t.id === toolId);
-      console.log("Tool found:", tool);
+      const server = servers.find((s) => s.id === serverId);
+      console.log("Server found:", server);
 
-      if (tool?.server_id) {
-        console.log("Tool has server_id:", tool.server_id);
-        // Force refresh tools for this server regardless of running state
-        discoverToolsForServer(tool.server_id);
+      if (server?.process_running) {
+        console.log("Server is running, discovering tools");
+        discoverToolsForServer(server.id);
       } else {
-        console.log("Tool does not have server_id");
+        console.log("Server is not running, no tools to discover");
       }
     }
   };
 
-  const renderServerInfo = (tool: InstalledTool) => {
+  const renderServerInfo = (server: RuntimeServer) => {
     // Only show server info when the tool is expanded
-    if (expandedToolId !== tool.id) {
+    if (expandedServerId !== server.id) {
       return null;
-    }
-
-    // If the tool doesn't have a server_id, show a fallback message
-    if (!tool.server_id) {
-      return (
-        <div className="server-info-container">
-          <div className="empty-tools-message">
-            <p>
-              This application is not associated with an MCP server. It may be a
-              standalone application or a built-in tool.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // Find the server for this tool
-    const server = servers.find((s) => s.id === tool.server_id);
-    if (!server) {
-      return (
-        <div className="server-info-container">
-          <div className="empty-tools-message">
-            <p>No server information available for this tool.</p>
-          </div>
-        </div>
-      );
     }
 
     // Find tools for this server
@@ -521,14 +451,14 @@ const InstalledServers: React.FC = () => {
   const renderConfigPopup = () => {
     if (!configPopupVisible || !currentConfigTool) return null;
 
-    const tool = installedTools.find((t) => t.id === currentConfigTool.id);
-    if (!tool || !tool.config) return null;
+    const server = servers.find((s) => s.id === currentConfigTool.id);
+    if (!server || !server.configuration?.env) return null;
 
     return (
       <div className="config-popup-overlay" onClick={cancelEditingEnvVars}>
         <div className="config-popup" onClick={(e) => e.stopPropagation()}>
           <div className="config-popup-header">
-            <h3>Environment Variables - {tool.name}</h3>
+            <h3>Environment Variables - {server.name}</h3>
             <button
               className="close-popup-button"
               onClick={cancelEditingEnvVars}
@@ -539,7 +469,7 @@ const InstalledServers: React.FC = () => {
 
           <div className="config-popup-content">
             <div className="env-vars-editor">
-              {Object.entries(tool.config.env).map(([key, value]) => {
+              {Object.entries(server.configuration.env || {}).map(([key, value]) => {
                 const description =
                   typeof value === "object" && value !== null
                     ? value.description
@@ -614,32 +544,32 @@ const InstalledServers: React.FC = () => {
 
       {loading ? (
         <div className="loading-message">Loading installed applications...</div>
-      ) : installedTools.length === 0 ? (
+      ) : servers.length === 0 ? (
         <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10">
           <p>You don&apos;t have any applications installed yet.</p>
           <p>Visit the AI App Store to discover and install applications.</p>
         </div>
       ) : (
         <div className="grid w-full grid-cols-2 gap-6">
-          {installedTools.map((tool) => (
+          {servers.map((server) => (
             <Card
-              key={tool.id}
+              key={server.id}
               className="gap-3 overflow-hidden border-slate-200 shadow-none"
             >
               <CardHeader className="">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{tool.name}</CardTitle>
+                  <CardTitle className="text-lg">{server.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {tool.config &&
-                      tool.config.env &&
-                      Object.keys(tool.config.env).length > 0 && (
+                    {server.configuration &&
+                      server.configuration.env &&
+                      Object.keys(server.configuration.env).length > 0 && (
                         <Tooltip>
                           <TooltipTrigger>
                             <Button
                               variant="ghost"
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation();
-                                startEditingEnvVars(tool.id, e);
+                                startEditingEnvVars(server.id, e);
                               }}
                             >
                               <Settings className="h-4 w-4" />
@@ -655,17 +585,17 @@ const InstalledServers: React.FC = () => {
                       <span
                         className={cn(
                           "text-sm",
-                          tool.enabled
+                          server.enabled
                             ? "text-emerald-600 dark:text-emerald-400"
                             : "text-slate-500",
                         )}
                       >
-                        {tool.enabled ? "Enabled" : "Disabled"}
+                        {server.enabled ? "Enabled" : "Disabled"}
                       </span>
                       <Switch
-                        checked={tool.enabled}
+                        checked={server.enabled}
                         onCheckedChange={() => {
-                          toggleToolStatus(tool.id);
+                          toggleToolStatus(server.id);
                         }}
                         className="data-[state=checked]:bg-emerald-500"
                       />
@@ -676,48 +606,34 @@ const InstalledServers: React.FC = () => {
 
               <CardContent className="space-y-3 pb-0">
                 <CardDescription className="mt-1 line-clamp-2">
-                  {tool.description}
+                  {server.description}
                 </CardDescription>
-                {/* {tool.server_id ? (
-                  <div className="flex items-center gap-1.5">
-                    <div
-                      className={`h-2 w-2 rounded-full ${getStatusColor(tool.process_running ? "Running" : "Stopped")}`}
-                    ></div>
-                    <span className="text-sm">Status: {tool.process_running ? "Running" : "Stopped"}</span>
-                  </div>
-                ) : null} */}
 
                 <div
                   className="server-status-indicator"
-                  onClick={(e) => toggleExpandTool(tool.id, e)}
+                  onClick={(e) => toggleExpandTool(server.id, e)}
                 >
-                  {tool.server_id ? (
-                    <div className="flex items-center gap-1">
-                      <span
-                        className={`server-status-dot ${tool.process_running ? "running" : "stopped"}`}
-                      ></span>
-                      <span className="server-status-text">
-                        Status: {tool.process_running ? "Running" : "Stopped"}
-                      </span>
-                    </div>
-                  ) : (
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`server-status-dot ${server.process_running ? "running" : "stopped"}`}
+                    ></span>
                     <span className="server-status-text">
-                      Click to view details
+                      Status: {server.process_running ? "Running" : "Stopped"}
                     </span>
-                  )}
+                  </div>
                   <span className="flex items-center gap-1">
-                    {expandedToolId === tool.id ? (
+                    {expandedServerId === server.id ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                    {expandedToolId === tool.id
+                    {expandedServerId === server.id
                       ? "Hide details"
                       : "Show details"}
                   </span>
                 </div>
 
-                {renderServerInfo(tool)}
+                {renderServerInfo(server)}
               </CardContent>
             </Card>
           ))}
