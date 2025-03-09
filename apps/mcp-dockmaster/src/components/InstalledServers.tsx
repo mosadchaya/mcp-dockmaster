@@ -534,49 +534,137 @@ const InstalledServers: React.FC = () => {
     
     return (
       <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{currentInfoServer.name} Information</DialogTitle>
             <DialogDescription>
               Details about this server and its tools.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {currentInfoServer.description && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Description</Label>
-                <div className="col-span-3">{currentInfoServer.description}</div>
-              </div>
-            )}
-            {currentInfoServer.sourceUrl && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Source URL</Label>
-                <div className="col-span-3">
-                  <a 
-                    href={currentInfoServer.sourceUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    {currentInfoServer.sourceUrl}
-                  </a>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Basic Information */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Basic Information</h3>
+              <div className="rounded-md border p-3 space-y-2">
+                {currentInfoServer.description && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Description</Label>
+                    <div className="col-span-3 text-sm">{currentInfoServer.description}</div>
+                  </div>
+                )}
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">ID</Label>
+                  <div className="col-span-3 text-sm font-mono">{currentInfoServer.id}</div>
                 </div>
-              </div>
-            )}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Status</Label>
-              <div className="col-span-3">
-                {currentInfoServer.process_running ? (
-                  <span className="text-green-500">Running</span>
-                ) : (
-                  <span className="text-red-500">Stopped</span>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Status</Label>
+                  <div className="col-span-3">
+                    {currentInfoServer.process_running ? (
+                      <span className="text-green-500 text-sm">Running</span>
+                    ) : (
+                      <span className="text-red-500 text-sm">Stopped</span>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Enabled</Label>
+                  <div className="col-span-3 text-sm">
+                    {currentInfoServer.enabled ? "Yes" : "No"}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Tools</Label>
+                  <div className="col-span-3 text-sm">{currentInfoServer.tool_count} tools available</div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Tools Type</Label>
+                  <div className="col-span-3 text-sm">{currentInfoServer.tools_type}</div>
+                </div>
+                {currentInfoServer.sourceUrl && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Source URL</Label>
+                    <div className="col-span-3">
+                      <a 
+                        href={currentInfoServer.sourceUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline text-sm"
+                      >
+                        {currentInfoServer.sourceUrl}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {currentInfoServer.entry_point && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Entry Point</Label>
+                    <div className="col-span-3 text-sm font-mono">{currentInfoServer.entry_point}</div>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Tools</Label>
-              <div className="col-span-3">{currentInfoServer.tool_count} tools available</div>
-            </div>
+            
+            {/* Configuration */}
+            {currentInfoServer.configuration && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Configuration</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {currentInfoServer.configuration.command && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Command</Label>
+                      <div className="col-span-3 text-sm font-mono">{currentInfoServer.configuration.command}</div>
+                    </div>
+                  )}
+                  {currentInfoServer.configuration.args && currentInfoServer.configuration.args.length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Arguments</Label>
+                      <div className="col-span-3 text-sm font-mono">
+                        {currentInfoServer.configuration.args.map((arg, index) => (
+                          <div key={index}>{arg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {currentInfoServer.configuration.env && Object.keys(currentInfoServer.configuration.env).length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Environment Variables</Label>
+                      <div className="col-span-3 space-y-2">
+                        {Object.entries(currentInfoServer.configuration.env).map(([key, value]) => (
+                          <div key={key} className="text-sm">
+                            <div className="font-medium">{key}</div>
+                            {value.description && <div className="text-muted-foreground text-xs">{value.description}</div>}
+                            <div className="text-xs mt-1">
+                              {value.required ? 
+                                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Required</Badge> : 
+                                <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-300">Optional</Badge>
+                              }
+                              {value.default && <span className="ml-2">Default: <span className="font-mono">{value.default}</span></span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Distribution */}
+            {currentInfoServer.distribution && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Distribution</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Type</Label>
+                    <div className="col-span-3 text-sm">{currentInfoServer.distribution.type}</div>
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Package</Label>
+                    <div className="col-span-3 text-sm font-mono">{currentInfoServer.distribution.package}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
