@@ -39,7 +39,7 @@ mod tests {
         let request = json!({
             "tool_name": "hello_world",
             "description": "A simple hello world tool",
-            "tool_type": "node",
+            "tools_type": "node",
             "authentication": null,
             "configuration": {
                 "command": "node",

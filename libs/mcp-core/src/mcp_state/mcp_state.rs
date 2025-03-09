@@ -77,10 +77,10 @@ impl MCPState {
             registry.get_server(server_id)?
         };
 
-        // Check if tool_type is empty
-        if server_data.tool_type.is_empty() {
-            error!("Missing tool_type for server {}", server_id);
-            return Err(format!("Missing tool_type for server {}", server_id));
+        // Check if tools_type is empty
+        if server_data.tools_type.is_empty() {
+            error!("Missing tools_type for server {}", server_id);
+            return Err(format!("Missing tools_type for server {}", server_id));
         }
 
         // Check if the process is already running
@@ -182,7 +182,7 @@ impl MCPState {
         let spawn_result = spawn_process(
             &config_value,
             server_id,
-            &server_data.tool_type,
+            &server_data.tools_type,
             env_vars.as_ref(),
         )
         .await;

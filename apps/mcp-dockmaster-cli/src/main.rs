@@ -148,7 +148,7 @@ async fn main() {
             for (i, server) in servers.iter().enumerate() {
                 println!("{}. {}", i + 1, server.definition.name);
                 println!("   ID: {}", server.id);
-                println!("   Type: {}", server.definition.tool_type);
+                println!("   Type: {}", server.definition.tools_type);
                 println!("   Running: {}", server.process_running);
                 println!("   Tool Count: {}", server.tool_count);
                 println!();

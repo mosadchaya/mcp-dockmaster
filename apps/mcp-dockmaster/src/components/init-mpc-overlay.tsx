@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { dispatchToolStatusChanged } from "../lib/events";
+import { dispatchServerStatusChanged } from "../lib/events";
 import { useAppStore } from "@/store/app";
 import { Progress } from "./ui/progress";
 
@@ -26,7 +26,7 @@ const InitMPCOverlay: React.FC<LoadingOverlayProps> = ({
       console.log("Received initialization complete event");
 
       // Trigger a refresh of all tools
-      dispatchToolStatusChanged("all");
+      dispatchServerStatusChanged("all");
       setAppState("ready");
     });
 
@@ -40,7 +40,7 @@ const InitMPCOverlay: React.FC<LoadingOverlayProps> = ({
           console.log("Initialization is complete");
 
           // Trigger a refresh of all tools
-          dispatchToolStatusChanged("all");
+          dispatchServerStatusChanged("all");
 
           setAppState("ready");
           clearInterval(interval);

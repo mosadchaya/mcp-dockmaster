@@ -101,7 +101,7 @@ export interface ServerToolInfo {
 interface ServerRegistrationResponse {
   success: boolean;
   message: string;
-  tool_id?: string;
+  server_id?: string;
 }
 
 interface ToolExecutionRequest {
@@ -115,31 +115,31 @@ interface ToolExecutionResponse {
   error?: string;
 }
 
-interface ToolUpdateRequest {
-  tool_id: string;
+interface ServerUpdateRequest {
+  server_id: string;
   enabled: boolean;
 }
 
-interface ToolUpdateResponse {
+interface ServerUpdateResponse {
   success: boolean;
   message: string;
 }
 
-interface ToolConfigUpdateRequest {
-  tool_id: string;
+interface ServerConfigUpdateRequest {
+  server_id: string;
   config: Record<string, string>;
 }
 
-interface ToolConfigUpdateResponse {
+interface ServerConfigUpdateResponse {
   success: boolean;
   message: string;
 }
 
-interface ToolUninstallRequest {
-  tool_id: string;
+interface ServerUninstallRequest {
+  server_id: string;
 }
 
-interface ToolUninstallResponse {
+interface ServerUninstallResponse {
   success: boolean;
   message: string;
 }
@@ -183,26 +183,26 @@ export class MCPClient {
   /**
    * Update a tool's status (enabled/disabled)
    */
-  static async updateServerStatus(request: ToolUpdateRequest): Promise<ToolUpdateResponse> {
-    return await invoke<ToolUpdateResponse>('update_server_status', { request });
+  static async updateServerStatus(request: ServerUpdateRequest): Promise<ServerUpdateResponse> {
+    return await invoke<ServerUpdateResponse>('update_server_status', { request });
   }
 
   /**
    * Update a tool's configuration (environment variables)
    */
-  static async updateServerConfig(request: ToolConfigUpdateRequest): Promise<ToolConfigUpdateResponse> {
-    return await invoke<ToolConfigUpdateResponse>('update_server_config', { request });
+  static async updateServerConfig(request: ServerConfigUpdateRequest): Promise<ServerConfigUpdateResponse> {
+    return await invoke<ServerConfigUpdateResponse>('update_server_config', { request });
   }
 
-  static async restartTool(toolId: string): Promise<ToolUpdateResponse> {
-    return await invoke<ToolUpdateResponse>('restart_tool_command', { toolId });
+  static async restartTool(serverId: string): Promise<ServerUpdateResponse> {
+    return await invoke<ServerUpdateResponse>('restart_server_command', { serverId });
   }
 
   /**
    * Uninstall a registered tool
    */
-  static async uninstallServer(request: ToolUninstallRequest): Promise<ToolUninstallResponse> {
-    return await invoke<ToolUninstallResponse>('uninstall_server', { request });
+  static async uninstallServer(request: ServerUninstallRequest): Promise<ServerUninstallResponse> {
+    return await invoke<ServerUninstallResponse>('uninstall_server', { request });
   }
 
   /**

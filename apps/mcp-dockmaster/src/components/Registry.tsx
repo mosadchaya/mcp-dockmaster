@@ -3,10 +3,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import MCPClient, { RegistryServer } from "../lib/mcpClient";
 import { getAvailableServers, getCategories } from "../lib/registry";
 import {
-  TOOL_UNINSTALLED,
-  TOOL_INSTALLED,
-  dispatchToolInstalled,
-  dispatchToolUninstalled,
+  SERVER_UNINSTALLED,
+  SERVER_INSTALLED,
+  dispatchServerInstalled,
+  dispatchServerUninstalled,
 } from "../lib/events";
 import "./Registry.css";
 
@@ -83,22 +83,22 @@ const Registry: React.FC = () => {
 
     // Add event listeners
     document.addEventListener(
-      TOOL_UNINSTALLED,
+      SERVER_UNINSTALLED,
       handleToolUninstalled as EventListener,
     );
     document.addEventListener(
-      TOOL_INSTALLED,
+      SERVER_INSTALLED,
       handleToolInstalled as EventListener,
     );
 
     // Clean up event listeners on unmount
     return () => {
       document.removeEventListener(
-        TOOL_UNINSTALLED,
+        SERVER_UNINSTALLED,
         handleToolUninstalled as EventListener,
       );
       document.removeEventListener(
-        TOOL_INSTALLED,
+        SERVER_INSTALLED,
         handleToolInstalled as EventListener,
       );
     };
@@ -193,7 +193,7 @@ const Registry: React.FC = () => {
       }
 
       console.log(
-        "Registering tool:",
+        "Registering server:",
         JSON.stringify(server, null, 2),
         server.runtime,
         entryPoint,
@@ -219,10 +219,10 @@ const Registry: React.FC = () => {
         );
 
         // Dispatch event that a tool was installed
-        dispatchToolInstalled(server.id);
+        dispatchServerInstalled(server.id);
       }
     } catch (error) {
-      console.error("Failed to install tool:", error);
+      console.error("Failed to install server:", error);
     } finally {
       setInstalling(null);
     }
@@ -235,15 +235,15 @@ const Registry: React.FC = () => {
 
       // Update the UI optimistically
       setAvailableServers((prev) =>
-        prev.map((tool) =>
-          tool.id === id ? { ...tool, installed: false } : tool,
+        prev.map((server: RegistryServer) =>
+          server.id === id ? { ...server, installed: false } : server,
         ),
       );
 
       // Get the tool from the registry
-      const registryServer = availableServers.find((tool) => tool.id === id);
+      const registryServer = availableServers.find((server) => server.id === id);
       if (!registryServer) {
-        console.error("Tool not found in registry:", id);
+        console.error("Server not found in registry:", id);
         return;
       }
 
@@ -267,16 +267,16 @@ const Registry: React.FC = () => {
       }
 
       // Use the actual tool ID from the backend
-      const actualToolId = matchingServer.id;
+      const actualServerId = matchingServer.id;
 
       // Call the backend API to uninstall the tool
       const response = await MCPClient.uninstallServer({
-        tool_id: actualToolId,
+        server_id: actualServerId,
       });
 
       if (response.success) {
         // Dispatch event that a tool was uninstalled with the registry ID for UI updates
-        dispatchToolUninstalled(id);
+        dispatchServerUninstalled(id);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall tool:", response.message);
