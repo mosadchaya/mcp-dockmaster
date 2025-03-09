@@ -2,7 +2,7 @@ CREATE TABLE servers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
-    tool_type TEXT NOT NULL,
+    tools_type TEXT NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     entry_point TEXT,
     command TEXT,

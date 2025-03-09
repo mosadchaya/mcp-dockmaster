@@ -20,11 +20,11 @@ pub struct SpawnedProcess {
 impl SpawnedProcess {
     pub async fn new(
         tool_id: &ServerId,
-        tool_type: &ToolType,
+        tools_type: &ToolType,
         config: &ServerConfiguration,
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<Self, String> {
-        match tool_type {
+        match tools_type {
             ToolType::Node => Self::spawn_nodejs_process(tool_id, config, env_vars).await,
             ToolType::Python => Self::spawn_python_process(tool_id, config, env_vars).await,
             ToolType::Docker => Self::spawn_docker_process(tool_id, config, env_vars).await,

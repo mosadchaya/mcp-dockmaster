@@ -12,8 +12,8 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, InputSchema, ServerRegistrationRequest, ServerToolInfo, ServerConfiguration,
-    ServerEnvironment, ToolExecutionRequest,
+    Distribution, InputSchema, ServerConfiguration, ServerEnvironment, ServerRegistrationRequest,
+    ServerToolInfo, ToolExecutionRequest,
 };
 use crate::types::ServerConfigUpdateRequest;
 
@@ -200,7 +200,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let tool_type = params
+            let tools_type = params
                 .get("type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("node")
@@ -263,7 +263,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                 server_id: tool_id,
                 server_name: tool_name,
                 description,
-                tool_types: tool_type,
+                tools_type,
                 configuration,
                 distribution,
             };

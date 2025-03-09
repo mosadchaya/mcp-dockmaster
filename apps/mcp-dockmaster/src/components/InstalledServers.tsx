@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import MCPClient, { ServerToolInfo } from "../lib/mcpClient";
-import { dispatchToolStatusChanged, TOOL_STATUS_CHANGED } from "../lib/events";
+import { dispatchServerStatusChanged, SERVER_STATUS_CHANGED } from "../lib/events";
 import "./InstalledServers.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -126,13 +126,13 @@ const InstalledServers: React.FC = () => {
     };
 
     document.addEventListener(
-      TOOL_STATUS_CHANGED,
+      SERVER_STATUS_CHANGED,
       handleServerStatusChanged as EventListener,
     );
 
     return () => {
       document.removeEventListener(
-        TOOL_STATUS_CHANGED,
+        SERVER_STATUS_CHANGED,
         handleServerStatusChanged as EventListener,
       );
     };
@@ -211,13 +211,13 @@ const InstalledServers: React.FC = () => {
 
       // Call the backend API to update the tool status
       const response = await MCPClient.updateServerStatus({
-        tool_id: id,
+        server_id: id,
         enabled: !tool.enabled,
       });
 
       if (response.success) {
         // Dispatch event that a tool's status was changed
-        dispatchToolStatusChanged(id);
+        dispatchServerStatusChanged(id);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to update tool status:", response.message);
@@ -312,7 +312,7 @@ const InstalledServers: React.FC = () => {
 
       // Update the tool configuration
       const response = await MCPClient.updateServerConfig({
-        tool_id: toolId,
+        server_id: toolId,
         config: envVarValues,
       });
 
@@ -356,7 +356,7 @@ const InstalledServers: React.FC = () => {
                 "success",
               );
               // Dispatch event to update UI
-              dispatchToolStatusChanged(toolId);
+              dispatchServerStatusChanged(toolId);
             } else {
               console.error(
                 `Failed to restart tool ${toolId}:`,

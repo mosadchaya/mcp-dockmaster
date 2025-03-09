@@ -41,7 +41,7 @@ mod tests {
             name: "Test Tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -56,7 +56,7 @@ mod tests {
         assert_eq!(retrieved_tool.name, tool.name);
         assert_eq!(retrieved_tool.description, tool.description);
         assert_eq!(retrieved_tool.enabled, tool.enabled);
-        assert_eq!(retrieved_tool.tool_type, tool.tool_type);
+        assert_eq!(retrieved_tool.tools_type, tool.tools_type);
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
             name: "Test Tool 1".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -79,7 +79,7 @@ mod tests {
             name: "Test Tool 2".to_string(),
             description: "Another test tool".to_string(),
             enabled: false,
-            tool_type: "python".to_string(),
+            tools_type: "python".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -108,7 +108,7 @@ mod tests {
             name: "Test Tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -136,7 +136,7 @@ mod tests {
             name: "Test Tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "node".to_string(),
+            tools_type: "node".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -169,7 +169,7 @@ mod tests {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "test".to_string(),
+            tools_type: "test".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,
@@ -205,7 +205,7 @@ mod tests {
             name: "test_tool".to_string(),
             description: "A test tool".to_string(),
             enabled: true,
-            tool_type: "test".to_string(),
+            tools_type: "test".to_string(),
             entry_point: None,
             configuration: None,
             distribution: None,

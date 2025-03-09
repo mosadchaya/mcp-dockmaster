@@ -22,7 +22,7 @@ diesel::table! {
         id -> Text,
         name -> Text,
         description -> Text,
-        tool_type -> Text,
+        tools_type -> Text,
         enabled -> Bool,
         entry_point -> Nullable<Text>,
         command -> Nullable<Text>,

@@ -98,7 +98,7 @@ pub async fn clear_database_command(mcp_core: State<'_, MCPCore>) -> Result<(), 
 #[tauri::command(rename_all = "camelCase")]
 pub async fn restart_server_command(
     mcp_core: State<'_, MCPCore>,
-    tool_id: String,
+    server_id: String,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core.restart_server_command(tool_id).await
+    mcp_core.restart_server_command(server_id).await
 }

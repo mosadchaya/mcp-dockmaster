@@ -81,7 +81,7 @@ pub struct ServerDefinition {
     pub name: String,
     pub description: String,
     pub enabled: bool,
-    pub tool_type: String,
+    pub tools_type: String,
     #[serde(default)]
     pub entry_point: Option<String>,
     #[serde(default)]
@@ -105,7 +105,7 @@ pub struct ServerRegistrationRequest {
     pub server_id: String,
     pub server_name: String,
     pub description: String,
-    pub tool_types: String, // "node", "python", "docker"
+    pub tools_type: String, // "node", "python", "docker"
     pub configuration: Option<ServerConfiguration>,
     pub distribution: Option<Distribution>,
 }
