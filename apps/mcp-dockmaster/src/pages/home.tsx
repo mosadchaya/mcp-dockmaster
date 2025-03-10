@@ -8,22 +8,9 @@ import pythonIcon from "../assets/python.svg";
 import claudeIcon from "../assets/claude.svg";
 import cursorIcon from "../assets/cursor.svg";
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@radix-ui/react-collapsible";
 import { Button } from "../components/ui/button";
-import {
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  RefreshCw,
-  ExternalLink,
-} from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { Separator } from "../components/ui/separator";
 import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -52,11 +39,11 @@ const Home: React.FC = () => {
   const installUrls = {
     "Node.js": "https://nodejs.org/",
     "UV (Python)": "https://github.com/astral-sh/uv",
-    "Docker": "https://www.docker.com/get-started/",
-    "Claude": "https://claude.ai/download",
-    "Cursor": "https://www.cursor.com/"
+    Docker: "https://www.docker.com/get-started/",
+    Claude: "https://claude.ai/download",
+    Cursor: "https://www.cursor.com/",
   };
-  
+
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
     { name: "Node.js", installed: false, loading: true, icon: nodeIcon },
     { name: "UV (Python)", installed: false, loading: true, icon: pythonIcon },
@@ -69,7 +56,7 @@ const Home: React.FC = () => {
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
-  
+
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -102,14 +89,16 @@ const Home: React.FC = () => {
         console.error("Failed to check Cursor:", error);
         return false;
       }
-    }
-    const [claudeInstalled, cursorInstalled] = await Promise.all([checkClaude(), checkCursor()]);
+    };
+    const [claudeInstalled, cursorInstalled] = await Promise.all([
+      checkClaude(),
+      checkCursor(),
+    ]);
     setMCPClients([
       { name: "Claude", installed: claudeInstalled, icon: claudeIcon },
       { name: "Cursor", installed: cursorInstalled, icon: cursorIcon },
     ]);
-}
-
+  };
 
   const checkPrerequisites = async () => {
     setIsChecking(true);
@@ -187,7 +176,9 @@ const Home: React.FC = () => {
     }
   };
 
-  const openInstallUrl = async (toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor") => {
+  const openInstallUrl = async (
+    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor",
+  ) => {
     try {
       await openUrl(installUrls[toolName]);
     } catch (error) {
@@ -207,7 +198,7 @@ const Home: React.FC = () => {
   const reload = () => {
     checkPrerequisites();
     checkInstalled();
-  }
+  };
 
   useEffect(() => {
     const fetchConfigs = async () => {
@@ -231,7 +222,9 @@ const Home: React.FC = () => {
         try {
           await invoke(`install_${appName.toLowerCase()}`);
           await checkInstalled();
-          toast.success(`${appName} installed successfully! Please restart ${appName} to apply the changes.`);
+          toast.success(
+            `${appName} installed successfully! Please restart ${appName} to apply the changes.`,
+          );
         } catch (error) {
           console.error(`Failed to install ${appName}:`, error);
           toast.error(`Failed to install ${appName}`);
@@ -267,17 +260,16 @@ const Home: React.FC = () => {
           Select an option from the sidebar to get started.
         </p>
       </div>
-     
 
       <div className="space-y-4">
         <div className="space-y-2">
-        <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
-        <p className="text-muted-foreground text-sm">
-          Using the proxy tool, you will be able to integrate with MCP clients
-          like Claude offering all the tools you configure in MPC Dockmaster.
-        </p>
-      </div>
-        
+          <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
+          <p className="text-muted-foreground text-sm">
+            Using the proxy tool, you will be able to integrate with MCP clients
+            like Claude offering all the tools you configure in MPC Dockmaster.
+          </p>
+        </div>
+
         <div className="space-y-4">
           <div className="grid gap-4">
             {mcpClients.map((client) => (
@@ -302,7 +294,9 @@ const Home: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <p className="font-medium">{client.name}</p>
                     <button
-                      onClick={() => openInstallUrl(client.name as "Claude" | "Cursor")}
+                      onClick={() =>
+                        openInstallUrl(client.name as "Claude" | "Cursor")
+                      }
                       className="text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -314,11 +308,12 @@ const Home: React.FC = () => {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const config = client.name === "Claude" ? claudeConfig : cursorConfig;
+                      const config =
+                        client.name === "Claude" ? claudeConfig : cursorConfig;
                       if (config) {
                         setConfigDialogContent({
                           title: client.name,
-                          config: config
+                          config: config,
                         });
                         setShowConfigDialog(true);
                       }
@@ -330,7 +325,9 @@ const Home: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleInstallClick(client.name as "Claude" | "Cursor")}
+                      onClick={() =>
+                        handleInstallClick(client.name as "Claude" | "Cursor")
+                      }
                     >
                       Install
                     </Button>
@@ -419,7 +416,14 @@ const Home: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="ml-2"
-                        onClick={() => openInstallUrl(prerequisite.name as "Node.js" | "UV (Python)" | "Docker")}
+                        onClick={() =>
+                          openInstallUrl(
+                            prerequisite.name as
+                              | "Node.js"
+                              | "UV (Python)"
+                              | "Docker",
+                          )
+                        }
                       >
                         Install
                       </Button>
@@ -433,20 +437,28 @@ const Home: React.FC = () => {
       </div>
 
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col">
           <DialogHeader>
-            <DialogTitle>{configDialogContent?.title} Configuration</DialogTitle>
+            <DialogTitle>
+              {configDialogContent?.title} Configuration
+            </DialogTitle>
             <DialogDescription>
-              Use this configuration to connect {configDialogContent?.title} to your MCP servers:
+              Use this configuration to connect {configDialogContent?.title} to
+              your MCP servers:
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto">
             <pre className="rounded-md bg-black p-4 text-sm text-white">
-              <code className="whitespace-pre-wrap break-words">{configDialogContent?.config}</code>
+              <code className="break-words whitespace-pre-wrap">
+                {configDialogContent?.config}
+              </code>
             </pre>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowConfigDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfigDialog(false)}
+            >
               Close
             </Button>
           </DialogFooter>
@@ -458,25 +470,30 @@ const Home: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Confirm Installation</DialogTitle>
             <DialogDescription>
-              Please make sure {confirmDialogConfig?.title} is closed before continuing.
+              Please make sure {confirmDialogConfig?.title} is closed before
+              continuing.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={async () => {
-              if (confirmDialogConfig) {
-                await confirmDialogConfig.onConfirm();
-                setShowConfirmDialog(false);
-              }
-            }}>
+            <Button
+              onClick={async () => {
+                if (confirmDialogConfig) {
+                  await confirmDialogConfig.onConfirm();
+                  setShowConfirmDialog(false);
+                }
+              }}
+            >
               OK
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 };

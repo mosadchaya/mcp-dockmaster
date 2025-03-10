@@ -5,16 +5,12 @@ use crate::mcp_installers::{
 };
 
 pub trait McpCoreInstallersExt {
-    fn is_claude_installed(&self)
-        -> impl std::future::Future<Output = Result<bool, String>> + Send;
-    fn install_claude(&self) -> impl std::future::Future<Output = Result<(), String>> + Send;
-    fn is_cursor_installed(&self)
-        -> impl std::future::Future<Output = Result<bool, String>> + Send;
-    fn install_cursor(&self) -> impl std::future::Future<Output = Result<(), String>> + Send;
-    fn get_claude_config(&self)
-        -> impl std::future::Future<Output = Result<String, String>> + Send;
-    fn get_cursor_config(&self)
-        -> impl std::future::Future<Output = Result<String, String>> + Send;
+    fn is_claude_installed(&self) -> Result<bool, String>;
+    fn install_claude(&self) -> Result<(), String>;
+    fn is_cursor_installed(&self) -> Result<bool, String>;
+    fn install_cursor(&self) -> Result<(), String>;
+    fn get_claude_config(&self) -> Result<String, String>;
+    fn get_cursor_config(&self) -> Result<String, String>;
 }
 
 // TODO REPLACE WITH PATH TO BINARY
@@ -27,37 +23,37 @@ fn get_proxy_server_path() -> String {
 
 impl McpCoreInstallersExt for MCPCore {
     /// Check if the database exists and has data
-    async fn is_claude_installed(&self) -> Result<bool, String> {
+    fn is_claude_installed(&self) -> Result<bool, String> {
         match is_claude_installed() {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string()),
         }
     }
-    async fn install_claude(&self) -> Result<(), String> {
+    fn install_claude(&self) -> Result<(), String> {
         match install_claude(get_proxy_server_path().as_str()) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
     }
-    async fn is_cursor_installed(&self) -> Result<bool, String> {
+    fn is_cursor_installed(&self) -> Result<bool, String> {
         match is_cursor_installed() {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string()),
         }
     }
-    async fn install_cursor(&self) -> Result<(), String> {
+    fn install_cursor(&self) -> Result<(), String> {
         match install_cursor(get_proxy_server_path().as_str()) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
     }
-    async fn get_claude_config(&self) -> Result<String, String> {
+    fn get_claude_config(&self) -> Result<String, String> {
         match get_claude_config(get_proxy_server_path().as_str()) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),
         }
     }
-    async fn get_cursor_config(&self) -> Result<String, String> {
+    fn get_cursor_config(&self) -> Result<String, String> {
         match get_cursor_config(get_proxy_server_path().as_str()) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),

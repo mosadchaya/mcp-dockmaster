@@ -269,7 +269,7 @@ impl MCPState {
 }
 
 pub trait McpStateProcessMonitor {
-    async fn start_process_monitor(self);
+    fn start_process_monitor(self) -> impl std::future::Future<Output = ()> + Send;
 }
 
 impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {

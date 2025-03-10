@@ -105,37 +105,37 @@ pub async fn restart_server_command(
 // Check if Claude is installed
 #[tauri::command]
 pub async fn check_claude_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
-    mcp_core.is_claude_installed().await
+    mcp_core.is_claude_installed()
 }
 
 // Check if Cursor is installed
 #[tauri::command]
 pub async fn check_cursor_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
-    mcp_core.is_cursor_installed().await
+    mcp_core.is_cursor_installed()
 }
 
 // Install Claude
 #[tauri::command]
 pub async fn install_claude(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
-    mcp_core.install_claude().await
+    mcp_core.install_claude()
 }
 
 // Install Cursor
 #[tauri::command]
 pub async fn install_cursor(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
-    mcp_core.install_cursor().await
+    mcp_core.install_cursor()
 }
 
 // Get Claude config
 #[tauri::command]
 pub async fn get_claude_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
-    mcp_core.get_claude_config().await
+    mcp_core.get_claude_config()
 }
 
 // Get Cursor config
 #[tauri::command]
 pub async fn get_cursor_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
-    mcp_core.get_cursor_config().await
+    mcp_core.get_cursor_config()
 }
 
 /// Import a server from a GitHub repository URL
