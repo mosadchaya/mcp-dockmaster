@@ -39,18 +39,6 @@ interface MCPClientStatus {
   icon: string;
 }
 
-const copyToClipboard = (text: string) => {
-  navigator.clipboard
-    .writeText(text)
-    .then(() => {
-      toast.success("Configuration copied to clipboard!");
-    })
-    .catch((err) => {
-      console.error("Failed to copy text: ", err);
-      toast.error("Failed to copy text to clipboard");
-    });
-};
-
 const Home: React.FC = () => {
   const installUrls = {
     "Node.js": "https://nodejs.org/",
