@@ -86,7 +86,7 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        {/* <img src="/logo.png" alt="MPC Dockmaster" className="h-8 w-8" /> */}
+        {/* <img src="/logo.png" alt="MCP Dockmaster" className="h-8 w-8" /> */}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

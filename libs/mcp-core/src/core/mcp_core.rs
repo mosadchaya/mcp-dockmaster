@@ -25,6 +25,8 @@ pub enum InitError {
 #[derive(Clone)]
 /// Core struct that manages the MCP server state and components
 pub struct MCPCore {
+    /// Path to the proxy server binary
+    pub proxy_server_binary_path: PathBuf,
     /// Manager for SQLite database operations
     pub database_manager: Arc<RwLock<DBManager>>,
     /// Registry containing server metadata and configurations
@@ -41,7 +43,7 @@ impl MCPCore {
     ///
     /// # Returns
     /// A new MCPCore instance with initialized components
-    pub fn new(database_path: PathBuf) -> Self {
+    pub fn new(database_path: PathBuf, proxy_server_binary_path: PathBuf) -> Self {
         info!("Creating new MCPCore instance");
         let db_manager = DBManager::with_path(database_path).unwrap();
         let database_manager = Arc::new(RwLock::new(db_manager.clone()));
@@ -56,6 +58,7 @@ impl MCPCore {
             server_tools_arc.clone(),
         )));
         Self {
+            proxy_server_binary_path,
             database_manager,
             mcp_state: mcp_state_arc,
             tool_registry: tool_registry_arc,

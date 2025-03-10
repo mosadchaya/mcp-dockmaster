@@ -34,7 +34,7 @@ impl DBManager {
     pub fn new() -> Result<Self, String> {
         let storage_path = crate::utils::default_storage_path()?;
         let db_path = storage_path.join("mcp_dockmaster.db");
-        info!("Database path: {:?}", db_path);
+        info!("database path: {:?}", db_path);
         Self::with_path(db_path)
     }
 
@@ -44,7 +44,7 @@ impl DBManager {
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create database directory: {}", e))?;
+                    .map_err(|e| format!("failed to create database directory: {}", e))?;
             }
         }
 
@@ -53,8 +53,17 @@ impl DBManager {
 
         // Ensure the database file exists
         if !db_path.exists() {
-            std::fs::File::create(&db_path)
-                .map_err(|e| format!("Failed to create database file: {}", e))?;
+            info!(
+                "database file does not exist, creating it, {}",
+                db_path.to_string_lossy()
+            );
+            std::fs::File::create(&db_path).map_err(|e| {
+                format!(
+                    "failed to create database file at path {}, error: {}",
+                    db_path.to_string_lossy(),
+                    e
+                )
+            })?;
         }
 
         // Create the connection manager
@@ -65,13 +74,13 @@ impl DBManager {
             .max_size(5)
             .connection_timeout(std::time::Duration::from_secs(5))
             .build(manager)
-            .map_err(|e| format!("Failed to create connection pool: {}", e))?;
+            .map_err(|e| format!("failed to create connection pool: {}", e))?;
 
         let db_manager = Self {
             pool: Arc::new(pool),
         };
 
-        info!("Database initialized at: {:?}", db_path);
+        info!("database initialized at: {:?}", db_path);
         Ok(db_manager)
     }
 
