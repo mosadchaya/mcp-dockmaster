@@ -8,7 +8,7 @@ use crate::models::types::{
     ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest,
     ToolUpdateResponse,
 };
-use crate::utils::github::{GitHubRepo, parse_github_url, fetch_github_file};
+use crate::utils::github::{GitHubRepo, parse_github_url, fetch_github_file, extract_env_vars_from_readme};
 use crate::MCPError;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -16,7 +16,7 @@ use futures::future;
 use log::{error, info};
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tokio::time::Duration;
 use toml::Table;
 
@@ -56,9 +56,9 @@ pub trait McpCoreProxyExt {
     /// Import a server from a GitHub repository URL
     async fn import_server_from_url(&self, github_url: String) -> Result<ServerRegistrationResponse, String>;
     /// Process a Node.js project from package.json content
-    async fn process_nodejs_project(&self, package_json_content: String, repo_info: &GitHubRepo) -> Result<ServerRegistrationResponse, String>;
+    async fn process_nodejs_project(&self, package_json_content: String, repo_info: &GitHubRepo, env_vars: HashSet<String>) -> Result<ServerRegistrationResponse, String>;
     /// Process a Python project from pyproject.toml content
-    async fn process_python_project(&self, pyproject_toml_content: String, repo_info: &GitHubRepo) -> Result<ServerRegistrationResponse, String>;
+    async fn process_python_project(&self, pyproject_toml_content: String, repo_info: &GitHubRepo, env_vars: HashSet<String>) -> Result<ServerRegistrationResponse, String>;
 }
 
 #[async_trait]
@@ -705,12 +705,28 @@ impl McpCoreProxyExt for MCPCore {
             .build()
             .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
         
+        // Try to fetch README.md to extract environment variables
+        let mut env_vars = HashSet::new();
+        let readme_result = fetch_github_file(&client, &repo_info.owner, &repo_info.repo, "README.md").await;
+        
+        if let Ok(readme_content) = readme_result {
+            info!("Found README.md, extracting environment variables");
+            env_vars = extract_env_vars_from_readme(&readme_content);
+            info!("Extracted {} environment variables from README.md", env_vars.len());
+            
+            if !env_vars.is_empty() {
+                info!("Extracted environment variables: {:?}", env_vars);
+            }
+        } else {
+            info!("README.md not found or could not be parsed");
+        }
+        
         // Try to fetch package.json first (Node.js project)
         let package_json_result = fetch_github_file(&client, &repo_info.owner, &repo_info.repo, "package.json").await;
         
         if let Ok(package_json_content) = package_json_result {
             info!("Found package.json, processing as Node.js project");
-            return self.process_nodejs_project(package_json_content, &repo_info).await;
+            return self.process_nodejs_project(package_json_content, &repo_info, env_vars).await;
         }
         
         // If package.json not found, try pyproject.toml (Python project)
@@ -718,7 +734,7 @@ impl McpCoreProxyExt for MCPCore {
         
         if let Ok(pyproject_toml_content) = pyproject_toml_result {
             info!("Found pyproject.toml, processing as Python project");
-            return self.process_python_project(pyproject_toml_content, &repo_info).await;
+            return self.process_python_project(pyproject_toml_content, &repo_info, env_vars).await;
         }
         
         // If neither found, return error
@@ -726,7 +742,7 @@ impl McpCoreProxyExt for MCPCore {
     }
     
     /// Process a Node.js project from package.json content
-    async fn process_nodejs_project(&self, package_json_content: String, repo_info: &GitHubRepo) -> Result<ServerRegistrationResponse, String> {
+    async fn process_nodejs_project(&self, package_json_content: String, repo_info: &GitHubRepo, env_vars: HashSet<String>) -> Result<ServerRegistrationResponse, String> {
         // Parse package.json
         let package_json: Value = serde_json::from_str(&package_json_content)
             .map_err(|e| format!("Failed to parse package.json: {}", e))?;
@@ -749,11 +765,24 @@ impl McpCoreProxyExt for MCPCore {
         // Create server name from package name
         let server_name = format!("{} MCP Server", package_name);
         
+        // Create environment variables map from extracted env vars
+        let mut env_map = HashMap::new();
+        for var_name in env_vars {
+            env_map.insert(
+                var_name.clone(),
+                ServerEnvironment {
+                    description: format!("Extracted from README.md: {}", var_name),
+                    default: Some("".to_string()), // Empty default value
+                    required: true,
+                },
+            );
+        }
+        
         // Create configuration
         let configuration = Some(ServerConfiguration {
             command: Some("npx".to_string()),
             args: Some(vec!["-y".to_string(), package_name.clone()]),
-            env: Some(HashMap::new()),
+            env: Some(env_map),
         });
         
         // Create distribution
@@ -777,7 +806,7 @@ impl McpCoreProxyExt for MCPCore {
     }
     
     /// Process a Python project from pyproject.toml content
-    async fn process_python_project(&self, pyproject_toml_content: String, repo_info: &GitHubRepo) -> Result<ServerRegistrationResponse, String> {
+    async fn process_python_project(&self, pyproject_toml_content: String, repo_info: &GitHubRepo, env_vars: HashSet<String>) -> Result<ServerRegistrationResponse, String> {
         // Parse pyproject.toml
         let pyproject_toml: Table = pyproject_toml_content.parse::<Table>()
             .map_err(|e| format!("Failed to parse pyproject.toml: {}", e))?;
@@ -820,19 +849,32 @@ impl McpCoreProxyExt for MCPCore {
         // Create server name from package name
         let server_name = format!("{} MCP Server", package_name);
         
+        // Create environment variables map from extracted env vars
+        let mut env_map = HashMap::new();
+        for var_name in env_vars {
+            env_map.insert(
+                var_name.clone(),
+                ServerEnvironment {
+                    description: format!("Extracted from README.md: {}", var_name),
+                    default: Some("".to_string()), // Empty default value
+                    required: true,
+                },
+            );
+        }
+        
         // Create configuration based on entry point
         let configuration = if let Some(script) = entry_point {
             Some(ServerConfiguration {
                 command: Some("uv".to_string()),
                 args: Some(vec!["run".to_string(), script]),
-                env: Some(HashMap::new()),
+                env: Some(env_map),
             })
         } else {
             // Fallback to python -m if no script found
             Some(ServerConfiguration {
                 command: Some("python".to_string()),
                 args: Some(vec!["-m".to_string(), package_name.replace("-", "_")]),
-                env: Some(HashMap::new()),
+                env: Some(env_map),
             })
         };
         

@@ -1044,6 +1044,7 @@ dependencies = [
  "lazy_static",
  "libsqlite3-sys",
  "log",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

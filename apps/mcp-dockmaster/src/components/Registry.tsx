@@ -465,6 +465,12 @@ const Registry: React.FC = () => {
               The repository should contain a package.json (for Node.js) or pyproject.toml (for Python) file.
             </DialogDescription>
           </DialogHeader>
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
+            <p className="text-amber-800 text-sm">
+              <strong>Note:</strong> We will attempt to extract required environment variables from the repository's README.md file.
+              Please note that this process may not identify all required variables correctly.
+            </p>
+          </div>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="github-url">GitHub Repository URL</Label>

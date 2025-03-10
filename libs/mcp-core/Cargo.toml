@@ -26,6 +26,7 @@ lazy_static = "1.4.0"
 anyhow = "1.0"
 async-trait = "0.1.87"
 toml = "0.8.20"
+regex = "1.11.1"
 
 [lib]
 name = "mcp_core"
