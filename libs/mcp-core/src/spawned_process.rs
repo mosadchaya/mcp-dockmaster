@@ -95,15 +95,6 @@ impl SpawnedProcess {
 
         info!("Using Python command: {}", command);
 
-        // Handle "uv run" command specially
-        if command == "uv run" {
-            info!("Detected 'uv run' command, splitting into command and args");
-            let mut cmd = Command::new("uv");
-            cmd.arg("run");
-            cmd.arg("--tool-id").arg(tool_id.as_str());
-            return Self::setup_process(cmd, tool_id, env_vars).await;
-        }
-
         let mut cmd = Command::new(command);
 
         if let Some(args) = &config.args {

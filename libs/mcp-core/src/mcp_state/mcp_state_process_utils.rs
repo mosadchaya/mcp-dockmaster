@@ -28,7 +28,15 @@ pub async fn spawn_process(
         .and_then(|v| v.as_str())
         .ok_or_else(|| "Configuration missing 'command' field or not a string".to_string())?;
 
-    let args = configuration
+    // Special handling for "uv run" command
+    let (command_str, mut command_args) = if command == "uv run" {
+        ("uv".to_string(), vec!["run".to_string()])
+    } else {
+        (command.to_string(), Vec::new())
+    };
+
+    // Get additional args from configuration
+    let config_args = configuration
         .get("args")
         .and_then(|v| v.as_array())
         .map(|args| {
@@ -37,10 +45,19 @@ pub async fn spawn_process(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    
+    // Combine command args with config args
+    command_args.extend(config_args);
+    
+    // Add tool_id as an argument for Python/UV projects
+    if command == "uv run" {
+        command_args.push("--tool-id".to_string());
+        command_args.push(tool_id.to_string());
+    }
 
     let config = ServerConfiguration {
-        command: Some(command.to_string()),
-        args: Some(args),
+        command: Some(command_str),
+        args: Some(command_args),
         env: env_vars.map(|vars| {
             vars.iter()
                 .map(|(k, v)| {
