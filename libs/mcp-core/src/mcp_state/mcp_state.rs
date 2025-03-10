@@ -1,13 +1,15 @@
-use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
+use crate::mcp_protocol::{discover_server_tools, execute_server_tool, notify_tools_list_changed};
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
+use async_trait::async_trait;
 use log::{error, info, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::process::ChildStdin;
 use tokio::sync::RwLock;
 
 use super::process_manager::ProcessManager;
@@ -264,14 +266,33 @@ impl MCPState {
             }
         }
 
+        // Notify all connected servers about the tool list change
+        self.notify_tools_list_changed().await;
+
         Ok(tools)
+    }
+
+    /// Notify all connected servers that the tool list has changed
+    pub async fn notify_tools_list_changed(&self) {
+        let mut process_manager = self.process_manager.write().await;
+        for (server_id, (stdin, _)) in process_manager.process_ios.iter_mut() {
+            let stdin_ref: &mut ChildStdin = stdin;
+            if let Err(e) = notify_tools_list_changed(stdin_ref).await {
+                error!(
+                    "Failed to notify server {} about tool list change: {}",
+                    server_id, e
+                );
+            }
+        }
     }
 }
 
+#[async_trait]
 pub trait McpStateProcessMonitor {
     async fn start_process_monitor(self);
 }
 
+#[async_trait]
 impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
     // Start a background task that periodically checks if processes are running
     async fn start_process_monitor(self) {
