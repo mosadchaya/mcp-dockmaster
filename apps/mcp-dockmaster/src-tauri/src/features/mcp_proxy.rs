@@ -102,3 +102,12 @@ pub async fn restart_server_command(
 ) -> Result<ToolUpdateResponse, String> {
     mcp_core.restart_server_command(server_id).await
 }
+
+/// Import a server from a GitHub repository URL
+#[tauri::command]
+pub async fn import_server_from_url(
+    mcp_core: State<'_, MCPCore>,
+    url: String,
+) -> Result<ServerRegistrationResponse, String> {
+    mcp_core.import_server_from_url(url).await
+}
