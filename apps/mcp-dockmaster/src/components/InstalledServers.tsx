@@ -792,7 +792,8 @@ const InstalledServers: React.FC = () => {
     if (!server.configuration?.env) return false;
     
     // Check if any required env vars are not set
-    return Object.entries(server.configuration.env).some(([key, value]) => {
+    return Object.entries(server.configuration.env).some((entry) => {
+      const value = entry[1];
       // If the env var is required and has no default value, it needs attention
       return value.required && 
         (!value.default || value.default.trim() === '');
