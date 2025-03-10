@@ -9,7 +9,7 @@ interface LoadingOverlayProps {
   children: React.ReactNode;
 }
 
-const InitMPCOverlay: React.FC<LoadingOverlayProps> = ({
+const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
   children,
 }: {
   children: React.ReactNode;
@@ -101,4 +101,4 @@ const InitMPCOverlay: React.FC<LoadingOverlayProps> = ({
   return null;
 };
 
-export default InitMPCOverlay;
+export default InitMCPOverlay;

@@ -520,7 +520,7 @@ const Registry: React.FC = () => {
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label className="text-right text-xs pt-1">Description</Label>
                   <div className="col-span-3 text-sm">
-                    {currentServerDetails.fullDescription || currentServerDetails.description}
+                    {currentServerDetails.description}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
