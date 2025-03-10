@@ -47,6 +47,12 @@ const Registry: React.FC = () => {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [detailsPopupVisible, setDetailsPopupVisible] = useState(false);
   const [currentServerDetails, setCurrentServerDetails] = useState<RegistryServer | null>(null);
+  
+  // Add state for GitHub import modal
+  const [isGitHubImportModalOpen, setIsGitHubImportModalOpen] = useState(false);
+  const [githubUrl, setGithubUrl] = useState("");
+  const [importingServer, setImportingServer] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Load tools and categories on initial mount
   useEffect(() => {
@@ -396,9 +402,94 @@ const Registry: React.FC = () => {
     setCurrentServerDetails(null);
   };
   
+  // Functions to handle the GitHub import modal
+  const openGitHubImportModal = () => {
+    setGithubUrl("");
+    setImportError(null);
+    setIsGitHubImportModalOpen(true);
+  };
+  
+  const closeGitHubImportModal = () => {
+    setIsGitHubImportModalOpen(false);
+    setGithubUrl("");
+    setImportError(null);
+  };
+  
+  const importServerFromGitHub = async () => {
+    if (!githubUrl.trim()) {
+      setImportError("Please enter a GitHub URL");
+      return;
+    }
+    
+    // Simple validation for GitHub URL
+    if (!githubUrl.startsWith("https://github.com/")) {
+      setImportError("Please enter a valid GitHub repository URL");
+      return;
+    }
+    
+    setImportingServer(true);
+    setImportError(null);
+    
+    try {
+      const response = await MCPClient.importServerFromUrl(githubUrl);
+      
+      if (response.success) {
+        closeGitHubImportModal();
+        loadAvailableServers(); // Refresh the server list
+      } else {
+        setImportError(response.message || "Failed to import server");
+      }
+    } catch (error) {
+      console.error("Error importing server:", error);
+      setImportError("Failed to import server: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setImportingServer(false);
+    }
+  };
+  
   // Function to render the details popup
   const renderDetailsPopup = () => {
     if (!detailsPopupVisible || !currentServerDetails) return null;
+  
+  // Function to render the GitHub import modal
+  const renderGitHubImportModal = () => {
+    return (
+      <Dialog open={isGitHubImportModalOpen} onOpenChange={setIsGitHubImportModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Import MCP Server from GitHub</DialogTitle>
+            <DialogDescription>
+              Enter a GitHub repository URL to import a new MCP server.
+              The repository should contain a package.json (for Node.js) or pyproject.toml (for Python) file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="github-url">GitHub Repository URL</Label>
+              <Input
+                id="github-url"
+                placeholder="https://github.com/owner/repo"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                disabled={importingServer}
+              />
+              {importError && (
+                <p className="text-destructive text-sm">{importError}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeGitHubImportModal} disabled={importingServer}>
+              Cancel
+            </Button>
+            <Button onClick={importServerFromGitHub} disabled={!githubUrl.trim() || importingServer}>
+              {importingServer ? "Importing..." : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
     
     return (
       <Dialog open={detailsPopupVisible} onOpenChange={closeDetailsPopup}>
@@ -558,7 +649,12 @@ const Registry: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+          <Button variant="outline" onClick={openGitHubImportModal}>
+            Import From Github
+          </Button>
+        </div>
         <p className="text-muted-foreground text-sm">
           Discover and install AI applications and MCP tools.
         </p>
@@ -749,6 +845,7 @@ const Registry: React.FC = () => {
         </>
       )}
       {renderDetailsPopup()}
+      {renderGitHubImportModal()}
     </div>
   );
 };
