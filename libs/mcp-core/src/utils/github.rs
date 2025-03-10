@@ -79,13 +79,13 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
         // Match export statements: export VAR_NAME="value"
         r"export\s+([A-Z][A-Z0-9_]+)=",
         // Match env vars in code blocks or configuration examples
-        r"[:'\"]\s*([A-Z][A-Z0-9_]+)\s*[:'\"]\s*:",
+        r"[:'][A-Z][A-Z0-9_]+[:']",
         // Match env vars in environment sections
-        r"[:'\"]\s*([A-Z][A-Z0-9_]+)\s*[:'\"]\s*:",
+        r"[A-Z][A-Z0-9_]+:",
         // Match env vars in configuration sections
-        r"env.*?[:{]\s*([A-Z][A-Z0-9_]+)",
+        r"env.*?([A-Z][A-Z0-9_]+)",
         // Match env vars in JSON/YAML examples
-        r"[:'\"]\s*([A-Z][A-Z0-9_]+)\s*[:'\"]\s*:",
+        r"[A-Z][A-Z0-9_]+\s*:",
         // Match env vars in markdown code blocks
         r"`([A-Z][A-Z0-9_]+)`",
         // Match env vars in inline code
@@ -116,22 +116,21 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
     
     // Additional specific patterns for common env vars in MCP servers
     let specific_patterns = vec![
-        r"API[_\s]+[Kk]ey",
-        r"[Tt]oken",
-        r"[Ss]ecret",
-        r"[Cc]redential",
-        r"[Aa]uth",
-        r"[Pp]assword",
-        r"[Kk]ey",
-        r"[Bb]undle",
+        "API_KEY", "TOKEN", "SECRET", "CREDENTIAL", "AUTH", 
+        "PASSWORD", "KEY", "BUNDLE", "ACCESS", "APIKEY"
     ];
     
+    // Look for common environment variable names directly
     for pattern in specific_patterns {
-        if let Ok(regex) = Regex::new(&format!(r"(?i)([A-Z][A-Z0-9_]+)(?:[_\s]+)?{}", pattern)) {
-            for cap in regex.captures_iter(readme_content) {
-                if cap.len() > 1 {
-                    if let Some(var_name) = cap.get(1) {
-                        env_vars.insert(var_name.as_str().to_string());
+        for line in readme_content.lines() {
+            if line.contains(pattern) {
+                // Extract words that look like environment variables
+                for word in line.split_whitespace() {
+                    let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                    if word.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') 
+                       && word.len() > 2 
+                       && word.chars().next().map_or(false, |c| c.is_ascii_uppercase()) {
+                        env_vars.insert(word.to_string());
                     }
                 }
             }
