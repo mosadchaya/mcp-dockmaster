@@ -271,7 +271,7 @@ impl MCPState {
 
 #[async_trait]
 pub trait McpStateProcessMonitor {
-    fn start_process_monitor(self) -> impl std::future::Future<Output = ()> + Send;
+    async fn start_process_monitor(self);
 }
 
 #[async_trait]
