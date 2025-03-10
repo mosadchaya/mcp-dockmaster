@@ -99,10 +99,11 @@ export interface ServerToolInfo {
   proxy_id?: string;
 }
 
-interface ServerRegistrationResponse {
+export interface ServerRegistrationResponse {
   success: boolean;
   message: string;
   server_id?: string;
+  tool_id?: string;
 }
 
 interface ToolExecutionRequest {
@@ -221,6 +222,16 @@ export class MCPClient {
   }
   
   /**
+   * Import a server from a GitHub repository URL
+   */
+  static async importServerFromUrl(url: string): Promise<ServerRegistrationResponse> {
+    return await invoke<ServerRegistrationResponse>('import_server_from_url', { 
+      url 
+    });
+  }
+  
+
+  /**
    * Get Claude configuration for MCP servers
    */
   static async getClaudeConfig(): Promise<any> {
@@ -228,4 +239,4 @@ export class MCPClient {
   }
 }
 
-export default MCPClient;  
+export default MCPClient;        

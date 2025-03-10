@@ -3,6 +3,8 @@ use std::{fs, path::PathBuf};
 use directories::ProjectDirs;
 use log::info;
 
+pub mod github;
+
 /// Get the default storage path
 pub fn default_storage_path() -> Result<PathBuf, String> {
     let proj_dirs = ProjectDirs::from("com", "mcp", "dockmaster")
