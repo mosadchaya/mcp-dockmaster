@@ -25,7 +25,16 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search, ChevronRight, ChevronLeft, Link } from "lucide-react";
+import { Search, ChevronRight, ChevronLeft, Link, Info } from "lucide-react";
+import { Label } from "./ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 const Registry: React.FC = () => {
   const [availableServers, setAvailableServers] = useState<RegistryServer[]>([]);
@@ -36,6 +45,8 @@ const Registry: React.FC = () => {
   const [categories, setCategories] = useState<[string, number][]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [detailsPopupVisible, setDetailsPopupVisible] = useState(false);
+  const [currentServerDetails, setCurrentServerDetails] = useState<RegistryServer | null>(null);
 
   // Load tools and categories on initial mount
   useEffect(() => {
@@ -372,6 +383,168 @@ const Registry: React.FC = () => {
   const visibleCategories = showAllCategories
     ? categories
     : categories.slice(0, 12);
+    
+  // Functions to handle the details popup
+  const openDetailsPopup = (tool: RegistryServer, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any parent click handlers
+    setCurrentServerDetails(tool);
+    setDetailsPopupVisible(true);
+  };
+  
+  const closeDetailsPopup = () => {
+    setDetailsPopupVisible(false);
+    setCurrentServerDetails(null);
+  };
+  
+  // Function to render the details popup
+  const renderDetailsPopup = () => {
+    if (!detailsPopupVisible || !currentServerDetails) return null;
+    
+    return (
+      <Dialog open={detailsPopupVisible} onOpenChange={closeDetailsPopup}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{currentServerDetails.name}</DialogTitle>
+            <DialogDescription>
+              Server details and information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Basic Information */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Basic Information</h3>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Description</Label>
+                  <div className="col-span-3 text-sm">
+                    {currentServerDetails.fullDescription || currentServerDetails.description}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">ID</Label>
+                  <div className="col-span-3 text-sm font-mono">{currentServerDetails.id}</div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Runtime</Label>
+                  <div className="col-span-3 text-sm">{currentServerDetails.runtime}</div>
+                </div>
+                {currentServerDetails.license && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">License</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.license}</div>
+                  </div>
+                )}
+                {currentServerDetails.categories && currentServerDetails.categories.length > 0 && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Categories</Label>
+                    <div className="col-span-3 flex flex-wrap gap-1">
+                      {currentServerDetails.categories.map((category) => (
+                        <Badge key={category} variant="outline" className="text-xs">
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Publisher Information */}
+            {currentServerDetails.publisher && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Publisher</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Name</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.publisher.name}</div>
+                  </div>
+                  {currentServerDetails.publisher.url && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">URL</Label>
+                      <div className="col-span-3">
+                        <a 
+                          href={currentServerDetails.publisher.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline text-sm"
+                        >
+                          {currentServerDetails.publisher.url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Configuration */}
+            {currentServerDetails.config && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Configuration</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {currentServerDetails.config.command && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Command</Label>
+                      <div className="col-span-3 text-sm font-mono">{currentServerDetails.config.command}</div>
+                    </div>
+                  )}
+                  {currentServerDetails.config.args && currentServerDetails.config.args.length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Arguments</Label>
+                      <div className="col-span-3 text-sm font-mono">
+                        {currentServerDetails.config.args.map((arg, index) => (
+                          <div key={index}>{arg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {currentServerDetails.config.env && Object.keys(currentServerDetails.config.env).length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Environment Variables</Label>
+                      <div className="col-span-3 space-y-2">
+                        {Object.entries(currentServerDetails.config.env).map(([key, value]) => (
+                          <div key={key} className="text-sm">
+                            <div className="font-medium">{key}</div>
+                            {typeof value === 'object' && value.description ? (
+                              <div className="text-muted-foreground text-xs">{value.description}</div>
+                            ) : (
+                              <div className="text-muted-foreground text-xs">Value: {String(value)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Distribution */}
+            {currentServerDetails.distribution && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Distribution</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Type</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.distribution.type}</div>
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Package</Label>
+                    <div className="col-span-3 text-sm font-mono">{currentServerDetails.distribution.package}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDetailsPopup}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Set up the virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -509,6 +682,13 @@ const Registry: React.FC = () => {
                                     className="ml-1 inline-block"
                                   />
                                 </a>
+                                <button 
+                                  className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none cursor-pointer"
+                                  onClick={(e) => openDetailsPopup(tool, e)}
+                                  title="View server details"
+                                >
+                                  <Info size={14} className="inline-block" />
+                                </button>
                               </CardTitle>
                               {tool.installed && (
                                 <Badge variant="outline" className="ml-auto">
@@ -568,6 +748,7 @@ const Registry: React.FC = () => {
           )}
         </>
       )}
+      {renderDetailsPopup()}
     </div>
   );
 };
