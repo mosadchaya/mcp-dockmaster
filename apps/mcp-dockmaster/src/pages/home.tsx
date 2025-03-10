@@ -243,7 +243,7 @@ const Home: React.FC = () => {
       <div className="flex flex-col space-y-1.5">
        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome to MPC Dockmaster
+            Welcome to MCP Dockmaster
           </h1>
           <Button
             disabled={isChecking}
@@ -270,7 +270,7 @@ const Home: React.FC = () => {
           <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
           <p className="text-muted-foreground text-sm">
             Using the proxy tool, you will be able to integrate with MCP clients
-            like Claude offering all the tools you configure in MPC Dockmaster.
+            like Claude offering all the tools you configure in MCP Dockmaster.
           </p>
         </div>
 
@@ -361,7 +361,7 @@ const Home: React.FC = () => {
         <div className="space-y-2">
           <h2 className="text-lg font-medium">Runner Environment Support</h2>
           <p className="text-muted-foreground text-sm">
-            The following tools are required to run MPC Dockmaster.
+            The following tools are required to run MCP Dockmaster.
           </p>
         </div>
         <div className="space-y-4">
