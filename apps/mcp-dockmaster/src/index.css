@@ -78,8 +78,19 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
+
+@font-face {
+  font-family: "GeistMono";
+  src: url("./GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900; /* Full weight range */
+  font-style: normal;
+  font-display: swap;
+  font-variation-settings: "wght" 400;
+}
+
 @theme {
   --font-inter: "Inter", "sans-serif";
+  --font-geist-mono: "GeistMono", "monospace";
 }
 
 @layer base {
