@@ -16,6 +16,14 @@
       "options": {
         "command": "npx tauri build",
         "cwd": "apps/mcp-dockmaster"
+      },
+      "configurations": {
+        "local": {
+          "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\""
+        },
+        "production": {
+          "command": "npx tauri build"
+        }
       }
     },
     "serve": {
