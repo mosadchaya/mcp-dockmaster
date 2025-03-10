@@ -256,6 +256,14 @@ impl MCPState {
         let mut server_tools = self.server_tools.write().await;
         server_tools.insert(server_id.to_string(), tools.clone());
 
+        // Save the tools to the database
+        let registry = self.tool_registry.read().await;
+        for tool in &tools {
+            if let Err(e) = registry.save_server_tool(tool) {
+                error!("Failed to save server tool to database: {}", e);
+            }
+        }
+
         Ok(tools)
     }
 }

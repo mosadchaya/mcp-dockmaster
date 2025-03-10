@@ -87,6 +87,7 @@ export interface RuntimeServer extends ServerDefinition {
   id: string;  // Using string instead of ToolId since we don't need the full Rust implementation
   process_running: boolean;
   tool_count: number;
+  sourceUrl?: string;
 }
 
 export interface ServerToolInfo {
@@ -227,4 +228,4 @@ export class MCPClient {
   }
 }
 
-export default MCPClient; 
+export default MCPClient;  

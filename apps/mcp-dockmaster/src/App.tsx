@@ -1,15 +1,19 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// Import version from package.json
+import packageJson from "../../../package.json";
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
 import About from "./pages/about";
+import Feedback from "./pages/feedback";
 import InitMpcOverlay from "./components/init-mpc-overlay";
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarInset,
@@ -18,6 +22,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
+  SidebarSeparator,
   SidebarTrigger,
 } from "./components/ui/sidebar";
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
@@ -27,9 +32,13 @@ import {
   RegistryIcon,
   ServersIcon,
 } from "./components/icons";
+import { MessageSquare } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import { TooltipProvider } from "./components/ui/tooltip";
+
+// Get app version from package.json
+const appVersion = packageJson.version;
 
 function NavItem({
   icon: Icon,
@@ -60,17 +69,18 @@ function AppSidebar() {
     { id: "home", label: "Home", icon: HomeIcon, to: "/" },
     {
       id: "installed",
-      label: "My Applications",
+      label: "Servers Installed",
       icon: ServersIcon,
       to: "/installed",
     },
     {
       id: "registry",
-      label: "AI App Store",
+      label: "MCP Server Registry",
       icon: RegistryIcon,
       to: "/registry",
     },
     { id: "about", label: "About", icon: AboutIcon, to: "/about" },
+    { id: "feedback", label: "Feedback", icon: MessageSquare, to: "/feedback" },
   ];
 
   return (
@@ -91,6 +101,12 @@ function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
+      <SidebarFooter>
+        <div className="text-sidebar-foreground/70 text-xs text-center">
+          App Version: {appVersion}
+        </div>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
@@ -112,6 +128,7 @@ const AppRoutes = () => {
                 <Route path="/installed" element={<InstalledServers />} />
                 <Route path="/registry" element={<Registry />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/feedback" element={<Feedback />} />
                 <Route element={<Navigate replace to={"/"} />} path="*" />
               </Routes>
             </SidebarInset>

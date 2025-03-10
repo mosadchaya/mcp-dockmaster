@@ -1,4 +1,5 @@
 const About = () => {
+
   return (
     <div className="text-muted-foreground mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 text-sm">
       <h1 className="text-foreground text-2xl font-semibold tracking-tight">
