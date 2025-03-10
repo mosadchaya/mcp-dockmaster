@@ -25,7 +25,7 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search, ChevronRight, ChevronLeft, Link } from "lucide-react";
+import { Search, ChevronRight, ChevronLeft, Link, Info } from "lucide-react";
 import { Label } from "./ui/label";
 import {
   Dialog,
@@ -692,12 +692,18 @@ const Registry: React.FC = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <CardDescription 
-                            className="line-clamp-2 cursor-pointer hover:text-blue-500"
-                            onClick={(e) => openDetailsPopup(tool, e)}
-                          >
-                            {tool.description}
-                          </CardDescription>
+                          <div className="flex items-start">
+                            <CardDescription className="line-clamp-2 flex-grow">
+                              {tool.description}
+                            </CardDescription>
+                            <button 
+                              className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none"
+                              onClick={(e) => openDetailsPopup(tool, e)}
+                              title="View server details"
+                            >
+                              <Info size={16} />
+                            </button>
+                          </div>
                         </CardContent>
                         <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
