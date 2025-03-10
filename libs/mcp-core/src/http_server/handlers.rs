@@ -325,27 +325,27 @@ async fn handle_register_tool(
 
 pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
     // Check if we have a valid cache
-    // let use_cache = {
-    //     let cache = REGISTRY_CACHE.lock().await;
-    //     if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
-    //         if timestamp.elapsed() < CACHE_DURATION {
-    //             // Cache is still valid
-    //             match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
-    //                 Ok(response) => Some(response),
-    //                 Err(_) => None,
-    //             }
-    //         } else {
-    //             None
-    //         }
-    //     } else {
-    //         None
-    //     }
-    // };
+    let use_cache = {
+        let cache = REGISTRY_CACHE.lock().await;
+        if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
+            if timestamp.elapsed() < CACHE_DURATION {
+                // Cache is still valid
+                match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
+                    Ok(response) => Some(response),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
 
-    // // If we have valid cached data, return it
-    // if let Some(cached_data) = use_cache {
-    //     return Ok(cached_data);
-    // }
+    // If we have valid cached data, return it
+    if let Some(cached_data) = use_cache {
+        return Ok(cached_data);
+    }
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
