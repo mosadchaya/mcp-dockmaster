@@ -217,10 +217,47 @@ fn default_is_active() -> bool {
     true
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Publisher {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+}
+
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct Config {
+//     pub command: String,
+//     pub args: Vec<String>,
+//     pub env: HashMap<String, String>,
+// }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RegistryTool {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub short_description: String,
+    pub publisher: Publisher,
+    pub is_official: Option<bool>,
+    pub source_url: Option<String>,
+    pub distribution: Distribution,
+    pub license: String,
+    pub runtime: String,
+    pub config: ServerConfiguration,
+    pub categories: Vec<String>,
+    pub tags: Vec<String>,
+}
+
 /// Response for registry tools listing
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegistryToolsResponse {
-    pub tools: Vec<Value>,
+    pub tools: Vec<RegistryTool>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConfigUpdateRequest {
+    pub tool_id: String,
+    pub config: HashMap<String, String>,
 }
 
 /// Response for server tools listing

@@ -4,7 +4,7 @@ export interface Tools {
 
 export interface Tool {
     description: string;
-    fullDescription: string;
+    short_description: string;
     inputSchema: InputSchema;
     name:        string;
     server_id:   string;
@@ -40,7 +40,7 @@ export interface RegistryTool {
     id:              string;
     name:            string;
     description:     string;
-    fullDescription: string;
+    short_description: string;
     publisher:       Publisher;
     isOfficial:      boolean;
     sourceUrl:       string;
@@ -49,6 +49,7 @@ export interface RegistryTool {
     runtime:         string;
     config:          Config;
     categories:      string[];
+    tags:            string[];
 }
 
 export interface Config {

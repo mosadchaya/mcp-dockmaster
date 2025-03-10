@@ -8,7 +8,7 @@ import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
 import About from "./pages/about";
 import Feedback from "./pages/feedback";
-import InitMpcOverlay from "./components/init-mpc-overlay";
+import InitMcpOverlay from "./components/init-mcp-overlay";
 
 import {
   Sidebar,
@@ -118,7 +118,7 @@ const AppRoutes = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={0}>
-        <InitMpcOverlay>
+        <InitMcpOverlay>
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
@@ -134,7 +134,7 @@ const AppRoutes = () => {
             </SidebarInset>
           </SidebarProvider>
           <Toaster position="top-right" theme="light" />
-        </InitMpcOverlay>
+        </InitMcpOverlay>
       </TooltipProvider>
     </QueryClientProvider>
   );

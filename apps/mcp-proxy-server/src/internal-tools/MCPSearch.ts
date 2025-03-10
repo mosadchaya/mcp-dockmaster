@@ -18,7 +18,8 @@ export class MCPSearch {
   private static adaptTool(tool: ExtendedRegistryTool): any {
     return {
       name: tool.name, 
-      fullDescription: tool.fullDescription, 
+      description: tool.description,
+      short_description: tool.short_description, 
       id: tool.id,
       installed: tool.installed,
       categories: tool.categories,
@@ -51,7 +52,7 @@ export class MCPSearch {
       return {
         content: [{
           type: 'text',
-          text: "No exact match found for " + query
+          text: JSON.stringify({ message: "No exact match found for " + query })
         }]
       }
     } else {
@@ -82,34 +83,41 @@ export class MCPSearch {
     /* Uncomment to test the search tool when compiling. */
     // console.log("MCPSearch initialized");
     // console.log('Example Search:', "sql database server");
-    // // const results = MCPSearch.search("sql database server");
+    // const results = MCPSearch.search("sql database server");
     // const results = MCPSearch.search("deepfates/mcp-replicate", true);
     // results.content.forEach((result) => {
-    //   let x = JSON.parse(result.text);
-    //   x = x.map((tool: any) => {
-    //     tool.fullDescription = tool.fullDescription.substring(0, 40);
-    //     return tool;
-    //   });
-    //   result.text = JSON.stringify(x);
+    //   try {
+    //     let x = JSON.parse(result.text);
+    //     if (Array.isArray(x)) {
+    //       x = x.map((tool: any) => {
+    //         tool.description = tool.description.substring(0, 40);
+    //         return tool;
+    //       });
+    //     }
+    //     result.text = JSON.stringify(x);
+    //   } catch (e) {
+    //     console.log(result)
+    //     console.log("Error parsing JSON:", e);
+    //   }
     // });
     // console.log(results);
   }
 
   public static async init() {
-    // const result = await proxyRequest<Tools>('tools/list', {});
     const result = await proxyRequest<{ tools: ExtendedRegistryTool[] }>('registry/list', {});
-    // console.log('result registry/list', result);
     MCPSearch.idx = lunr(function (self: any) {
       self.ref('name');
       self.field('name');
       self.field('categories');
-      self.field('fullDescription');
+      self.field('tags');
+      self.field('description');
       result.tools.forEach((tool: ExtendedRegistryTool) => {
         MCPSearch.registry[tool.name] = tool;
         self.add({
           name: tool.name,
+          tags: tool.tags.join(', '),
           categories: tool.categories.join(', '),
-          fullDescription: tool.fullDescription
+          description: tool.description
         })
       });
     });
@@ -117,8 +125,8 @@ export class MCPSearch {
   } 
 
   static tool: Tool = {
-    "fullDescription": "Searches for MCP Servers & Tools available to be installed.",
     "description": "Searches for MCP Servers & Tools available to be installed.",
+    "short_description": "Searches for MCP Servers & Tools available to be installed.",
       "inputSchema": {
         "description": "Query to search for MCP Servers & Tools available to be installed.",
         "properties": {

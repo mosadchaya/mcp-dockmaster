@@ -4,7 +4,7 @@ export interface RegistryServer {
   id: string;
   name: string;
   description: string;
-  fullDescription: string;
+  short_description: string;
   publisher: {
     id: string;
     name: string;

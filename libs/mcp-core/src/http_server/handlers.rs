@@ -13,10 +13,10 @@ use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
     Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
-    ServerEnvironment, ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo,
-    ServerToolsResponse, ToolExecutionRequest,
+    ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
+    ToolExecutionRequest,
 };
-use crate::types::ServerConfigUpdateRequest;
+use crate::types::{ConfigUpdateRequest, RegistryTool, ServerConfigUpdateRequest};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -69,7 +69,7 @@ pub async fn handle_mcp_request(
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
-    let result = match request.method.as_str() {
+    let result: Result<Value, Value> = match request.method.as_str() {
         "tools/list" => match handle_list_tools(mcp_core).await {
             Ok(response) => Ok(serde_json::to_value(response).unwrap()),
             Err(error) => Err(serde_json::to_value(error).unwrap()),
@@ -108,7 +108,6 @@ pub async fn handle_mcp_request(
         }
         "registry/install" => {
             if let Some(params) = request.params {
-                let params = serde_json::from_value(params).unwrap();
                 match handle_register_tool(mcp_core, params).await {
                     Ok(response) => Ok(serde_json::to_value(response).unwrap()),
                     Err(error) => Err(serde_json::to_value(error).unwrap()),
@@ -116,7 +115,7 @@ pub async fn handle_mcp_request(
             } else {
                 Err(json!({
                     "code": -32602,
-                    "message": "Invalid params - missing parameters for tool registration"
+                    "message": "Missing parameters for tool installation"
                 }))
             }
         }
@@ -209,7 +208,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 
 struct ToolRegistrationRequestByName {
     id: String,
@@ -219,13 +218,15 @@ struct ToolRegistrationRequestByName {
     configuration: Option<ServerConfiguration>,
     distribution: Option<Distribution>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 
 struct ToolRegistrationRequestById {
     tool_id: String,
 }
-#[derive(Deserialize)]
 
+#[derive(Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)]
+#[serde(untagged)]
 enum ToolRegistrationRequest {
     ByName(ToolRegistrationRequestByName),
     ById(ToolRegistrationRequestById),
@@ -233,10 +234,29 @@ enum ToolRegistrationRequest {
 
 async fn handle_register_tool(
     mcp_core: MCPCore,
-    params: ToolRegistrationRequest,
+    params: Value,
 ) -> Result<ServerRegistrationResponse, ErrorResponse> {
+    println!("[INSTALLATION] handle_register_tool: params {:?}", params);
+    let params = match serde_json::from_value(params) {
+        Ok(params) => params,
+        Err(error) => {
+            println!("[INSTALLATION] handle_register_tool: error {:?}", error);
+            return Err(ErrorResponse {
+                code: -32602,
+                message: format!(
+                    "Invalid params - missing parameters for tool registration: {}",
+                    error
+                ),
+            });
+        }
+    };
+
     match params {
         ToolRegistrationRequest::ByName(request) => {
+            println!(
+                "[INSTALLATION] handle_register_tool: request (BY NAME) {:?}",
+                request
+            );
             let tool_id = request.id;
             let tool_name = request.name;
             let description = request.description;
@@ -263,14 +283,41 @@ async fn handle_register_tool(
             })
         }
         ToolRegistrationRequest::ById(request) => {
+            println!(
+                "[INSTALLATION] handle_register_tool: request (BY ID) {:?}",
+                request
+            );
             let tool_id = request.tool_id;
-            let tool = mcp_core.get_server(tool_id).await;
-            let r = mcp_core.register_server(tool).await;
+
+            let registry = fetch_tool_from_registry().await?;
+
+            let tool = registry
+                .tools
+                .iter()
+                .find(|tool| tool.id.as_str() == tool_id);
+            if tool.is_none() {
+                return Err(ErrorResponse {
+                    code: -32000,
+                    message: format!("Tool {} not found", tool_id),
+                });
+            }
+            let tool = tool.unwrap();
+            println!("Building tool from registry: {:?}", tool);
+            let r = mcp_core
+                .register_server(ServerRegistrationRequest {
+                    server_id: tool_id.clone(),
+                    server_name: tool.name.clone(),
+                    description: tool.description.clone(),
+                    tools_type: tool.runtime.clone(),
+                    configuration: Some(tool.config.clone()),
+                    distribution: Some(tool.distribution.clone()),
+                })
+                .await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(ServerRegistrationResponse {
                 success: true,
                 message: "Tool installed successfully".to_string(),
-                tool_id: Some(tool_id),
+                tool_id: Some(tool_id.clone()),
             })
         }
     }
@@ -278,27 +325,27 @@ async fn handle_register_tool(
 
 pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
     // Check if we have a valid cache
-    let use_cache = {
-        let cache = REGISTRY_CACHE.lock().await;
-        if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
-            if timestamp.elapsed() < CACHE_DURATION {
-                // Cache is still valid
-                match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
-                    Ok(response) => Some(response),
-                    Err(_) => None,
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    };
+    // let use_cache = {
+    //     let cache = REGISTRY_CACHE.lock().await;
+    //     if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
+    //         if timestamp.elapsed() < CACHE_DURATION {
+    //             // Cache is still valid
+    //             match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
+    //                 Ok(response) => Some(response),
+    //                 Err(_) => None,
+    //             }
+    //         } else {
+    //             None
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // };
 
-    // If we have valid cached data, return it
-    if let Some(cached_data) = use_cache {
-        return Ok(cached_data);
-    }
+    // // If we have valid cached data, return it
+    // if let Some(cached_data) = use_cache {
+    //     return Ok(cached_data);
+    // }
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
@@ -321,38 +368,24 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         code: -32000,
         message: format!("Failed to parse tools from registry: {}", e),
     })?;
-
-    let mut all_tools = Vec::new();
-
-    for tool in tools {
-        let mut tool_info = serde_json::Map::new();
-
-        if let Some(obj) = tool.as_object() {
-            for (key, value) in obj {
-                tool_info.insert(key.clone(), value.clone());
+    let tools: Vec<RegistryTool> = tools
+        .into_iter()
+        .filter_map(|tool| {
+            let v = serde_json::from_value::<RegistryTool>(tool.clone());
+            match v {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    println!("[TOOLS] handle_register_tool: v {:?}", e);
+                    println!("[TOOLS] handle_register_tool: tool {:?}", tool);
+                    None
+                }
             }
-        }
+        })
+        .collect();
 
-        if !tool_info.contains_key("description") {
-            tool_info.insert("description".to_string(), json!("Tool from registry"));
-        }
+    println!("[TOOLS] found # tools {:?}", tools.len());
 
-        if !tool_info.contains_key("inputSchema") {
-            tool_info.insert(
-                "inputSchema".to_string(),
-                json!({
-                    "type": "object",
-                    "properties": {}
-                }),
-            );
-        }
-
-        println!("[TOOL] handle_register_tool: tool {:?} \n\nVS\n\n{:?} \n----------------------------------------", tool, tool_info);
-
-        all_tools.push(json!(tool_info));
-    }
-
-    let result = RegistryToolsResponse { tools: all_tools };
+    let result = RegistryToolsResponse { tools };
 
     // Update the cache with new data
     {
@@ -536,48 +569,24 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
 
 async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     info!("handle_get_server_config: params {:?}", params);
-    // Extract tool_id and config from params
-    let tool_id = match params.get("tool_id").and_then(|v| v.as_str()) {
-        Some(id) => id,
-        None => {
+    let config: ConfigUpdateRequest = match serde_json::from_value(params) {
+        Ok(config) => config,
+        Err(error) => {
             return Err(json!({
                 "code": -32602,
-                "message": "Missing tool_id in parameters"
-            }))
+                "message": format!("Invalid params - missing parameters for server config: {}", error)
+            }));
         }
-    };
-
-    let config = match params.get("config") {
-        Some(Value::Object(obj)) => {
-            // Convert the object into a HashMap<String, String>
-            let mut config_map = std::collections::HashMap::new();
-            for (key, value) in obj {
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
-                    _ => value.to_string(),
-                };
-                config_map.insert(key.clone(), value_str);
-            }
-            config_map
-        }
-        _ => {
-            return Err(json!({
-                "code": -32602,
-                "message": "Invalid or missing config object in parameters"
-            }))
-        }
-    };
-
-    // Create the config update request
-    let config_request = ServerConfigUpdateRequest {
-        server_id: tool_id.to_string(),
-        config,
     };
 
     // Update the tool configuration
-    match mcp_core.update_server_config(config_request).await {
+    match mcp_core
+        .update_server_config(ServerConfigUpdateRequest {
+            server_id: config.tool_id.to_string(),
+            config: config.config,
+        })
+        .await
+    {
         Ok(response) => {
             if !response.success {
                 return Err(json!({
@@ -587,7 +596,10 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             }
 
             // After successful config update, restart the tool
-            match mcp_core.restart_server_command(tool_id.to_string()).await {
+            match mcp_core
+                .restart_server_command(config.tool_id.to_string())
+                .await
+            {
                 Ok(restart_response) => {
                     if restart_response.success {
                         Ok(json!({

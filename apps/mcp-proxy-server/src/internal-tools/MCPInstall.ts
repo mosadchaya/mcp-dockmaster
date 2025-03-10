@@ -29,7 +29,7 @@ export class MCPInstall {
   } 
 
   static tool: Tool = {
-    "fullDescription": "Installs MCP Servers & Tools available to be installed.",
+    short_description: "Installs MCP Servers & Tools available to be installed.",
     "description": "Installs MCP Servers & Tools available to be installed.",
       "inputSchema": {
         "description": "Name of the MCP Server or Tool to install.",
