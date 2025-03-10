@@ -24,6 +24,14 @@ import { toast } from "sonner";
 import { Separator } from "../components/ui/separator";
 import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 
 interface PrerequisiteStatus {
   name: string;
@@ -31,31 +39,6 @@ interface PrerequisiteStatus {
   loading: boolean;
   icon: string;
 }
-
-const mcpClientProxy = {
-  claude: {
-    mcpServers: {
-      "mcp-dockmaster": {
-        args: [
-          "/path/to/mcp_dockmaster/apps/mcp-proxy-server/build/index.js",
-          "--stdio",
-        ],
-        command: "node",
-      },
-    },
-  },
-  cursor: {
-    mcpServers: {
-      "mcp-dockmaster": {
-        args: [
-          "/path/to/mcp_dockmaster/apps/mcp-proxy-server/build/index.js",
-          "--stdio",
-        ],
-        command: "node",
-      },
-    },
-  },
-};
 
 const Home: React.FC = () => {
   const installUrls = {
@@ -71,6 +54,43 @@ const Home: React.FC = () => {
   ]);
   const [isChecking, setIsChecking] = useState(false);
   const [showMCPConfig, setShowMCPConfig] = useState(false);
+  
+  const [isClaudeInstalled, setIsClaudeInstalled] = useState<boolean | null>(null);
+  const [isCursorInstalled, setIsCursorInstalled] = useState<boolean | null>(null);
+  const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
+  const [cursorConfig, setCursorConfig] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
+    title: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
+
+  const checkInstalled = async () => {
+    // Check if Claude is installed
+    const checkClaude = async () => {
+      try {
+        const installed = await invoke<boolean>("check_claude_installed");
+        setIsClaudeInstalled(installed);
+      } catch (error) {
+        console.error("Failed to check Claude:", error);
+        return false;
+      }
+    };
+
+    // Check if Cursor is installed
+    const checkCursor = async () => {
+      try {
+        const installed = await invoke<boolean>("check_cursor_installed");
+        setIsCursorInstalled(installed);
+      } catch (error) {
+        console.error("Failed to check Cursor:", error);
+        return false;
+      }
+    }
+    await Promise.all([checkClaude(), checkCursor()]);
+}
+
+        
 
   const checkPrerequisites = async () => {
     setIsChecking(true);
@@ -136,7 +156,7 @@ const Home: React.FC = () => {
           installed: dockerInstalled,
           loading: false,
           icon: dockerIcon,
-        },
+        }
       ]);
     } catch (error) {
       console.error("Failed to check prerequisites:", error);
@@ -157,21 +177,45 @@ const Home: React.FC = () => {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        toast.success("Configuration copied to clipboard!");
-      })
-      .catch((err) => {
-        console.error("Failed to copy text: ", err);
-        toast.error("Failed to copy text to clipboard");
-      });
-  };
-
   useEffect(() => {
     checkPrerequisites();
   }, []);
+
+  useEffect(() => {
+    checkInstalled();
+  }, []);
+
+  useEffect(() => {
+    const fetchConfigs = async () => {
+      try {
+        const claude = await invoke<string>("get_claude_config");
+        const cursor = await invoke<string>("get_cursor_config");
+        setClaudeConfig(claude);
+        setCursorConfig(cursor);
+      } catch (error) {
+        console.error("Failed to fetch configurations:", error);
+      }
+    };
+
+    fetchConfigs();
+  }, []);
+
+  const handleInstallClick = (appName: "Claude" | "Cursor") => {
+    setConfirmDialogConfig({
+      title: appName,
+      onConfirm: async () => {
+        try {
+          await invoke(`install_${appName.toLowerCase()}`);
+          await checkInstalled();
+          toast.success(`${appName} installed successfully! Please restart ${appName} to apply the changes.`);
+        } catch (error) {
+          console.error(`Failed to install ${appName}:`, error);
+          toast.error(`Failed to install ${appName}`);
+        }
+      },
+    });
+    setShowConfirmDialog(true);
+  };
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
@@ -189,6 +233,52 @@ const Home: React.FC = () => {
           Using the proxy tool, you will be able to integrate with MCP clients
           like Claude offering all the tools you configure in MPC Dockmaster.
         </p>
+
+        <div className="flex items-center gap-2">
+          <span className="font-medium">Claude Desktop Status:</span>
+          {isClaudeInstalled ? (
+            <Badge className="bg-green-500 text-white hover:bg-green-600">
+              Active
+            </Badge>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500">
+                Inactive
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-2"
+                onClick={() => handleInstallClick("Claude")}
+              >
+                Install
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="font-medium">Cursor Status:</span>
+          {isCursorInstalled ? (
+            <Badge className="bg-green-500 text-white hover:bg-green-600">
+              Active
+            </Badge>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500">
+                Inactive
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-2"
+                onClick={() => handleInstallClick("Cursor")}
+              >
+                Install
+              </Button>
+            </div>
+          )}
+        </div>
 
         <Collapsible
           className="mt-4 space-y-2"
@@ -214,55 +304,31 @@ const Home: React.FC = () => {
           <CollapsibleContent className="bg-muted/30 space-y-8 rounded-md border p-4">
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold">Claude Configuration</h4>
+                <h4 className="font-semibold">Claude Desktop Manual Configuration</h4>
                 <p className="text-muted-foreground text-sm">
                   Use this configuration to connect Claude to your MCP servers:
                 </p>
               </div>
               <div className="relative">
                 <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
-                  <code>{JSON.stringify(mcpClientProxy.claude, null, 2)}</code>
+                  <code>{claudeConfig}</code>
                 </pre>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
-                  onClick={() =>
-                    copyToClipboard(
-                      JSON.stringify(mcpClientProxy.claude, null, 2),
-                    )
-                  }
-                >
-                  <Copy className="h-4 w-4" />
-                  <span className="sr-only">Copy code</span>
-                </Button>
+              
               </div>
             </div>
             <Separator />
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold">Cursor Configuration</h4>
+                <h4 className="font-semibold">Cursor Manual Configuration</h4>
                 <p className="text-muted-foreground text-sm">
                   Use this configuration to connect Cursor to your MCP servers:
                 </p>
               </div>
               <div className="relative">
                 <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
-                  <code>{JSON.stringify(mcpClientProxy.cursor, null, 2)}</code>
+                  <code>{cursorConfig}</code>
                 </pre>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
-                  onClick={() =>
-                    copyToClipboard(
-                      JSON.stringify(mcpClientProxy.cursor, null, 2),
-                    )
-                  }
-                >
-                  <Copy className="h-4 w-4" />
-                  <span className="sr-only">Copy code</span>
-                </Button>
+
               </div>
             </div>
           </CollapsibleContent>
@@ -354,6 +420,29 @@ const Home: React.FC = () => {
           </div>
         </div>
       </div>
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Installation</DialogTitle>
+            <DialogDescription>
+              Please make sure {confirmDialogConfig?.title} is closed before continuing.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              if (confirmDialogConfig) {
+                await confirmDialogConfig.onConfirm();
+                setShowConfirmDialog(false);
+              }
+            }}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

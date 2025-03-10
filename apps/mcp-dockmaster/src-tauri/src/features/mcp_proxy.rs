@@ -1,7 +1,7 @@
 use mcp_core::{
     core::{
         mcp_core::MCPCore, mcp_core_database_ext::McpCoreDatabaseExt,
-        mcp_core_proxy_ext::McpCoreProxyExt,
+        mcp_core_installers_ext::McpCoreInstallersExt, mcp_core_proxy_ext::McpCoreProxyExt,
     },
     models::types::{
         DiscoverServerToolsRequest, ServerConfigUpdateRequest, ServerRegistrationRequest,
@@ -11,7 +11,6 @@ use mcp_core::{
     },
     types::RuntimeServer,
 };
-
 use tauri::State;
 
 /// Register a new tool with the MCP server
@@ -101,4 +100,40 @@ pub async fn restart_server_command(
     server_id: String,
 ) -> Result<ToolUpdateResponse, String> {
     mcp_core.restart_server_command(server_id).await
+}
+
+// Check if Claude is installed
+#[tauri::command]
+pub async fn check_claude_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
+    mcp_core.is_claude_installed().await
+}
+
+// Check if Cursor is installed
+#[tauri::command]
+pub async fn check_cursor_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
+    mcp_core.is_cursor_installed().await
+}
+
+// Install Claude
+#[tauri::command]
+pub async fn install_claude(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
+    mcp_core.install_claude().await
+}
+
+// Install Cursor
+#[tauri::command]
+pub async fn install_cursor(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
+    mcp_core.install_cursor().await
+}
+
+// Get Claude config
+#[tauri::command]
+pub async fn get_claude_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
+    mcp_core.get_claude_config().await
+}
+
+// Get Cursor config
+#[tauri::command]
+pub async fn get_cursor_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
+    mcp_core.get_cursor_config().await
 }
