@@ -2,6 +2,8 @@ use serde_json::json;
 
 #[cfg(test)]
 mod tests {
+    use std::path;
+
     use mcp_core::{
         core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
         init_logging,
@@ -20,7 +22,8 @@ mod tests {
         let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {}", e))?;
         let db_path = temp_dir.path().join("test_mcp_core2.db");
 
-        let mcp_core = MCPCore::new(db_path);
+        // TODO: Here the mcp-proxy-server path is a dummy path. This test currently is not using that location
+        let mcp_core = MCPCore::new(db_path, path::absolute("mcp-proxy-server").unwrap());
         mcp_core.init().await.map_err(|e| {
             let message = format!("error initializing mcp core: {:?}", e);
             eprintln!("{}", message);

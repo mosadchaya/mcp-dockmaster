@@ -33,4 +33,6 @@ thiserror = "2.0.12"
 env_logger = "0.11.6"
 directories = "6.0.0"
 mcp_core = { path = "../../../libs/mcp-core" }
-
+tauri-plugin-log = "2.3.0"
+tauri-plugin-single-instance = "2.2.2"
+tauri-plugin-shell = "2.2.0"
