@@ -1,6 +1,6 @@
 apps/.DS_Store
 .DS_Store
-apps/mcp-runner/output.txt
+apps/mcp-proxy-server/output.txt
 
 # NX-specific
 .nx/
@@ -27,6 +27,6 @@ lerna-debug.log*
 
 # Rust
 target/
-apps/mcp-runner/file_aggregator.sh
+apps/mcp-proxy-server/file_aggregator.sh
 libs/mcp-core/output.txt
 libs/mcp-core/tests/integration/resources/mcp-server-hello-world/build
