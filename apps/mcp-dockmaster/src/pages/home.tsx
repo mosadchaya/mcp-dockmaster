@@ -61,9 +61,9 @@ const Home: React.FC = () => {
   const installUrls = {
     "Node.js": "https://nodejs.org/",
     "UV (Python)": "https://github.com/astral-sh/uv",
-    "Docker": "https://www.docker.com/get-started/"
+    Docker: "https://www.docker.com/get-started/",
   };
-  
+
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
     { name: "Node.js", installed: false, loading: true, icon: nodeIcon },
     { name: "UV (Python)", installed: false, loading: true, icon: pythonIcon },
@@ -148,7 +148,9 @@ const Home: React.FC = () => {
     }
   };
 
-  const openInstallUrl = async (toolName: "Node.js" | "UV (Python)" | "Docker") => {
+  const openInstallUrl = async (
+    toolName: "Node.js" | "UV (Python)" | "Docker",
+  ) => {
     try {
       await openUrl(installUrls[toolName]);
     } catch (error) {
@@ -177,7 +179,7 @@ const Home: React.FC = () => {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <div className="flex flex-col space-y-1.5">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome to MPC Dockmaster
+          Welcome to MCP Dockmaster
         </h1>
         <p className="text-muted-foreground text-sm">
           Select an option from the sidebar to get started.
@@ -187,7 +189,7 @@ const Home: React.FC = () => {
         <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
         <p className="text-muted-foreground text-sm">
           Using the proxy tool, you will be able to integrate with MCP clients
-          like Claude offering all the tools you configure in MPC Dockmaster.
+          like Claude offering all the tools you configure in MCP Dockmaster.
         </p>
 
         <Collapsible
@@ -342,7 +344,14 @@ const Home: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="ml-2"
-                        onClick={() => openInstallUrl(prerequisite.name as "Node.js" | "UV (Python)" | "Docker")}
+                        onClick={() =>
+                          openInstallUrl(
+                            prerequisite.name as
+                              | "Node.js"
+                              | "UV (Python)"
+                              | "Docker",
+                          )
+                        }
                       >
                         Install
                       </Button>
