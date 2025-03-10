@@ -1,4 +1,4 @@
-# MPC Dockmaster
+# MCP Dockmaster
 
 A desktop application for managing AI applications and Model Context Protocol (MCP) tools. Built with Tauri, React, and TypeScript.
 
@@ -58,4 +58,4 @@ This will generate platform-specific installers in the `src-tauri/target/release
 
 ## Integration with Claude
 
-Claude is automatically connected to MPC Dockmaster. After making changes to your apps and tools, refresh Claude by pressing `⌘+R` (macOS) or using the refresh button in the Claude app.
+Claude is automatically connected to MCP Dockmaster. After making changes to your apps and tools, refresh Claude by pressing `⌘+R` (macOS) or using the refresh button in the Claude app.

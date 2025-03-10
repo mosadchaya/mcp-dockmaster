@@ -237,10 +237,101 @@ const Home: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <div className="flex flex-col space-y-1.5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome to MPC Dockmaster
-          </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Welcome to MCP Dockmaster
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          Select an option from the sidebar to get started.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
+        <p className="text-muted-foreground text-sm">
+          Using the proxy tool, you will be able to integrate with MCP clients
+          like Claude offering all the tools you configure in MCP Dockmaster.
+        </p>
+
+        <Collapsible
+          className="mt-4 space-y-2"
+          open={showMCPConfig}
+          onOpenChange={setShowMCPConfig}
+        >
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="outline"
+              className="flex w-full items-center justify-between gap-2 shadow-none"
+            >
+              <span className="flex items-center gap-2">
+                <ArrowRight className="h-4 w-4" />
+                Show MCP Configuration
+              </span>
+              {showMCPConfig ? (
+                <ChevronUp className="text-muted-foreground h-4 w-4 shrink-0" />
+              ) : (
+                <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="bg-muted/30 space-y-8 rounded-md border p-4">
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold">Claude Configuration</h4>
+                <p className="text-muted-foreground text-sm">
+                  Use this configuration to connect Claude to your MCP servers:
+                </p>
+              </div>
+              <div className="relative">
+                <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
+                  <code>{JSON.stringify(mcpClientProxy.claude, null, 2)}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(mcpClientProxy.claude, null, 2),
+                    )
+                  }
+                >
+                  <Copy className="h-4 w-4" />
+                  <span className="sr-only">Copy code</span>
+                </Button>
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold">Cursor Configuration</h4>
+                <p className="text-muted-foreground text-sm">
+                  Use this configuration to connect Cursor to your MCP servers:
+                </p>
+              </div>
+              <div className="relative">
+                <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
+                  <code>{JSON.stringify(mcpClientProxy.cursor, null, 2)}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-muted-foreground absolute top-2 right-2 h-8 w-8 cursor-pointer p-0"
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(mcpClientProxy.cursor, null, 2),
+                    )
+                  }
+                >
+                  <Copy className="h-4 w-4" />
+                  <span className="sr-only">Copy code</span>
+                </Button>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+      <div className="space-y-4">
+        <div className="flex flex-row items-center justify-between">
+          <h2 className="text-lg font-medium">Runner Environment Support</h2>
           <Button
             disabled={isChecking}
             variant="outline"
