@@ -12,8 +12,9 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, InputSchema, ServerConfiguration, ServerEnvironment, ServerRegistrationRequest,
-    ServerToolInfo, ToolExecutionRequest,
+    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration, 
+    ServerEnvironment, ServerRegistrationRequest, ServerRegistrationResponse, 
+    ServerToolInfo, ServerToolsResponse, ToolExecutionRequest,
 };
 use crate::types::ServerConfigUpdateRequest;
 
@@ -69,7 +70,12 @@ pub async fn handle_mcp_request(
     info!("Received MCP request: method={}", request.method);
 
     let result = match request.method.as_str() {
-        "tools/list" => handle_list_tools(mcp_core).await,
+        "tools/list" => {
+            match handle_list_tools(mcp_core).await {
+                Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+                Err(error) => Err(serde_json::to_value(error).unwrap()),
+            }
+        },
         "tools/call" => {
             if let Some(params) = request.params {
                 handle_invoke_tool(mcp_core, params).await
@@ -104,7 +110,10 @@ pub async fn handle_mcp_request(
         }
         "registry/install" => {
             if let Some(params) = request.params {
-                handle_register_tool(mcp_core, params).await
+                match handle_register_tool(mcp_core, params).await {
+                    Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+                    Err(error) => Err(serde_json::to_value(error).unwrap()),
+                }
             } else {
                 Err(json!({
                     "code": -32602,
@@ -159,7 +168,7 @@ pub async fn handle_mcp_request(
     }
 }
 
-async fn handle_list_tools(mcp_core: MCPCore) -> Result<Value, Value> {
+async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
     let result = mcp_core.list_all_server_tools().await;
 
     match result {
@@ -180,18 +189,18 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<Value, Value> {
                 })
                 .collect();
 
-            Ok(json!({
-                "tools": tools_with_defaults
-            }))
+            Ok(ServerToolsResponse {
+                tools: tools_with_defaults
+            })
         }
-        Err(e) => Err(json!({
-            "code": -32000,
-            "message": format!("Failed to list tools: {}", e)
-        })),
+        Err(e) => Err(ErrorResponse {
+            code: -32000,
+            message: format!("Failed to list tools: {}", e),
+        }),
     }
 }
 
-async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
+async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<ServerRegistrationResponse, ErrorResponse> {
     match params.get("name") {
         Some(name) => {
             let tool_name = name.as_str().unwrap_or("").to_string();
@@ -260,7 +269,7 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
                 .to_string();
 
             let tool = ServerRegistrationRequest {
-                server_id: tool_id,
+                server_id: tool_id.clone(),
                 server_name: tool_name,
                 description,
                 tools_type,
@@ -271,27 +280,30 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value,
             println!("[POST] handle_register_tool: tool {:?}", tool);
             let r = mcp_core.register_server(tool).await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
-            Ok(json!({
-                "code": 0,
-                "message": "Tool installed successfully"
-            }))
+            Ok(ServerRegistrationResponse {
+                success: true,
+                message: "Tool installed successfully".to_string(),
+                tool_id: Some(tool_id),
+            })
         }
-        None => Err(json!({
-            "code": -32602,
-            "message": format!("Tool not found: {:?}", params.get("name"))
-        })),
+        None => Err(ErrorResponse {
+            code: -32602,
+            message: format!("Tool not found: {:?}", params.get("name")),
+        }),
     }
 }
 
-// TODO: Update Value so it is a well defined struct
-pub async fn fetch_tool_from_registry() -> Result<Value, Value> {
+pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
     // Check if we have a valid cache
     let use_cache = {
         let cache = REGISTRY_CACHE.lock().await;
         if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
             if timestamp.elapsed() < CACHE_DURATION {
                 // Cache is still valid
-                Some(data.clone())
+                match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
+                    Ok(response) => Some(response),
+                    Err(_) => None,
+                }
             } else {
                 None
             }
@@ -318,17 +330,17 @@ pub async fn fetch_tool_from_registry() -> Result<Value, Value> {
         .send()
         .await
         .map_err(|e| {
-            json!({
-                "code": -32000,
-                "message": format!("Failed to fetch tools from registry: {}", e)
-            })
+            ErrorResponse {
+                code: -32000,
+                message: format!("Failed to fetch tools from registry: {}", e),
+            }
         })?;
 
     let tools: Vec<Value> = response.json().await.map_err(|e| {
-        json!({
-            "code": -32000,
-            "message": format!("Failed to parse tools from registry: {}", e)
-        })
+        ErrorResponse {
+            code: -32000,
+            message: format!("Failed to parse tools from registry: {}", e),
+        }
     })?;
 
     let mut all_tools = Vec::new();
@@ -361,14 +373,14 @@ pub async fn fetch_tool_from_registry() -> Result<Value, Value> {
         all_tools.push(json!(tool_info));
     }
 
-    let result = json!({
-        "tools": all_tools
-    });
+    let result = RegistryToolsResponse {
+        tools: all_tools,
+    };
 
     // Update the cache with new data
     {
         let mut cache = REGISTRY_CACHE.lock().await;
-        cache.data = Some(result.clone());
+        cache.data = Some(serde_json::to_value(&result).unwrap_or_default());
         cache.timestamp = Some(Instant::now());
     }
     info!("[TOOLS] handle_register_tool: result {:?}", result);
@@ -380,7 +392,12 @@ async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     let mcp_state = mcp_core.mcp_state.read().await;
     let registry = mcp_state.tool_registry.read().await;
     let installed_tools = registry.get_all_servers()?;
-    let mut registry_tools = fetch_tool_from_registry().await?;
+    let registry_tools_result = fetch_tool_from_registry().await;
+    
+    let mut registry_tools = match registry_tools_result {
+        Ok(response) => serde_json::to_value(response).unwrap_or(json!({"tools": []})),
+        Err(error) => return Err(serde_json::to_value(error).unwrap()),
+    };
 
     for tool in registry_tools
         .get_mut("tools")

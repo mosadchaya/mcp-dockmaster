@@ -217,6 +217,25 @@ fn default_is_active() -> bool {
     true
 }
 
+/// Response for registry tools listing
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegistryToolsResponse {
+    pub tools: Vec<Value>,
+}
+
+/// Response for server tools listing
+#[derive(Debug, Serialize)]
+pub struct ServerToolsResponse {
+    pub tools: Vec<ServerToolInfo>,
+}
+
+/// Common error response structure
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ErrorResponse {
+    pub code: i32,
+    pub message: String,
+}
+
 impl ServerToolInfo {
     /// Create a new ServerToolInfo from a JSON value
     pub fn from_value(value: Value, server_id: String) -> Result<ServerToolInfo, String> {
