@@ -31,3 +31,4 @@ apps/mcp-proxy-server/file_aggregator.sh
 libs/mcp-core/output.txt
 libs/mcp-core/tests/integration/resources/mcp-server-hello-world/build
 apps/mcp-runner/build
+apps/mcp-dockmaster/src-tauri/sidecars

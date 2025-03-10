@@ -1,3 +1,5 @@
+use std::path;
+
 use clap::{Parser, Subcommand};
 use log::{error, info};
 use mcp_core::{
@@ -108,7 +110,9 @@ async fn main() {
         }
     };
     let database_path = storage_path.join("mcp_dockmaster.db");
-    let mcp_core = MCPCore::new(database_path);
+
+    // TODO: We should implement a way to bundle/download the mcp-proxy-server location so we can pass this param to the library
+    let mcp_core = MCPCore::new(database_path, path::absolute("mcp-proxy-server").unwrap());
     mcp_core.init().await.unwrap();
 
     // Handle commands

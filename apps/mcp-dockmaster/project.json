@@ -3,7 +3,15 @@
   "projectType": "application",
   "sourceRoot": "apps/mcp-dockmaster/src",
   "targets": {
+    "copy-proxy-server-sidecar": {
+      "dependsOn": ["mcp-proxy-server:build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "copyfiles -u 3 \"dist/apps/mcp-proxy-server/*\" \"apps/mcp-dockmaster/src-tauri/sidecars/\""
+      }
+    },
     "build": {
+      "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
         "command": "npx tauri build",
@@ -11,6 +19,7 @@
       }
     },
     "serve": {
+      "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
         "command": "npx tauri dev",
