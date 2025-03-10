@@ -129,7 +129,7 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
                     let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
                     if word.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') 
                        && word.len() > 2 
-                       && word.chars().next().map_or(false, |c| c.is_ascii_uppercase()) {
+                       && word.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
                         env_vars.insert(word.to_string());
                     }
                 }
