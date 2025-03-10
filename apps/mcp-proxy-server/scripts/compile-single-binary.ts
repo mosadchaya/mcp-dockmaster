@@ -2,7 +2,7 @@ import { join } from "https://deno.land/std@0.219.0/path/mod.ts";
 
 console.log("Compiling single binary cwd", Deno.cwd());
 
-const DIST_DIR = "../../dist/apps/mcp-proxy-server";
+const DIST_DIR = join(Deno.cwd(), "../../dist/apps/mcp-proxy-server");
 
 // Clean and create dist directory
 await Deno.remove(DIST_DIR, { recursive: true }).catch(() => {
@@ -42,7 +42,7 @@ for (const target of targets) {
     Deno.exit(1);
   }
 
-  if (Deno.build.os !== "windows") {
+  if (Deno.build.os !== "windows" && target !== "x86_64-pc-windows-msvc") {
     await Deno.chmod(output, 0o755);
   }
 }
