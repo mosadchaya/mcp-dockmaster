@@ -682,6 +682,13 @@ const Registry: React.FC = () => {
                                     className="ml-1 inline-block"
                                   />
                                 </a>
+                                <button 
+                                  className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none cursor-pointer"
+                                  onClick={(e) => openDetailsPopup(tool, e)}
+                                  title="View server details"
+                                >
+                                  <Info size={14} className="inline-block" />
+                                </button>
                               </CardTitle>
                               {tool.installed && (
                                 <Badge variant="outline" className="ml-auto">
@@ -692,18 +699,9 @@ const Registry: React.FC = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="flex items-start">
-                            <CardDescription className="line-clamp-2 flex-grow">
-                              {tool.description}
-                            </CardDescription>
-                            <button 
-                              className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none"
-                              onClick={(e) => openDetailsPopup(tool, e)}
-                              title="View server details"
-                            >
-                              <Info size={16} />
-                            </button>
-                          </div>
+                          <CardDescription className="line-clamp-2">
+                            {tool.description}
+                          </CardDescription>
                         </CardContent>
                         <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
