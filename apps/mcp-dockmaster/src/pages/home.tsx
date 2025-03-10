@@ -8,9 +8,23 @@ import pythonIcon from "../assets/python.svg";
 import claudeIcon from "../assets/claude.svg";
 import cursorIcon from "../assets/cursor.svg";
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@radix-ui/react-collapsible";
 import { Button } from "../components/ui/button";
-import { Loader2, RefreshCw, ExternalLink } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Separator } from "../components/ui/separator";
 import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -35,6 +49,18 @@ interface MCPClientStatus {
   icon: string;
 }
 
+const copyToClipboard = (text: string) => {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      toast.success("Configuration copied to clipboard!");
+    })
+    .catch((err) => {
+      console.error("Failed to copy text: ", err);
+      toast.error("Failed to copy text to clipboard");
+    });
+};
+
 const Home: React.FC = () => {
   const installUrls = {
     "Node.js": "https://nodejs.org/",
@@ -56,6 +82,7 @@ const Home: React.FC = () => {
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
+  const [showMCPConfig, setShowMCPConfig] = useState(false);
 
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
