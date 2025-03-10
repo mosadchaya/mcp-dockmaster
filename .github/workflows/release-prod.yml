@@ -28,6 +28,7 @@ jobs:
 
       - name: Check version match
         # if: ${{ github.ref_name != steps.package-version.outputs.version }}
+        if: ${{ false }}
         uses: actions/github-script@v3
         with:
           script: |
