@@ -5,7 +5,7 @@ on:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
     branches:
-      - updater-cicd
+      - agallardol/updater-cicd
 
 defaults:
   run:
