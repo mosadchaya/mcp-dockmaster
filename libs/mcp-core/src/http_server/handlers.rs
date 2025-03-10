@@ -112,6 +112,16 @@ pub async fn handle_mcp_request(
                 }))
             }
         }
+        "registry/import" => {
+            if let Some(params) = request.params {
+                handle_import_server_from_url(mcp_core, params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Missing parameters for server import"
+                }))
+            }
+        }
         "registry/list" => handle_list_all_tools(mcp_core).await,
         "server/config" => {
             if let Some(params) = request.params {
@@ -503,6 +513,39 @@ async fn handle_invoke_tool(mcp_core: MCPCore, params: Value) -> Result<Value, V
         None => Err(json!({
             "code": -32601,
             "message": format!("Tool '{}' not found", tool_name)
+        })),
+    }
+}
+
+async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
+    match params.get("url").and_then(|v| v.as_str()) {
+        Some(url) => {
+            info!("Importing server from URL: {}", url);
+            
+            match mcp_core.import_server_from_url(url.to_string()).await {
+                Ok(response) => {
+                    if response.success {
+                        Ok(json!({
+                            "success": true,
+                            "message": response.message,
+                            "server_id": response.tool_id
+                        }))
+                    } else {
+                        Err(json!({
+                            "code": -32000,
+                            "message": response.message
+                        }))
+                    }
+                }
+                Err(e) => Err(json!({
+                    "code": -32000,
+                    "message": format!("Failed to import server: {}", e)
+                })),
+            }
+        }
+        None => Err(json!({
+            "code": -32602,
+            "message": "Missing URL parameter"
         })),
     }
 }
