@@ -16,7 +16,6 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
-  Copy,
   Loader2,
   RefreshCw,
 } from "lucide-react";
@@ -90,7 +89,6 @@ const Home: React.FC = () => {
     await Promise.all([checkClaude(), checkCursor()]);
 }
 
-        
 
   const checkPrerequisites = async () => {
     setIsChecking(true);
@@ -156,7 +154,7 @@ const Home: React.FC = () => {
           installed: dockerInstalled,
           loading: false,
           icon: dockerIcon,
-        }
+        },
       ]);
     } catch (error) {
       console.error("Failed to check prerequisites:", error);
@@ -236,7 +234,7 @@ const Home: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <span className="font-medium">Claude Desktop Status:</span>
-          {isClaudeInstalled ? (
+          {isClaudeInstalled ?  (
             <Badge className="bg-green-500 text-white hover:bg-green-600">
               Active
             </Badge>
@@ -313,7 +311,6 @@ const Home: React.FC = () => {
                 <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
                   <code>{claudeConfig}</code>
                 </pre>
-              
               </div>
             </div>
             <Separator />
@@ -328,7 +325,6 @@ const Home: React.FC = () => {
                 <pre className="max-h-[300px] overflow-auto rounded-md bg-black p-4 text-sm text-white">
                   <code>{cursorConfig}</code>
                 </pre>
-
               </div>
             </div>
           </CollapsibleContent>
@@ -420,6 +416,7 @@ const Home: React.FC = () => {
           </div>
         </div>
       </div>
+
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
@@ -443,6 +440,7 @@ const Home: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

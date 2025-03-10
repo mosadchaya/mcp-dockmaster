@@ -71,7 +71,7 @@ pub fn backup_file(file_path: &str) -> Result<String, io::Error> {
     if !path.exists() {
         return Ok(file_path.to_string());
     }
-    let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_millis()
+    let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_millis();
     let backup_path = format!("{}.backup_{}", file_path, timestamp);
 
     fs::copy(file_path, &backup_path)?;
