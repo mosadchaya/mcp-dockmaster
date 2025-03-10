@@ -1,11 +1,16 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    import_server_from_url, list_all_server_tools, list_servers, register_server, 
+    import_server_from_url, list_all_server_tools, list_servers, register_server,
     restart_server_command, uninstall_server, update_server_config, update_server_status,
+};
+use features::mcp_proxy::{
+    check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
+    install_claude, install_cursor,
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
-use tauri::{Emitter, Manager, RunEvent};
+use tauri::{utils::platform, Emitter, Manager, RunEvent};
+use tauri_plugin_shell::ShellExt;
 use tray::create_tray;
 
 mod features;
@@ -84,6 +89,46 @@ fn init_services(app_handle: tauri::AppHandle) {
     });
 }
 
+fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    let proxy_server_sidecar_name = "mcp-proxy-server";
+    let proxy_server_sidecar_path = match platform::current_exe()
+        .map_err(|_| "failed to get current exe")?
+        .parent()
+    {
+        #[cfg(windows)]
+        Some(exe_dir) => Ok(exe_dir
+            .join(proxy_server_sidecar_name)
+            .with_extension("exe")),
+        #[cfg(not(windows))]
+        Some(exe_dir) => Ok(exe_dir.join(proxy_server_sidecar_name)),
+        None => Err("failed to get proxy server sidecar path".to_string()),
+    }?;
+
+    if !proxy_server_sidecar_path.exists() {
+        let error_message = format!(
+            "proxy server sidecar binary not found in path {}",
+            proxy_server_sidecar_path.display()
+        );
+        return Err(error_message);
+    }
+    info!(
+        "Proxy server sidecar path: {}",
+        proxy_server_sidecar_path.display()
+    );
+
+    let database_path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| "failed to get app data dir")?
+        .join("mcp_dockmaster.db");
+
+    info!("database path: {}", database_path.display());
+
+    let mcp_core = MCPCore::new(database_path, proxy_server_sidecar_path.to_path_buf());
+    app_handle.manage(mcp_core.clone());
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 fn handle_window_reopen(app_handle: &tauri::AppHandle) {
     let main_window_label = "main";
@@ -117,12 +162,15 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             create_tray(app.handle())?;
 
-            let mcp_core = MCPCore::new(app.handle().path().app_data_dir().unwrap());
-            app.manage(mcp_core.clone());
+            app.shell().sidecar("mcp-proxy-server")?;
+            init_mcp_core(app.handle())?;
 
             // Start background initialization after the UI has started
             let app_handle = app.handle().clone();
@@ -146,6 +194,12 @@ pub async fn run() {
             uninstall_server,
             check_database_exists_command,
             clear_database_command,
+            check_claude_installed,
+            check_cursor_installed,
+            install_claude,
+            install_cursor,
+            get_claude_config,
+            get_cursor_config,
             import_server_from_url
         ])
         .build(tauri::generate_context!())
@@ -156,11 +210,11 @@ pub async fn run() {
                 api.prevent_exit();
 
                 // Cleanup processes
-                cleanup_mcp_processes(&app_handle);
+                cleanup_mcp_processes(app_handle);
             }
             RunEvent::Exit { .. } => {
                 // Cleanup processes
-                cleanup_mcp_processes(&app_handle);
+                cleanup_mcp_processes(app_handle);
                 std::process::exit(0);
             }
             #[cfg(target_os = "macos")]
