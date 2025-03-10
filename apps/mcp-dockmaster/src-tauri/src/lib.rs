@@ -1,7 +1,11 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    import_server_from_url, list_all_server_tools, list_servers, register_server, 
+    import_server_from_url, list_all_server_tools, list_servers, register_server,
     restart_server_command, uninstall_server, update_server_config, update_server_status,
+};
+use features::mcp_proxy::{
+    check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
+    install_claude, install_cursor,
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
@@ -190,6 +194,12 @@ pub async fn run() {
             uninstall_server,
             check_database_exists_command,
             clear_database_command,
+            check_claude_installed,
+            check_cursor_installed,
+            install_claude,
+            install_cursor,
+            get_claude_config,
+            get_cursor_config,
             import_server_from_url
         ])
         .build(tauri::generate_context!())

@@ -1,8 +1,9 @@
 pub mod core;
 pub mod database;
 pub mod http_server;
+pub mod mcp_installers;
 mod mcp_protocol;
-mod mcp_state;
+pub mod mcp_state;
 pub mod models;
 pub mod registry;
 pub mod schema;
