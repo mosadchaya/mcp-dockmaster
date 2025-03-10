@@ -1,0 +1,368 @@
+name: Release production
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+    branches:
+      - updater-cicd
+
+defaults:
+  run:
+    working-directory: ./
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.package-version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: get npm version
+        id: package-version
+        uses: Saionaro/extract-package-version@v1.2.1
+
+      - name: Check version match
+        # if: ${{ github.ref_name != steps.package-version.outputs.version }}
+        uses: actions/github-script@v3
+        with:
+          script: |
+            core.setFailed('Version mismatch')
+
+  release-mcp-dockmaster:
+    permissions:
+      contents: "read"
+      id-token: "write"
+    needs: prebuild
+    name: Release MCP Dockmaster
+    environment: production
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            build_output_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage
+            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage.tar.gz
+            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage.tar.gz.sig
+            distributable_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage
+            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage.tar.gz
+            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage.tar.gz.sig
+
+          - arch: aarch64-apple-darwin
+            os: macos-14
+            build_output_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/dmg/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_aarch64.dmg
+            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/macos/MCP Dockmaster.app.tar.gz
+            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/macos/MCP Dockmaster.app.tar.gz.sig
+            distributable_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_aarch64-apple-darwin.dmg
+            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_aarch64-apple-darwin.app.tar.gz
+            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_aarch64-apple-darwin.app.tar.gz.sig
+
+          - arch: x86_64-pc-windows-msvc
+            os: windows-2022
+            build_output_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.exe
+            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.nsis.zip
+            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.nsis.zip.sig
+            distributable_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.exe
+            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.nsis.zip
+            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.nsis.zip.sig
+    runs-on: ${{ matrix.os }}
+    outputs:
+      signature-x86_64-unknown-linux-gnu: ${{ steps.prepare-files.outputs.signature-x86_64-unknown-linux-gnu }}
+      update-url-x86_64-unknown-linux-gnu: ${{ steps.prepare-files.outputs.update-url-x86_64-unknown-linux-gnu }}
+      app-url-x86_64-unknown-linux-gnu: ${{ steps.prepare-files.outputs.app-url-x86_64-unknown-linux-gnu }}
+      signature-aarch64-apple-darwin: ${{ steps.prepare-files.outputs.signature-aarch64-apple-darwin }}
+      update-url-aarch64-apple-darwin: ${{ steps.prepare-files.outputs.update-url-aarch64-apple-darwin }}
+      app-url-aarch64-apple-darwin: ${{ steps.prepare-files.outputs.app-url-aarch64-apple-darwin }}
+      signature-x86_64-pc-windows-msvc: ${{ steps.prepare-files.outputs.signature-x86_64-pc-windows-msvc }}
+      update-url-x86_64-pc-windows-msvc: ${{ steps.prepare-files.outputs.update-url-x86_64-pc-windows-msvc }}
+      app-url-x86_64-pc-windows-msvc: ${{ steps.prepare-files.outputs.app-url-x86_64-pc-windows-msvc }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: (Linux) Install build dependencies
+        if: ${{ matrix.arch == 'x86_64-unknown-linux-gnu' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libsoup-3.0-dev
+
+      - name: (MACOS) Install the Apple certificate and provisioning profile
+        if: ${{ matrix.arch == 'aarch64-apple-darwin' }}
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+        run: |
+          # create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Cache cargo assets
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.arch }}-build-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup Node version
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          check-latest: false
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: |
+          npm cache verify
+          npm ci --no-audit --prefer-offline
+
+      - name: Setup cargo version from npm
+        run: |
+          cd ./apps/mcp-dockmaster/src-tauri
+          cargo install cargo-edit --force
+          cargo set-version ${{ needs.prebuild.outputs.version }}
+
+      - name: (Linux) Run NX build on mcp-dockmaster
+        if: ${{ matrix.arch == 'x86_64-unknown-linux-gnu' }}
+        run: npx nx build mcp-dockmaster --skip-nx-cache
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+
+      - name: (Macos) Run NX build on mcp-dockmaster
+        if: ${{ matrix.arch == 'aarch64-apple-darwin' }}
+        run: npx nx build mcp-dockmaster --skip-nx-cache
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+
+      - name: (Windows) Run NX build on mcp-dockmaster
+        if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+        run: npx nx build mcp-dockmaster --skip-nx-cache
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+
+      #   # --- Signing process ---
+      #   - name: "Google auth"
+      #     id: "auth"
+      #     uses: "google-github-actions/auth@v2"
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     with:
+      #       project_id: "shinkai-412316"
+      #       workload_identity_provider: "projects/511721742630/locations/global/workloadIdentityPools/github/providers/shinkai-apps"
+      #       service_account: "github-ksm-ev-code-signing@shinkai-412316.iam.gserviceaccount.com"
+
+      #   - name: "Set up Cloud SDK"
+      #     uses: "google-github-actions/setup-gcloud@v2"
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     with:
+      #       project_id: "shinkai-412316"
+
+      #   - name: Set up Java
+      #     uses: actions/setup-java@v4
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     with:
+      #       java-version: 17
+      #       distribution: "temurin"
+
+      #   - name: Download Jsign
+      #     shell: bash
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     run: choco install jsign
+
+      #   - name: Cert to file
+      #     shell: bash
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     run: |
+      #       echo -n "${{ secrets.EV_CODE_SIGNING_CERTIFICATE }}" > OS20241029372986.cer
+
+      #   - name: Download file to sign
+      #     shell: bash
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     run: |
+      #       curl -LO https://download.shinkai.com/mcp-dockmaster/binaries/production/x86_64-pc-windows-msvc/latest/MCP-Dockmaster-latest_x86_64-pc-windows-msvc.exe
+
+      #   - name: Sign
+      #     shell: bash
+      #     if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
+      #     run: >
+      #       jsign \
+      #           --storetype GOOGLECLOUD \
+      #           --storepass "$(gcloud auth print-access-token)" \
+      #           --keystore "projects/shinkai-412316/locations/us/keyRings/shinkai-apps" \
+      #           --alias "EVCodeSigning/cryptoKeyVersions/1" \
+      #           --certfile "OS20241029372986.cer" \
+      #           --tsmode RFC3161 \
+      #           --tsaurl http://timestamp.globalsign.com/tsa/r6advanced1 \
+      #           "${{ matrix.build_output_file_path }}"
+
+      - name: Prepare binary files
+        id: prepare-files
+        shell: bash
+        run: |
+          mkdir files-to-r2
+          cp "${{ matrix.build_output_file_path }}" files-to-r2/${{ matrix.distributable_file_name }}
+          cp "${{ matrix.build_output_update_file_path }}" files-to-r2/${{ matrix.distributable_update_file_name }}
+          cp "${{ matrix.build_output_update_signature_file_path }}" files-to-r2/${{ matrix.distributable_update_signature_file_name }}
+          echo "signature-${{ matrix.arch }}=$(cat files-to-r2/${{ matrix.distributable_update_signature_file_name }})" >> "$GITHUB_OUTPUT"
+          echo "update-url-${{ matrix.arch }}=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/${{ matrix.distributable_update_file_name }}" >> "$GITHUB_OUTPUT"
+          echo "app-url-${{ matrix.arch }}=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/${{ matrix.distributable_file_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binaries to R2 bucket
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          endpoint: https://54bf1bf573b3e6471e574cc4d318db64.r2.cloudflarestorage.com
+          aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws_bucket: mcp-dockmaster-download
+          source_dir: files-to-r2
+          destination_dir: ./mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/
+
+  rollout-mcp-dockmaster:
+    environment: production
+    needs:
+      - prebuild
+      - release-mcp-dockmaster
+    name: Generate & Update updates.json
+    runs-on: ubuntu-22.04
+    outputs:
+      updates-next-json-url: ${{ steps.generate-updates-next-json.outputs.updates-next-json-url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node version
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          check-latest: false
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm cache verify
+          npm ci --no-audit --prefer-offline
+
+      - name: Generate updates-next.json
+        id: generate-updates-next-json
+        env:
+          JSON_PATH: files-to-r2/updates-next.json
+          VERSION: ${{ needs.prebuild.outputs.version }}
+          NOTES: Automatic update to ${{ needs.prebuild.outputs.version }}
+          LINUX_x86_64_SIGNATURE: ${{ needs.release-mcp-dockmaster.outputs.signature-x86_64-unknown-linux-gnu }}
+          LINUX_x86_64_URL: ${{ needs.release-mcp-dockmaster.outputs.update-url-x86_64-unknown-linux-gnu }}
+          DARWIN_AARCH64_SIGNATURE: ${{ needs.release-mcp-dockmaster.outputs.signature-aarch64-apple-darwin }}
+          DARWIN_AARCH64_URL: ${{ needs.release-mcp-dockmaster.outputs.update-url-aarch64-apple-darwin }}
+          WINDOWS_x86_64_SIGNATURE: ${{ needs.release-mcp-dockmaster.outputs.signature-x86_64-pc-windows-msvc }}
+          WINDOWS_x86_64_URL: ${{ needs.release-mcp-dockmaster.outputs.update-url-x86_64-pc-windows-msvc }}
+        run: |
+          mkdir files-to-r2
+          npx ts-node ./ci-scripts/generate-updates-json.ts
+          echo "updates-next-json-url=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/updates-next.json" >> "$GITHUB_OUTPUT"
+
+      - name: Upload updates.json to R2
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          endpoint: https://54bf1bf573b3e6471e574cc4d318db64.r2.cloudflarestorage.com
+          aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws_bucket: mcp-dockmaster-download
+          source_dir: files-to-r2
+          destination_dir: ./mcp-dockmaster/binaries/production/
+
+  # notify-slack:
+  #   environment: production
+  #   needs:
+  #     - prebuild
+  #     - release-mcp-dockmaster
+  #     - rollout-mcp-dockmaster
+  #   name: Notify Slack
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - name: Post MCP Dockmaster to a Slack channel
+  #       id: slack
+  #       uses: slackapi/slack-github-action@v1.26.0
+  #       env:
+  #         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  #       with:
+  #         channel-id: "C072VJ6E7GC"
+  #         payload: |
+  #           {
+  #             "blocks": [
+  #               {
+  #                 "type": "header",
+  #                 "text": {
+  #                   "type": "plain_text",
+  #                   "text": "📦 New build: MCP Dockmaster v${{ needs.prebuild.outputs.version }}.${{ github.run_number }}",
+  #                   "emoji": true
+  #                 }
+  #               },
+  #               {
+  #                 "type": "divider"
+  #               },
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": "Download it from:\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-aarch64-apple-darwin }}|Macos>\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-x86_64-pc-windows-msvc }}|Windows>\n*"
+  #                 }
+  #               },
+  #               {
+  #                 "type": "divider"
+  #               },
+  #               {
+  #                 "type": "context",
+  #                 "elements": [
+  #                   {
+  #                     "type": "mrkdwn",
+  #                     "text": "_💡 Rename file <${{ needs.rollout-mcp-dockmaster.outputs.updates-next-json-url }}|updates-next.json> to updates.json to start the rollout through the auto updater_"
+  #                   }
+  #                 ]
+  #               }
+  #             ]
+  #           }
