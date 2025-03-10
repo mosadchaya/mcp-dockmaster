@@ -3,6 +3,7 @@ use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
+use async_trait::async_trait;
 use log::{error, info, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -268,10 +269,12 @@ impl MCPState {
     }
 }
 
+#[async_trait]
 pub trait McpStateProcessMonitor {
     fn start_process_monitor(self) -> impl std::future::Future<Output = ()> + Send;
 }
 
+#[async_trait]
 impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
     // Start a background task that periodically checks if processes are running
     async fn start_process_monitor(self) {
