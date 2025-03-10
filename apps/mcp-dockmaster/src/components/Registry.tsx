@@ -37,6 +37,7 @@ const Registry: React.FC = () => {
   const [categories, setCategories] = useState<[string, number][]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   // Load tools and categories on initial mount
   useEffect(() => {
@@ -404,13 +405,27 @@ const Registry: React.FC = () => {
   const handleImportFromGitHub = async (server: RegistryServer) => {
     await installServer(server);
   };
+  
+  // Render GitHub import modal
+  const renderGitHubImportModal = () => {
+    return (
+      <ImportServerDialog 
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImport={handleImportFromGitHub} 
+      />
+    );
+  };
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
-          <ImportServerDialog onImport={handleImportFromGitHub} />
+          <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+            Import from URL
+          </Button>
+          {renderGitHubImportModal()}
         </div>
         <p className="text-muted-foreground text-sm">
           Discover and install AI applications and MCP tools.

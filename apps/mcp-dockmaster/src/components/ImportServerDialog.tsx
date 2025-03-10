@@ -15,9 +15,15 @@ import { RegistryServer } from "../lib/mcpClient";
 
 interface ImportServerDialogProps {
   onImport: (server: RegistryServer) => Promise<void>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const ImportServerDialog: React.FC<ImportServerDialogProps> = ({ onImport }) => {
+const ImportServerDialog: React.FC<ImportServerDialogProps> = ({ 
+  onImport, 
+  open: externalOpen, 
+  onOpenChange: externalOnOpenChange 
+}) => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,10 +61,21 @@ const ImportServerDialog: React.FC<ImportServerDialogProps> = ({ onImport }) => 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Import from URL</Button>
-      </DialogTrigger>
+    <Dialog 
+      open={externalOpen !== undefined ? externalOpen : open} 
+      onOpenChange={(newOpen) => {
+        if (externalOnOpenChange) {
+          externalOnOpenChange(newOpen);
+        } else {
+          setOpen(newOpen);
+        }
+      }}
+    >
+      {externalOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline">Import from URL</Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Import MCP Server from GitHub</DialogTitle>
