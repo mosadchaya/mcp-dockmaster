@@ -75,13 +75,30 @@ impl McpCoreProxyExt for MCPCore {
         let server_id = request.server_id.clone();
         info!("Generated server ID: {}", server_id);
 
+        // Determine entry point based on runtime type
+        let entry_point = match request.tools_type.as_str() {
+            "python" => Some("uv run".to_string()),
+            "node" => {
+                if let Some(dist) = &request.distribution {
+                    if dist.r#type == "npm" && !dist.package.is_empty() {
+                        Some(format!("npx -y {}", dist.package))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            },
+            _ => None,
+        };
+
         // Create the Tool struct
         let server = ServerDefinition {
             name: request.server_name.clone(),
             description: request.description.clone(),
             enabled: true, // Default to enabled
             tools_type: request.tools_type.clone(),
-            entry_point: None,
+            entry_point,
             configuration: request.configuration,
             distribution: request.distribution,
         };
