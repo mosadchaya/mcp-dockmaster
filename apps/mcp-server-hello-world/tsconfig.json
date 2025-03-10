@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "outDir": "../../dist/apps/mcp-server-hello-world",
+    "strict": true,
+    "declaration": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}

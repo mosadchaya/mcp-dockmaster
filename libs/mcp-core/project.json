@@ -12,31 +12,18 @@
       }
     },
     "test": {
+      "dependsOn": ["mcp-core:build", "mcp-server-hello-world:build"],
       "executor": "nx:run-commands",
       "options": {
         "cwd": "libs/mcp-core",
         "command": "cargo test"
       }
     },
-    "check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/mcp-core",
-        "command": "cargo check"
-      }
-    },
-    "clippy": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/mcp-core",
-        "command": "cargo clippy -- -D warnings"
-      }
-    },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "libs/mcp-core",
-        "command": "cargo fmt --check"
+        "command": "cargo clippy -- -D warnings"
       }
     },
     "clean": {
@@ -48,4 +35,4 @@
     }
   },
   "tags": ["rust", "core"]
-} 
+}

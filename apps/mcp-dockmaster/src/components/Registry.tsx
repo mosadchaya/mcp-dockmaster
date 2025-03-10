@@ -1,49 +1,43 @@
 import React, { useState, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import MCPClient from "../lib/mcpClient";
-import { getAvailableTools, getCategories } from "../lib/registry";
-import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from "../lib/events";
+import MCPClient, { RegistryServer } from "../lib/mcpClient";
+import { getAvailableServers, getCategories } from "../lib/registry";
+import {
+  SERVER_UNINSTALLED,
+  SERVER_INSTALLED,
+  dispatchServerInstalled,
+  dispatchServerUninstalled,
+} from "../lib/events";
 import "./Registry.css";
 
 // Import runner icons
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
 import pythonIcon from "../assets/python.svg";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
-import { Search, ChevronRight, ChevronLeft, Link } from "lucide-react";
-
-interface RegistryTool {
-  id: string;
-  name: string;
-  description: string;
-  fullDescription: string;
-  publisher: {
-    id: string;
-    name: string;
-    url: string;
-  };
-  runtime: string;
-  installed: boolean;
-  isOfficial?: boolean;
-  sourceUrl?: string;
-  distribution?: {
-    type: string;
-    package: string;
-  };
-  config?: {
-    command: string;
-    args: string[];
-    env: Record<string, any>;
-  };
-  license?: string;
-  categories?: string[];
-}
+import { Search, ChevronRight, ChevronLeft, Link, Info } from "lucide-react";
+import { Label } from "./ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 const Registry: React.FC = () => {
-  const [availableTools, setAvailableTools] = useState<RegistryTool[]>([]);
+  const [availableServers, setAvailableServers] = useState<RegistryServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState<string | null>(null);
@@ -51,26 +45,28 @@ const Registry: React.FC = () => {
   const [categories, setCategories] = useState<[string, number][]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [detailsPopupVisible, setDetailsPopupVisible] = useState(false);
+  const [currentServerDetails, setCurrentServerDetails] = useState<RegistryServer | null>(null);
 
   // Load tools and categories on initial mount
   useEffect(() => {
-    loadAvailableTools();
+    loadAvailableServers();
     loadCategories();
 
     // Add event listener for visibility change to reload tools when component becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        loadAvailableTools();
+        loadAvailableServers();
         loadCategories();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", loadAvailableTools);
+    window.addEventListener("focus", loadAvailableServers);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", loadAvailableTools);
+      window.removeEventListener("focus", loadAvailableServers);
     };
   }, []);
 
@@ -79,52 +75,74 @@ const Registry: React.FC = () => {
     // When a tool is uninstalled, update its status in the registry
     const handleToolUninstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, installed: false } : tool)));
+      setAvailableServers((prev) =>
+        prev.map((tool) =>
+          tool.id === toolId ? { ...tool, installed: false } : tool,
+        ),
+      );
     };
 
     // When a tool is installed elsewhere, update its status in the registry
     const handleToolInstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, installed: true } : tool)));
+      setAvailableServers((prev) =>
+        prev.map((tool) =>
+          tool.id === toolId ? { ...tool, installed: true } : tool,
+        ),
+      );
     };
 
     // Add event listeners
-    document.addEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
-    document.addEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
+    document.addEventListener(
+      SERVER_UNINSTALLED,
+      handleToolUninstalled as EventListener,
+    );
+    document.addEventListener(
+      SERVER_INSTALLED,
+      handleToolInstalled as EventListener,
+    );
 
     // Clean up event listeners on unmount
     return () => {
-      document.removeEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
-      document.removeEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
+      document.removeEventListener(
+        SERVER_UNINSTALLED,
+        handleToolUninstalled as EventListener,
+      );
+      document.removeEventListener(
+        SERVER_INSTALLED,
+        handleToolInstalled as EventListener,
+      );
     };
   }, []);
 
-  const loadAvailableTools = async () => {
+  const loadAvailableServers = async () => {
     setLoading(true);
     try {
       // Get tools from registry
-      const registryTools = await getAvailableTools();
+      const registryTools = await getAvailableServers();
 
       // Get installed tools to check status
-      const installedTools = await MCPClient.listTools();
+      const installedServers = await MCPClient.listServers();
+      console.log("installedServers: ", installedServers);
 
       // Create a map to ensure we don't have duplicate tools by name
-      const uniqueToolsMap = new Map();
+      const uniqueServersMap = new Map();
 
       // Process registry tools and mark as installed if they match installed tools
       registryTools.forEach((tool) => {
         // Check if tool is installed by ID or by name (in case IDs don't match)
-        const isInstalled = installedTools.some(
-          (installedTool) =>
-            installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
+        const isInstalled = installedServers.some(
+          (installedServer) =>
+            installedServer.id === tool.id ||
+            installedServer.name.toLowerCase() === tool.name.toLowerCase(),
         );
 
         // Use lowercase name as key to avoid case-sensitivity issues
         const key = tool.name.toLowerCase();
 
         // Only add if not already in the map
-        if (!uniqueToolsMap.has(key)) {
-          uniqueToolsMap.set(key, {
+        if (!uniqueServersMap.has(key)) {
+          uniqueServersMap.set(key, {
             ...tool,
             installed: isInstalled,
           });
@@ -132,9 +150,9 @@ const Registry: React.FC = () => {
       });
 
       // Convert map values to array
-      const toolsWithStatus = Array.from(uniqueToolsMap.values());
+      const serversWithStatus = Array.from(uniqueServersMap.values());
 
-      setAvailableTools(toolsWithStatus);
+      setAvailableServers(serversWithStatus);
     } catch (error) {
       console.error("Failed to load available tools:", error);
     } finally {
@@ -151,102 +169,138 @@ const Registry: React.FC = () => {
     }
   };
 
-  const installTool = async (tool: RegistryTool) => {
+  const installServer = async (server: RegistryServer) => {
     // Double-check if the tool is already installed before proceeding
-    const installedTools = await MCPClient.listTools();
-    const isAlreadyInstalled = installedTools.some(
-      (installedTool) => installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
+    const installedServers = await MCPClient.listServers();
+    console.log("installedServers: ", installedServers);
+
+    const isAlreadyInstalled = installedServers.some(
+      (installedServer) =>
+        installedServer.id === server.id ||
+        installedServer.name.toLowerCase() === server.name.toLowerCase(),
     );
 
     if (isAlreadyInstalled) {
       // Tool is already installed, update UI and don't try to install again
-      setAvailableTools((prev) => prev.map((item) => (item.id === tool.id ? { ...item, installed: true } : item)));
+      setAvailableServers((prev) =>
+        prev.map((item) =>
+          item.id === server.id ? { ...item, installed: true } : item,
+        ),
+      );
       return;
     }
 
-    setInstalling(tool.id);
+    setInstalling(server.id);
     try {
       // For now, use a default entry point based on the tool type
-      const entryPoint = getDefaultEntryPoint(tool.name);
+      const entryPoint = getDefaultEntryPoint(server.name);
 
       // Prepare authentication if needed
       let authentication = null;
-      if (tool.config && tool.config.env) {
+      if (server.config && server.config.env) {
         // For now, we don't have a way to collect env vars from the user
         // In a real implementation, you would prompt the user for these values
-        authentication = { env: tool.config.env };
+        authentication = { env: server.config.env };
       }
 
-      console.log("Registering tool:", JSON.stringify(tool, null, 2), tool.runtime, entryPoint, authentication);
-      const response = await MCPClient.registerTool({
-        tool_id: tool.id,
-        tool_name: tool.name,
-        description: tool.description,
-        tool_type: tool.runtime,
-        configuration: tool.config,
-        distribution: tool.distribution,
+      console.log(
+        "Registering server:",
+        JSON.stringify(server, null, 2),
+        server.runtime,
+        entryPoint,
+        authentication,
+      );
+
+      const response = await MCPClient.registerServer({
+        server_id: server.id,
+        server_name: server.name,
+        description: server.description,
+        tools_type: server.runtime,
+        configuration: server.config,
+        distribution: server.distribution,
         authentication: authentication,
       });
 
       if (response.success) {
         // Update tool as installed
-        setAvailableTools((prev) => prev.map((item) => (item.id === tool.id ? { ...item, installed: true } : item)));
+        setAvailableServers((prev) =>
+          prev.map((item) =>
+            item.id === server.id ? { ...item, installed: true } : item,
+          ),
+        );
 
         // Dispatch event that a tool was installed
-        dispatchToolInstalled(tool.id);
+        dispatchServerInstalled(server.id);
       }
     } catch (error) {
-      console.error("Failed to install tool:", error);
+      console.error("Failed to install server:", error);
     } finally {
       setInstalling(null);
     }
   };
 
-  const uninstallTool = async (id: string) => {
+  const uninstallServer = async (id: string) => {
     try {
+      console.log("Uninstalling server:", id);
       setUninstalling(id);
 
       // Update the UI optimistically
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: false } : tool)));
+      setAvailableServers((prev) =>
+        prev.map((server: RegistryServer) =>
+          server.id === id ? { ...server, installed: false } : server,
+        ),
+      );
 
       // Get the tool from the registry
-      const registryTool = availableTools.find((tool) => tool.id === id);
-      if (!registryTool) {
-        console.error("Tool not found in registry:", id);
+      const registryServer = availableServers.find((server) => server.id === id);
+      if (!registryServer) {
+        console.error("Server not found in registry:", id);
         return;
       }
 
       // Get the actual tool ID from the backend by matching names
-      const installedTools = await MCPClient.listTools();
-      const matchingTool = installedTools.find((tool) => tool.name.toLowerCase() === registryTool.name.toLowerCase());
+      const installedServers = await MCPClient.listServers();
+      const matchingServer = installedServers.find(
+        (server) => server.name.toLowerCase() === registryServer.name.toLowerCase(),
+      );
 
-      if (!matchingTool) {
-        console.error("Tool not found in installed tools:", registryTool.name);
+      console.log("matchingServer: ", matchingServer);
+
+      if (!matchingServer) {
+        console.error("Tool not found in installed tools:", registryServer.name);
         // Revert UI change
-        setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: true } : tool)));
+        setAvailableServers((prev) =>
+          prev.map((server) =>
+            server.id === id ? { ...server, installed: true } : server,
+          ),
+        );
         return;
       }
 
       // Use the actual tool ID from the backend
-      const actualToolId = matchingTool.id;
+      const actualServerId = matchingServer.id;
 
       // Call the backend API to uninstall the tool
-      const response = await MCPClient.uninstallTool({
-        tool_id: actualToolId,
+      const response = await MCPClient.uninstallServer({
+        server_id: actualServerId,
       });
 
       if (response.success) {
         // Dispatch event that a tool was uninstalled with the registry ID for UI updates
-        dispatchToolUninstalled(id);
+        dispatchServerUninstalled(id);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall tool:", response.message);
-        setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: true } : tool)));
+        setAvailableServers((prev) =>
+          prev.map((tool) =>
+            tool.id === id ? { ...tool, installed: true } : tool,
+          ),
+        );
       }
     } catch (error) {
-      console.error("Error uninstalling tool:", error);
+      console.error("Error uninstalling server:", error);
       // Refresh the list to ensure UI is in sync with backend
-      loadAvailableTools();
+      loadAvailableServers();
     } finally {
       setUninstalling(null);
     }
@@ -255,7 +309,7 @@ const Registry: React.FC = () => {
   // Helper function to get a default entry point based on tool type and name
   const getDefaultEntryPoint = (toolName: string): string => {
     // Try to find the tool in the available tools to get its distribution info
-    const tool = availableTools.find((t) => t.name === toolName);
+    const tool = availableServers.find((t) => t.name === toolName);
 
     if (tool && tool.distribution && tool.config) {
       // Run the command with the args if provided
@@ -280,18 +334,39 @@ const Registry: React.FC = () => {
   const getRunnerIcon = (runtime: string) => {
     switch (runtime.toLowerCase()) {
       case "docker":
-        return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
+        return (
+          <img
+            src={dockerIcon}
+            alt="Docker"
+            className="runner-icon"
+            title="Docker"
+          />
+        );
       case "node":
-        return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
+        return (
+          <img
+            src={nodeIcon}
+            alt="Node.js"
+            className="runner-icon"
+            title="Node.js"
+          />
+        );
       case "python":
-        return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
+        return (
+          <img
+            src={pythonIcon}
+            alt="Python/UV"
+            className="runner-icon"
+            title="Python/UV"
+          />
+        );
       default:
         return <span className="runner-icon unknown">?</span>;
     }
   };
   const parentRef = React.useRef<HTMLDivElement>(null);
 
-  const filteredTools = availableTools.filter((tool) => {
+  const filteredTools = availableServers.filter((tool) => {
     const matchesSearch = searchTerm
       ? tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -305,7 +380,171 @@ const Registry: React.FC = () => {
   });
 
   // Get visible categories (first 5 if not showing all)
-  const visibleCategories = showAllCategories ? categories : categories.slice(0, 12);
+  const visibleCategories = showAllCategories
+    ? categories
+    : categories.slice(0, 12);
+    
+  // Functions to handle the details popup
+  const openDetailsPopup = (tool: RegistryServer, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any parent click handlers
+    setCurrentServerDetails(tool);
+    setDetailsPopupVisible(true);
+  };
+  
+  const closeDetailsPopup = () => {
+    setDetailsPopupVisible(false);
+    setCurrentServerDetails(null);
+  };
+  
+  // Function to render the details popup
+  const renderDetailsPopup = () => {
+    if (!detailsPopupVisible || !currentServerDetails) return null;
+    
+    return (
+      <Dialog open={detailsPopupVisible} onOpenChange={closeDetailsPopup}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{currentServerDetails.name}</DialogTitle>
+            <DialogDescription>
+              Server details and information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Basic Information */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Basic Information</h3>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Description</Label>
+                  <div className="col-span-3 text-sm">
+                    {currentServerDetails.fullDescription || currentServerDetails.description}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">ID</Label>
+                  <div className="col-span-3 text-sm font-mono">{currentServerDetails.id}</div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1">Runtime</Label>
+                  <div className="col-span-3 text-sm">{currentServerDetails.runtime}</div>
+                </div>
+                {currentServerDetails.license && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">License</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.license}</div>
+                  </div>
+                )}
+                {currentServerDetails.categories && currentServerDetails.categories.length > 0 && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Categories</Label>
+                    <div className="col-span-3 flex flex-wrap gap-1">
+                      {currentServerDetails.categories.map((category) => (
+                        <Badge key={category} variant="outline" className="text-xs">
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Publisher Information */}
+            {currentServerDetails.publisher && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Publisher</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Name</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.publisher.name}</div>
+                  </div>
+                  {currentServerDetails.publisher.url && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">URL</Label>
+                      <div className="col-span-3">
+                        <a 
+                          href={currentServerDetails.publisher.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline text-sm"
+                        >
+                          {currentServerDetails.publisher.url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Configuration */}
+            {currentServerDetails.config && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Configuration</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {currentServerDetails.config.command && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Command</Label>
+                      <div className="col-span-3 text-sm font-mono">{currentServerDetails.config.command}</div>
+                    </div>
+                  )}
+                  {currentServerDetails.config.args && currentServerDetails.config.args.length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Arguments</Label>
+                      <div className="col-span-3 text-sm font-mono">
+                        {currentServerDetails.config.args.map((arg, index) => (
+                          <div key={index}>{arg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {currentServerDetails.config.env && Object.keys(currentServerDetails.config.env).length > 0 && (
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right text-xs pt-1">Environment Variables</Label>
+                      <div className="col-span-3 space-y-2">
+                        {Object.entries(currentServerDetails.config.env).map(([key, value]) => (
+                          <div key={key} className="text-sm">
+                            <div className="font-medium">{key}</div>
+                            {typeof value === 'object' && value.description ? (
+                              <div className="text-muted-foreground text-xs">{value.description}</div>
+                            ) : (
+                              <div className="text-muted-foreground text-xs">Value: {String(value)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Distribution */}
+            {currentServerDetails.distribution && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Distribution</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Type</Label>
+                    <div className="col-span-3 text-sm">{currentServerDetails.distribution.type}</div>
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right text-xs pt-1">Package</Label>
+                    <div className="col-span-3 text-sm font-mono">{currentServerDetails.distribution.package}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDetailsPopup}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Set up the virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -317,43 +556,52 @@ const Registry: React.FC = () => {
   });
 
   return (
-    <div className="h-full px-6 flex flex-col gap-8 py-10 pb-4 max-w-4xl mx-auto w-full">
-      <div className="flex flex-col space-y-1.5 ">
-        <h1 className="font-semibold tracking-tight text-2xl">AI App Store</h1>
-        <p className="text-sm text-muted-foreground">Discover and install AI applications and MCP tools.</p>
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
+      <div className="flex flex-col space-y-1.5">
+        <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+        <p className="text-muted-foreground text-sm">
+          Discover and install AI applications and MCP tools.
+        </p>
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="relative flex-1 max-h-12 h-full min-h-12 shrink-0">
-          <div className="absolute top-4 left-3 flex items-center pointer-events-none">
+        <div className="relative h-full max-h-12 min-h-12 flex-1 shrink-0">
+          <div className="pointer-events-none absolute top-4 left-3 flex items-center">
             <Search size={18} className="text-gray-400" />
           </div>
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="size-full pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60"
+            className="bg-background text-foreground placeholder:text-muted-foreground size-full rounded-lg border py-2 pr-4 pl-10 focus:ring-1 focus:ring-neutral-900/60 focus:outline-none"
             placeholder="Search for tools..."
             aria-label="Search for tools"
           />
         </div>
 
         {searchTerm && (
-          <div className="text-sm text-muted-foreground">
-            Found {filteredTools.length} result{filteredTools.length !== 1 ? 's' : ''}
+          <div className="text-muted-foreground text-sm">
+            Found {filteredTools.length} result
+            {filteredTools.length !== 1 ? "s" : ""}
           </div>
         )}
 
-        <div className={`flex items-center gap-2 pb-2 flex-wrap`}>
-          <div className={`flex gap-2 flex-wrap ${showAllCategories ? 'max-h-[300px] overflow-y-auto' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-2 pb-2`}>
+          <div
+            className={`flex flex-wrap gap-2 ${showAllCategories ? "max-h-[300px] overflow-y-auto" : ""}`}
+          >
             {visibleCategories.map(([category, count]) => (
               <Badge
                 key={category}
                 variant={selectedCategory === category ? "default" : "outline"}
                 className="cursor-pointer whitespace-nowrap"
-                onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+                onClick={() =>
+                  setSelectedCategory(
+                    selectedCategory === category ? null : category,
+                  )
+                }
               >
-                {category} { count > 1 ? `(${count})` : '' }
+                {category} {count > 1 ? `(${count})` : ""}
               </Badge>
             ))}
           </div>
@@ -376,19 +624,22 @@ const Registry: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center flex-col gap-3 ">
+        <div className="flex flex-col items-center justify-center gap-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton key={index} className="w-full h-40 bg-muted rounded-md" />
+            <Skeleton key={index} className="bg-muted h-40 w-full rounded-md" />
           ))}
         </div>
       ) : (
         <>
           {filteredTools.length === 0 ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground py-10 text-center text-sm">
               <p>No tools found matching your search criteria.</p>
             </div>
           ) : (
-            <div ref={parentRef} style={{ height: "100%", overflow: "auto", contain: "strict" }}>
+            <div
+              ref={parentRef}
+              style={{ height: "100%", overflow: "auto", contain: "strict" }}
+            >
               <div
                 style={{
                   height: `${rowVirtualizer.getTotalSize()}px`,
@@ -402,7 +653,6 @@ const Registry: React.FC = () => {
                   return (
                     <div
                       key={tool.id}
-                      // className=" top-0 left-0 pr-4"
                       style={{
                         position: "absolute",
                         width: "100%",
@@ -411,11 +661,13 @@ const Registry: React.FC = () => {
                         boxSizing: "border-box",
                       }}
                     >
-                      <Card className="overflow-hidden gap-4 w-full border-slate-200 shadow-none ">
+                      <Card className="w-full gap-4 overflow-hidden border-slate-200 shadow-none">
                         <CardHeader className="pb-0">
-                          <div className="flex justify-between items-start">
+                          <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="bg-muted rounded-md p-1 size-8 ">{getRunnerIcon(tool.runtime)}</div>
+                              <div className="bg-muted size-8 rounded-md p-1">
+                                {getRunnerIcon(tool.runtime)}
+                              </div>
 
                               <CardTitle className="text-lg">
                                 {tool.name}
@@ -423,10 +675,20 @@ const Registry: React.FC = () => {
                                   href={tool.publisher.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="underline text-foreground"
+                                  className="text-foreground underline"
                                 >
-                                  <Link size={14} className="inline-block ml-1" />
+                                  <Link
+                                    size={14}
+                                    className="ml-1 inline-block"
+                                  />
                                 </a>
+                                <button 
+                                  className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none cursor-pointer"
+                                  onClick={(e) => openDetailsPopup(tool, e)}
+                                  title="View server details"
+                                >
+                                  <Info size={14} className="inline-block" />
+                                </button>
                               </CardTitle>
                               {tool.installed && (
                                 <Badge variant="outline" className="ml-auto">
@@ -437,32 +699,43 @@ const Registry: React.FC = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <CardDescription className="line-clamp-2">{tool.description}</CardDescription>
+                          <CardDescription className="line-clamp-2">
+                            {tool.description}
+                          </CardDescription>
                         </CardContent>
-                        <CardFooter className="pt-0 flex justify-between items-center">
+                        <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <span>By </span>{" "}
-                              {tool.publisher.name}
+                            <div className="text-muted-foreground flex items-center gap-1 text-sm">
+                              <span>By </span> {tool.publisher.name}
                             </div>
                           )}
                           {tool.installed ? (
                             <Button
                               variant="destructive"
-                              onClick={() => uninstallTool(tool.id)}
+                              onClick={() => uninstallServer(tool.id)}
                               disabled={uninstalling === tool.id}
                               type="button"
                             >
-                              {uninstalling === tool.id ? "Uninstalling..." : "Uninstall"}
+                              {uninstalling === tool.id
+                                ? "Uninstalling..."
+                                : "Uninstall"}
                             </Button>
                           ) : (
                             <Button
                               variant="outline"
                               type="button"
-                              onClick={() => !tool.installed && installTool(tool)}
-                              disabled={tool.installed || installing === tool.id}
+                              onClick={() =>
+                                !tool.installed && installServer(tool)
+                              }
+                              disabled={
+                                tool.installed || installing === tool.id
+                              }
                             >
-                              {tool.installed ? "Installed" : installing === tool.id ? "Installing..." : "Install"}
+                              {tool.installed
+                                ? "Installed"
+                                : installing === tool.id
+                                  ? "Installing..."
+                                  : "Install"}
                             </Button>
                           )}
                         </CardFooter>
@@ -475,6 +748,7 @@ const Registry: React.FC = () => {
           )}
         </>
       )}
+      {renderDetailsPopup()}
     </div>
   );
 };

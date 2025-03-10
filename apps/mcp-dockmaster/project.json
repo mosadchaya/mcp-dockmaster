@@ -6,38 +6,17 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npm run build",
+        "command": "npx tauri build",
         "cwd": "apps/mcp-dockmaster"
       }
     },
-    "dev": {
+    "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npm run dev",
-        "cwd": "apps/mcp-dockmaster"
-      }
-    },
-    "preview": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run preview",
-        "cwd": "apps/mcp-dockmaster"
-      }
-    },
-    "tauri": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run tauri",
-        "cwd": "apps/mcp-dockmaster"
-      }
-    },
-    "tauri:dev": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run tauri:dev",
+        "command": "npx tauri dev",
         "cwd": "apps/mcp-dockmaster"
       }
     }
   },
   "tags": []
-} 
+}

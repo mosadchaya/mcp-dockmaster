@@ -1,14 +1,11 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_all_server_data, list_all_server_tools, list_tools, load_mcp_state_command, register_tool,
-    restart_tool_command, save_mcp_state_command, uninstall_tool, update_tool_config,
-    update_tool_status,
+    list_all_server_tools, list_servers, register_server, restart_server_command, uninstall_server,
+    update_server_config, update_server_status,
 };
 use log::{error, info};
-use mcp_core::mcp_state::MCPState;
-use std::sync::Arc;
+use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
 use tauri::{Emitter, Manager, RunEvent};
-use tokio::sync::RwLock;
 use tray::create_tray;
 
 mod features;
@@ -52,27 +49,26 @@ mod commands {
         Ok(INITIALIZATION_COMPLETE.load(Ordering::Relaxed))
     }
 }
-
 fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
-    if let Some(state) = app_handle.try_state::<MCPState>() {
-        let mcp_state = state.inner().clone();
-
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                mcp_state.kill_all_processes().await;
-            });
-        }
+    let mcp_core = app_handle.state::<MCPCore>();
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let mcp_core = mcp_core.inner().clone();
+        handle.spawn(async move {
+            let result = mcp_core.kill_all_processes().await;
+            if let Err(e) = result {
+                error!("Failed to kill all MCP processes: {}", e);
+            }
+        });
     }
 }
 
-fn init_services(
-    app_handle: tauri::AppHandle,
-    http_state: Arc<RwLock<MCPState>>,
-    mcp_state: MCPState,
-) {
+fn init_services(app_handle: tauri::AppHandle) {
     tokio::spawn(async move {
-        mcp_core::http_server::start_http_server(http_state).await;
-        mcp_core::mcp_proxy::init_mcp_server(mcp_state).await;
+        let mcp_core = app_handle.state::<MCPCore>();
+        let result = mcp_core.init().await;
+        if let Err(e) = result {
+            error!("Failed to initialize MCP services: {:?}", e);
+        }
 
         // Set the initialization complete flag
         commands::INITIALIZATION_COMPLETE.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -120,18 +116,17 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = MCPState::new();
-    let http_state = Arc::new(RwLock::new(mcp_state.clone()));
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(mcp_state.clone())
         .setup(|app| {
             create_tray(app.handle())?;
 
+            let mcp_core = MCPCore::new(app.handle().path().app_data_dir().unwrap());
+            app.manage(mcp_core.clone());
+
             // Start background initialization after the UI has started
             let app_handle = app.handle().clone();
-            init_services(app_handle, http_state, mcp_state);
+            init_services(app_handle);
 
             Ok(())
         })
@@ -140,18 +135,15 @@ pub async fn run() {
             commands::check_uv_installed,
             commands::check_docker_installed,
             commands::check_initialization_complete,
-            register_tool,
-            list_tools,
+            register_server,
+            list_servers,
             list_all_server_tools,
             discover_tools,
             execute_proxy_tool,
-            update_tool_status,
-            update_tool_config,
-            restart_tool_command,
-            uninstall_tool,
-            get_all_server_data,
-            save_mcp_state_command,
-            load_mcp_state_command,
+            update_server_status,
+            update_server_config,
+            restart_server_command,
+            uninstall_server,
             check_database_exists_command,
             clear_database_command
         ])
@@ -163,11 +155,11 @@ pub async fn run() {
                 api.prevent_exit();
 
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
+                cleanup_mcp_processes(&app_handle);
             }
             RunEvent::Exit { .. } => {
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
+                cleanup_mcp_processes(&app_handle);
                 std::process::exit(0);
             }
             #[cfg(target_os = "macos")]
