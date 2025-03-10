@@ -25,6 +25,13 @@
         "command": "npx tauri dev",
         "cwd": "apps/mcp-dockmaster"
       }
+    },
+    "icon": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tauri icon",
+        "cwd": "apps/mcp-dockmaster"
+      }
     }
   },
   "tags": []

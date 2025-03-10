@@ -61,9 +61,9 @@ const Home: React.FC = () => {
   const installUrls = {
     "Node.js": "https://nodejs.org/",
     "UV (Python)": "https://github.com/astral-sh/uv",
-    "Docker": "https://www.docker.com/get-started/"
+    Docker: "https://www.docker.com/get-started/",
   };
-  
+
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([
     { name: "Node.js", installed: false, loading: true, icon: nodeIcon },
     { name: "UV (Python)", installed: false, loading: true, icon: pythonIcon },
@@ -148,7 +148,9 @@ const Home: React.FC = () => {
     }
   };
 
-  const openInstallUrl = async (toolName: "Node.js" | "UV (Python)" | "Docker") => {
+  const openInstallUrl = async (
+    toolName: "Node.js" | "UV (Python)" | "Docker",
+  ) => {
     try {
       await openUrl(installUrls[toolName]);
     } catch (error) {
@@ -342,7 +344,14 @@ const Home: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="ml-2"
-                        onClick={() => openInstallUrl(prerequisite.name as "Node.js" | "UV (Python)" | "Docker")}
+                        onClick={() =>
+                          openInstallUrl(
+                            prerequisite.name as
+                              | "Node.js"
+                              | "UV (Python)"
+                              | "Docker",
+                          )
+                        }
                       >
                         Install
                       </Button>

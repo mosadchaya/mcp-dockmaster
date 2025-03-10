@@ -2495,11 +2495,13 @@ dependencies = [
  "lazy_static",
  "libsqlite3-sys",
  "log",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
+ "toml",
  "tower 0.4.13",
  "tower-http",
 ]

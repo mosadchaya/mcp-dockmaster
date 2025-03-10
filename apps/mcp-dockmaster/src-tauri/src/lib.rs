@@ -1,7 +1,7 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    list_all_server_tools, list_servers, register_server, restart_server_command, uninstall_server,
-    update_server_config, update_server_status,
+    import_server_from_url, list_all_server_tools, list_servers, register_server, 
+    restart_server_command, uninstall_server, update_server_config, update_server_status,
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
@@ -189,7 +189,8 @@ pub async fn run() {
             restart_server_command,
             uninstall_server,
             check_database_exists_command,
-            clear_database_command
+            clear_database_command,
+            import_server_from_url
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")
