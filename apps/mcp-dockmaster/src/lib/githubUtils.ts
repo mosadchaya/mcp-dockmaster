@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 interface GitHubRepoInfo {
   name: string;
   description: string;
@@ -70,6 +68,7 @@ export const parseGitHubUrl = (url: string): { owner: string; repo: string } | n
  */
 export const fetchRepoInfo = async (owner: string, repo: string): Promise<GitHubRepoInfo | null> => {
   try {
+    // Use browser's native fetch API
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch repository info: ${response.statusText}`);
@@ -99,24 +98,32 @@ export const checkRepoContents = async (
   };
   
   try {
-    // Check for package.json
-    const packageJsonResponse = await fetch(
-      `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`
-    );
-    
-    if (packageJsonResponse.ok) {
-      result.hasPackageJson = true;
-      result.packageJson = await packageJsonResponse.json();
+    // Check for package.json using browser's native fetch API
+    try {
+      const packageJsonResponse = await fetch(
+        `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`
+      );
+      
+      if (packageJsonResponse.ok) {
+        result.hasPackageJson = true;
+        result.packageJson = await packageJsonResponse.json();
+      }
+    } catch (e) {
+      console.error('Error checking for package.json:', e);
     }
     
-    // Check for pyproject.toml
-    const pyprojectTomlResponse = await fetch(
-      `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/pyproject.toml`
-    );
-    
-    if (pyprojectTomlResponse.ok) {
-      result.hasPyprojectToml = true;
-      result.pyprojectToml = await pyprojectTomlResponse.text();
+    // Check for pyproject.toml using browser's native fetch API
+    try {
+      const pyprojectTomlResponse = await fetch(
+        `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/pyproject.toml`
+      );
+      
+      if (pyprojectTomlResponse.ok) {
+        result.hasPyprojectToml = true;
+        result.pyprojectToml = await pyprojectTomlResponse.text();
+      }
+    } catch (e) {
+      console.error('Error checking for pyproject.toml:', e);
     }
     
     return result;
@@ -187,27 +194,32 @@ export const parseRepoInfo = (
  * @returns Parsed repository information or null if failed
  */
 export const importServerFromGitHub = async (url: string): Promise<ParsedRepoInfo | null> => {
-  // Parse the GitHub URL
-  const urlInfo = parseGitHubUrl(url);
-  if (!urlInfo) {
-    console.error('Invalid GitHub URL:', url);
+  try {
+    // Parse the GitHub URL
+    const urlInfo = parseGitHubUrl(url);
+    if (!urlInfo) {
+      console.error('Invalid GitHub URL:', url);
+      return null;
+    }
+    
+    // Fetch repository information
+    const repoInfo = await fetchRepoInfo(urlInfo.owner, urlInfo.repo);
+    if (!repoInfo) {
+      console.error('Failed to fetch repository information');
+      return null;
+    }
+    
+    // Check repository contents
+    const contents = await checkRepoContents(
+      urlInfo.owner, 
+      urlInfo.repo, 
+      repoInfo.default_branch
+    );
+    
+    // Parse repository information
+    return parseRepoInfo(repoInfo, contents);
+  } catch (error) {
+    console.error('Error importing server from GitHub:', error);
     return null;
   }
-  
-  // Fetch repository information
-  const repoInfo = await fetchRepoInfo(urlInfo.owner, urlInfo.repo);
-  if (!repoInfo) {
-    console.error('Failed to fetch repository information');
-    return null;
-  }
-  
-  // Check repository contents
-  const contents = await checkRepoContents(
-    urlInfo.owner, 
-    urlInfo.repo, 
-    repoInfo.default_branch
-  );
-  
-  // Parse repository information
-  return parseRepoInfo(repoInfo, contents);
 };
