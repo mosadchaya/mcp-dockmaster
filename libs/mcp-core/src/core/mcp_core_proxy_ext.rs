@@ -105,6 +105,17 @@ impl McpCoreProxyExt for MCPCore {
             let mcp_state = mcp_state_clone.write().await;
             let mut server_tools = mcp_state.server_tools.write().await;
             server_tools.insert(server_id.clone(), Vec::new());
+            
+            // Send notification that tools have changed (empty list)
+            let server_id_clone = server_id.clone();
+            tokio::spawn(async move {
+                crate::utils::http_client::notify_tools_changed(
+                    &server_id_clone,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new()
+                ).await;
+            });
         }
 
         // Extract environment variables from the tool configuration
@@ -179,7 +190,20 @@ impl McpCoreProxyExt for MCPCore {
                         );
                         let mcp_state = mcp_state_clone.write().await;
                         let mut server_tools = mcp_state.server_tools.write().await;
+                        // Get tool names for notification
+                        let tool_names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
                         server_tools.insert(server_id.clone(), tools);
+                        
+                        // Send notification that tools have changed
+                        let server_id_clone = server_id.clone();
+                        tokio::spawn(async move {
+                            crate::utils::http_client::notify_tools_changed(
+                                &server_id_clone,
+                                tool_names,
+                                Vec::new(),
+                                Vec::new()
+                            ).await;
+                        });
                     }
                     Ok(Err(e)) => {
                         error!("Error discovering tools from server {}: {}", server_id, e);
@@ -297,7 +321,20 @@ impl McpCoreProxyExt for MCPCore {
             match result {
                 Ok(tools) => {
                     // Store the discovered tools and return them
+                    // Get tool names for notification
+                    let tool_names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
                     server_tools.insert(request.server_id.clone(), tools.clone());
+                    
+                    // Send notification that tools have changed
+                    let server_id_clone = request.server_id.clone();
+                    tokio::spawn(async move {
+                        crate::utils::http_client::notify_tools_changed(
+                            &server_id_clone,
+                            tool_names,
+                            Vec::new(),
+                            Vec::new()
+                        ).await;
+                    });
                     Ok(tools)
                 }
                 Err(e) => Err(format!("Failed to discover tools: {}", e)),

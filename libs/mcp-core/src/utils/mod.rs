@@ -4,6 +4,7 @@ use directories::ProjectDirs;
 use log::info;
 
 pub mod github;
+pub mod http_client;
 
 /// Get the default storage path
 pub fn default_storage_path() -> Result<PathBuf, String> {

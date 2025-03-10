@@ -216,7 +216,20 @@ impl MCPState {
                     Ok(tools) => {
                         {
                             let mut server_tools = self.server_tools.write().await;
+                            // Get tool names for notification
+                            let tool_names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
                             server_tools.insert(server_id.to_string(), tools.clone());
+                            
+                            // Send notification that tools have changed
+                            let server_id_clone = server_id.to_string();
+                            tokio::spawn(async move {
+                                crate::utils::http_client::notify_tools_changed(
+                                    &server_id_clone,
+                                    tool_names,
+                                    Vec::new(),
+                                    Vec::new()
+                                ).await;
+                            });
                         }
                         info!(
                             "Successfully discovered {} tools for {}",
@@ -254,7 +267,20 @@ impl MCPState {
 
         // Update the server_tools map with the discovered tools
         let mut server_tools = self.server_tools.write().await;
+        // Get tool names for notification
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
         server_tools.insert(server_id.to_string(), tools.clone());
+        
+        // Send notification that tools have changed
+        let server_id_clone = server_id.to_string();
+        tokio::spawn(async move {
+            crate::utils::http_client::notify_tools_changed(
+                &server_id_clone,
+                tool_names,
+                Vec::new(),
+                Vec::new()
+            ).await;
+        });
 
         // Save the tools to the database
         let registry = self.tool_registry.read().await;
