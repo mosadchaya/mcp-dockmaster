@@ -315,6 +315,11 @@ const Registry: React.FC = () => {
         // For Python/UV projects
         return `uv run`;
       }
+      
+      if (tool.runtime === "nodejs") {
+        // For Node.js projects with no distribution info
+        return `npx -y ${tool.name}`;
+      }
 
       // Handle distribution-based fallbacks
       if (tool.distribution) {
@@ -344,7 +349,7 @@ const Registry: React.FC = () => {
             title="Docker"
           />
         );
-      case "node":
+      case "nodejs":
         return (
           <img
             src={nodeIcon}

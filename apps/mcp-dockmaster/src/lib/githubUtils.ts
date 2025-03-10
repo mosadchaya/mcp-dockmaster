@@ -26,7 +26,7 @@ export interface ParsedRepoInfo {
     url: string;
   };
   sourceUrl: string;
-  runtime: string; // "node", "python", or "docker"
+  runtime: string; // "nodejs", "python", or "docker"
   distribution?: {
     type: string;
     package: string;
@@ -136,16 +136,16 @@ export const checkRepoContents = async (
 /**
  * Determine runtime type based on repository contents
  * @param contents Repository contents
- * @returns Runtime type ("node", "python", or "docker")
+ * @returns Runtime type ("nodejs", "python", or "docker")
  */
 export const determineRuntimeType = (contents: RepoContents): string => {
   if (contents.hasPackageJson) {
-    return "node";
+    return "nodejs";
   } else if (contents.hasPyprojectToml) {
     return "python";
   } else {
-    // Default to node if we can't determine
-    return "node";
+    // Default to nodejs if we can't determine
+    return "nodejs";
   }
 };
 
@@ -166,7 +166,7 @@ export const parseRepoInfo = (
   
   // Create distribution info based on runtime type
   let distribution;
-  if (runtime === "node" && contents.packageJson?.name) {
+  if (runtime === "nodejs" && contents.packageJson?.name) {
     distribution = {
       type: "npm",
       package: contents.packageJson.name

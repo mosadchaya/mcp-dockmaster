@@ -78,7 +78,7 @@ impl McpCoreProxyExt for MCPCore {
         // Determine entry point based on runtime type
         let entry_point = match request.tools_type.as_str() {
             "python" => Some("uv run".to_string()),
-            "node" => {
+            "nodejs" => {
                 if let Some(dist) = &request.distribution {
                     if dist.r#type == "npm" && !dist.package.is_empty() {
                         Some(format!("npx -y {}", dist.package))
