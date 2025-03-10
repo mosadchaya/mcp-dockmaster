@@ -12,9 +12,9 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration, 
-    ServerEnvironment, ServerRegistrationRequest, ServerRegistrationResponse, 
-    ServerToolInfo, ServerToolsResponse, ToolExecutionRequest,
+    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
+    ServerEnvironment, ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo,
+    ServerToolsResponse, ToolExecutionRequest,
 };
 use crate::types::ServerConfigUpdateRequest;
 
@@ -70,11 +70,9 @@ pub async fn handle_mcp_request(
     info!("Received MCP request: method={}", request.method);
 
     let result = match request.method.as_str() {
-        "tools/list" => {
-            match handle_list_tools(mcp_core).await {
-                Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-                Err(error) => Err(serde_json::to_value(error).unwrap()),
-            }
+        "tools/list" => match handle_list_tools(mcp_core).await {
+            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+            Err(error) => Err(serde_json::to_value(error).unwrap()),
         },
         "tools/call" => {
             if let Some(params) = request.params {
@@ -110,6 +108,7 @@ pub async fn handle_mcp_request(
         }
         "registry/install" => {
             if let Some(params) = request.params {
+                let params = serde_json::from_value(params).unwrap();
                 match handle_register_tool(mcp_core, params).await {
                     Ok(response) => Ok(serde_json::to_value(response).unwrap()),
                     Err(error) => Err(serde_json::to_value(error).unwrap()),
@@ -200,7 +199,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                 .collect();
 
             Ok(ServerToolsResponse {
-                tools: tools_with_defaults
+                tools: tools_with_defaults,
             })
         }
         Err(e) => Err(ErrorResponse {
@@ -210,73 +209,40 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
     }
 }
 
-async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<ServerRegistrationResponse, ErrorResponse> {
-    match params.get("name") {
-        Some(name) => {
-            let tool_name = name.as_str().unwrap_or("").to_string();
-            let description = params
-                .get("description")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let tools_type = params
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("node")
-                .to_string();
+#[derive(Deserialize)]
 
-            let configuration = params.get("configuration").map(|config| {
-                let command = config
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                let args = config.get("args").map(|args| {
-                    args.as_array()
-                        .unwrap_or(&Vec::new())
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .collect()
-                });
-                let env = config.get("env").map(|env| {
-                    env.as_object()
-                        .unwrap_or(&serde_json::Map::new())
-                        .iter()
-                        .map(|(k, v)| {
-                            (
-                                k.clone(),
-                                ServerEnvironment {
-                                    description: "".to_string(),
-                                    default: v.as_str().map(|s| s.to_string()),
-                                    required: false,
-                                },
-                            )
-                        })
-                        .collect()
-                });
+struct ToolRegistrationRequestByName {
+    id: String,
+    name: String,
+    description: String,
+    r#type: String,
+    configuration: Option<ServerConfiguration>,
+    distribution: Option<Distribution>,
+}
+#[derive(Deserialize)]
 
-                ServerConfiguration { command, args, env }
-            });
+struct ToolRegistrationRequestById {
+    tool_id: String,
+}
+#[derive(Deserialize)]
 
-            let distribution = params.get("distribution").map(|dist| Distribution {
-                r#type: dist
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("error")
-                    .to_string(),
-                package: dist
-                    .get("package")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("error")
-                    .to_string(),
-            });
+enum ToolRegistrationRequest {
+    ByName(ToolRegistrationRequestByName),
+    ById(ToolRegistrationRequestById),
+}
 
-            let tool_id = params
-                .get("id")
-                .unwrap_or(&json!("error"))
-                .as_str()
-                .unwrap_or("error")
-                .to_string();
+async fn handle_register_tool(
+    mcp_core: MCPCore,
+    params: ToolRegistrationRequest,
+) -> Result<ServerRegistrationResponse, ErrorResponse> {
+    match params {
+        ToolRegistrationRequest::ByName(request) => {
+            let tool_id = request.id;
+            let tool_name = request.name;
+            let description = request.description;
+            let tools_type = request.r#type;
+            let configuration = request.configuration;
+            let distribution = request.distribution;
 
             let tool = ServerRegistrationRequest {
                 server_id: tool_id.clone(),
@@ -296,10 +262,17 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Server
                 tool_id: Some(tool_id),
             })
         }
-        None => Err(ErrorResponse {
-            code: -32602,
-            message: format!("Tool not found: {:?}", params.get("name")),
-        }),
+        ToolRegistrationRequest::ById(request) => {
+            let tool_id = request.tool_id;
+            let tool = mcp_core.get_server(tool_id).await;
+            let r = mcp_core.register_server(tool).await;
+            println!("[INSTALLATION] handle_register_tool: r {:?}", r);
+            Ok(ServerRegistrationResponse {
+                success: true,
+                message: "Tool installed successfully".to_string(),
+                tool_id: Some(tool_id),
+            })
+        }
     }
 }
 
@@ -339,18 +312,14 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         .header("User-Agent", "MCP-Core/1.0")
         .send()
         .await
-        .map_err(|e| {
-            ErrorResponse {
-                code: -32000,
-                message: format!("Failed to fetch tools from registry: {}", e),
-            }
+        .map_err(|e| ErrorResponse {
+            code: -32000,
+            message: format!("Failed to fetch tools from registry: {}", e),
         })?;
 
-    let tools: Vec<Value> = response.json().await.map_err(|e| {
-        ErrorResponse {
-            code: -32000,
-            message: format!("Failed to parse tools from registry: {}", e),
-        }
+    let tools: Vec<Value> = response.json().await.map_err(|e| ErrorResponse {
+        code: -32000,
+        message: format!("Failed to parse tools from registry: {}", e),
     })?;
 
     let mut all_tools = Vec::new();
@@ -383,9 +352,7 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         all_tools.push(json!(tool_info));
     }
 
-    let result = RegistryToolsResponse {
-        tools: all_tools,
-    };
+    let result = RegistryToolsResponse { tools: all_tools };
 
     // Update the cache with new data
     {
@@ -403,7 +370,7 @@ async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     let registry = mcp_state.tool_registry.read().await;
     let installed_tools = registry.get_all_servers()?;
     let registry_tools_result = fetch_tool_from_registry().await;
-    
+
     let mut registry_tools = match registry_tools_result {
         Ok(response) => serde_json::to_value(response).unwrap_or(json!({"tools": []})),
         Err(error) => return Err(serde_json::to_value(error).unwrap()),
@@ -538,7 +505,7 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
     match params.get("url").and_then(|v| v.as_str()) {
         Some(url) => {
             info!("Importing server from URL: {}", url);
-            
+
             match mcp_core.import_server_from_url(url.to_string()).await {
                 Ok(response) => {
                     if response.success {
