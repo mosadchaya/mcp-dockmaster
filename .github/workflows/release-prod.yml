@@ -251,7 +251,7 @@ jobs:
           echo "app-url-${{ matrix.arch }}=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/${{ matrix.distributable_file_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload binaries to R2 bucket
-        uses: shallwefootball/s3-upload-action@master
+        uses: shallwefootball/upload-s3-action@master
         with:
           endpoint: https://54bf1bf573b3e6471e574cc4d318db64.r2.cloudflarestorage.com
           aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -307,7 +307,7 @@ jobs:
           echo "updates-next-json-url=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/updates-next.json" >> "$GITHUB_OUTPUT"
 
       - name: Upload updates.json to R2
-        uses: shallwefootball/s3-upload-action@master
+        uses: shallwefootball/upload-s3-action@master
         with:
           endpoint: https://54bf1bf573b3e6471e574cc4d318db64.r2.cloudflarestorage.com
           aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
