@@ -301,20 +301,32 @@ const Registry: React.FC = () => {
     // Try to find the tool in the available tools to get its distribution info
     const tool = availableServers.find((t) => t.name === toolName);
 
-    if (tool && tool.distribution && tool.config) {
-      // Run the command with the args if provided
-      if (tool.config.command && tool.config.args) {
-        return `${tool.config.command} ${tool.config.args.join(" ")}`;
+    if (tool) {
+      // If config is provided, use it
+      if (tool.config) {
+        // Run the command with the args if provided
+        if (tool.config.command && tool.config.args) {
+          return `${tool.config.command} ${tool.config.args.join(" ")}`;
+        }
       }
 
-      // Fallback 1: If the tool is an npm package, use npx to run it
-      if (tool.distribution.type === "npm" && tool.distribution.package) {
-        return `npx -y ${tool.distribution.package}`;
+      // Handle based on runtime type
+      if (tool.runtime === "python") {
+        // For Python/UV projects
+        return `uv run`;
       }
 
-      // Fallback 2: If the tool is a docker image, use the image name
-      if (tool.distribution.type === "dockerhub" && tool.distribution.package) {
-        return `docker run --name ${tool.id} ${tool.distribution.package}`;
+      // Handle distribution-based fallbacks
+      if (tool.distribution) {
+        // Fallback 1: If the tool is an npm package, use npx to run it
+        if (tool.distribution.type === "npm" && tool.distribution.package) {
+          return `npx -y ${tool.distribution.package}`;
+        }
+
+        // Fallback 2: If the tool is a docker image, use the image name
+        if (tool.distribution.type === "dockerhub" && tool.distribution.package) {
+          return `docker run --name ${tool.id} ${tool.distribution.package}`;
+        }
       }
     }
 
