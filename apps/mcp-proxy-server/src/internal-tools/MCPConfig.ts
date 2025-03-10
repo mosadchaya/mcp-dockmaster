@@ -1,5 +1,5 @@
-import { proxyRequest } from "../proxyRequest.js";
-import { Tool } from "../types.js";
+import { proxyRequest } from "../proxyRequest.ts";
+import { Tool } from "../types.ts";
 
 export class MCPConfig {
   public static name = 'configure_mcp_tool';
