@@ -79,13 +79,13 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
         // Match export statements: export VAR_NAME="value"
         r"export\s+([A-Z][A-Z0-9_]+)=",
         // Match env vars in code blocks or configuration examples
-        r"[\"']?([A-Z][A-Z0-9_]+)[\"']?\s*:",
+        r"['\"]?([A-Z][A-Z0-9_]+)['\"]?\s*:",
         // Match env vars in environment sections
-        r"[\"']([A-Z][A-Z0-9_]+)[\"']\s*:",
+        r"['\"']([A-Z][A-Z0-9_]+)['\"']\s*:",
         // Match env vars in configuration sections
-        r"[\"']?env[\"']?\s*:\s*\{\s*[\"']?([A-Z][A-Z0-9_]+)[\"']?\s*:",
+        r"['\"]?env['\"]?\s*:\s*\{\s*['\"]?([A-Z][A-Z0-9_]+)['\"]?\s*:",
         // Match env vars in JSON/YAML examples
-        r"[\"']?([A-Z][A-Z0-9_]+)[\"']?\s*:\s*[\"'].*?[\"']",
+        r"['\"]?([A-Z][A-Z0-9_]+)['\"]?\s*:\s*['\"].*?['\"]",
         // Match env vars in markdown code blocks
         r"`([A-Z][A-Z0-9_]+)`",
         // Match env vars in inline code
