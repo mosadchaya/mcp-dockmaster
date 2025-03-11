@@ -137,9 +137,9 @@ const AppRoutes = () => {
               </Routes>
             </SidebarInset>
           </SidebarProvider>
-          <Toaster position="top-right" theme="light" />
         </InitMcpOverlay>
       </TooltipProvider>
+      <Toaster position="top-right" theme="light" />
     </QueryClientProvider>
   );
 };

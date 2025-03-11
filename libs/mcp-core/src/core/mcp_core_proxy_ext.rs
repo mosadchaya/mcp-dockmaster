@@ -173,7 +173,7 @@ impl McpCoreProxyExt for MCPCore {
 
                 // Try to discover tools from this server with a timeout to avoid hanging
                 info!("Attempting to discover tools from server {}", server_id);
-                let discover_result = tokio::time::timeout(Duration::from_secs(15), async {
+                let discover_result = tokio::time::timeout(Duration::from_secs(3), async {
                     let mcp_state = mcp_state_clone.write().await;
                     let mut process_manager = mcp_state.process_manager.write().await;
                     if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&server_id) {

@@ -15,14 +15,6 @@ pub trait McpCoreInstallersExt {
     fn is_process_running(&self, process_name: &str) -> Result<bool, String>;
 }
 
-// TODO REPLACE WITH PATH TO BINARY
-fn get_proxy_server_path() -> String {
-    format!(
-        "{}/mcp-dockmaster/dist/apps/mcp-proxy-server/mcp-proxy-server-aarch64-apple-darwin",
-        std::env::var("HOME").unwrap_or_default()
-    )
-}
-
 impl McpCoreInstallersExt for MCPCore {
     fn is_process_running(&self, process_name: &str) -> Result<bool, String> {
         Ok(is_process_running(process_name))
@@ -38,7 +30,10 @@ impl McpCoreInstallersExt for MCPCore {
         }
     }
     fn install_claude(&self) -> Result<(), String> {
-        match install_claude(get_proxy_server_path().as_str()) {
+        let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
+            return Err("failed to convert path to string".to_string());
+        };
+        match install_claude(proxy_server_binary_path) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
@@ -50,19 +45,28 @@ impl McpCoreInstallersExt for MCPCore {
         }
     }
     fn install_cursor(&self) -> Result<(), String> {
-        match install_cursor(get_proxy_server_path().as_str()) {
+        let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
+            return Err("failed to convert path to string".to_string());
+        };
+        match install_cursor(proxy_server_binary_path) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
     }
     fn get_claude_config(&self) -> Result<String, String> {
-        match get_claude_config(get_proxy_server_path().as_str()) {
+        let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
+            return Err("failed to convert path to string".to_string());
+        };
+        match get_claude_config(proxy_server_binary_path) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),
         }
     }
     fn get_cursor_config(&self) -> Result<String, String> {
-        match get_cursor_config(get_proxy_server_path().as_str()) {
+        let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
+            return Err("failed to convert path to string".to_string());
+        };
+        match get_cursor_config(proxy_server_binary_path) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),
         }
