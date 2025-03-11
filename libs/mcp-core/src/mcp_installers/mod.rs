@@ -9,3 +9,5 @@ pub use self::install_claude::is_claude_installed;
 pub use self::install_cursor::get_cursor_config;
 pub use self::install_cursor::install_cursor;
 pub use self::install_cursor::is_cursor_installed;
+pub use self::process_manager::is_process_running;
+pub use self::process_manager::restart_process;

@@ -6,10 +6,16 @@ import { MCPSearch } from "./MCPSearch.ts";
 
 export async function runInternalTool(params: { name: string, arguments: Record<string, any> }): Promise<{ isInternalTool: boolean, result: any }> {
   if (params.name === MCPInstall.name) {
-    return { 
+    const response = { 
         isInternalTool: true, 
         result: await MCPInstall.install(params.arguments.tool_id),
      };
+
+    //  setTimeout(() => {
+    //   console.log(JSON.stringify({"jsonrpc":"2.0","method":"notifications/tools/list_changed"}));
+    //  }, 1000);
+
+     return response;
   }
   
   if (params.name === MCPSearch.name) {
