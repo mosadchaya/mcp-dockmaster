@@ -10,7 +10,6 @@ use features::mcp_proxy::{
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
 use tauri::{utils::platform, Emitter, Manager, RunEvent};
-use tauri_plugin_shell::ShellExt;
 use tray::create_tray;
 use updater::{check_for_updates, check_for_updates_command};
 
