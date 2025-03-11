@@ -32,7 +32,11 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         ])
         .build()?;
     let is_template = cfg!(target_os = "macos");
-    let icon = app.default_window_icon().unwrap().clone();
+    let icon = if cfg!(target_os = "macos") {
+        tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon-macos.png"))?
+    } else {
+        app.default_window_icon().unwrap().clone()
+    };
     let _ = TrayIconBuilder::with_id("tray")
         .icon(icon)
         .icon_as_template(is_template)

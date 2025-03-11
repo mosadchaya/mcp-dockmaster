@@ -53,6 +53,11 @@ pub async fn check_for_updates(app_handle: &tauri::AppHandle) -> tauri_plugin_up
             }
         }
     } else {
+        app_handle
+            .dialog()
+            .message("You're running the latest version.")
+            .title("No Updates Available")
+            .blocking_show();
         info!("No update available");
     }
     Ok(())

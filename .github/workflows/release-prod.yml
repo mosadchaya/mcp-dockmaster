@@ -65,11 +65,11 @@ jobs:
           - arch: x86_64-pc-windows-msvc
             os: windows-2022
             build_output_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.exe
-            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.nsis.zip
-            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.nsis.zip.sig
+            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.exe
+            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/nsis/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_x64-setup.exe.sig
             distributable_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.exe
-            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.nsis.zip
-            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.nsis.zip.sig
+            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.exe
+            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-pc-windows-msvc.exe.sig
     runs-on: ${{ matrix.os }}
     outputs:
       signature-x86_64-unknown-linux-gnu: ${{ steps.prepare-files.outputs.signature-x86_64-unknown-linux-gnu }}
@@ -160,7 +160,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
 
       - name: (Macos) Run NX build on mcp-dockmaster
         if: ${{ matrix.arch == 'aarch64-apple-darwin' }}
@@ -174,7 +175,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
 
       - name: (Windows) Run NX build on mcp-dockmaster
         if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
@@ -182,7 +184,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
 
       #   # --- Signing process ---
       #   - name: "Google auth"
