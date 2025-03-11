@@ -2,6 +2,25 @@
     "version": "2.0.0",
     "tasks": [
       {
+        "label": "build:proxy-server",
+        "type": "shell",
+        "command": "npx",
+        "args": ["nx", "build", "mcp-proxy-server", "--verbose"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        }
+      },
+      {
+        "label": "copy:proxy-server",
+        "type": "shell",
+        "command": "npx",
+        "args": ["nx", "copy-proxy-server-sidecar", "mcp-dockmaster", "--verbose"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "dependsOn": ["build:proxy-server"]
+      },
+      {
         "label": "ui:dev",
         "type": "shell",
         "command": "npm",
@@ -20,6 +39,40 @@
             "beginsPattern": ".*",
             "endsPattern": "ready|error"
           }
+        }
+      },
+      {
+        "label": "rust:watch",
+        "type": "shell",
+        "command": "cargo",
+        "args": ["watch", "-x", "build"],
+        "options": {
+          "cwd": "${workspaceFolder}/apps/mcp-dockmaster/src-tauri"
+        },
+        "isBackground": true,
+        "problemMatcher": {
+          "owner": "rust",
+          "pattern": {
+            "regexp": "^.*?\\((.*?):(\\d+):(\\d+)\\)\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "message": 4
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^cargo watch",
+            "endsPattern": "Finished"
+          }
+        }
+      },
+      {
+        "label": "tauri:dev",
+        "dependsOrder": "parallel",
+        "dependsOn": ["ui:dev", "rust:watch"],
+        "group": {
+          "kind": "build",
+          "isDefault": true
         }
       }
     ]
