@@ -253,11 +253,9 @@ impl SpawnedProcess {
         let mut reader = tokio::io::BufReader::new(&mut self.stdout);
         let mut response_line = String::new();
 
-        let read_result = tokio::time::timeout(
-            Duration::from_secs(30),
-            reader.read_line(&mut response_line),
-        )
-        .await;
+        let read_result =
+            tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line))
+                .await;
 
         match read_result {
             Ok(Ok(0)) => Err(MCPError::ServerClosedConnection),

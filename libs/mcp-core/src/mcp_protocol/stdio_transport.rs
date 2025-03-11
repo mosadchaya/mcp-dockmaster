@@ -39,7 +39,7 @@ pub async fn initialize_server_connection(
     let mut response_line = String::new();
 
     let read_result =
-        tokio::time::timeout(Duration::from_secs(1), reader.read_line(&mut response_line)).await;
+        tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line)).await;
 
     match read_result {
         Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
@@ -103,15 +103,21 @@ pub async fn execute_server_tool(
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
 
-    let read_result = tokio::time::timeout(
-        Duration::from_secs(30),
-        reader.read_line(&mut response_line),
-    )
-    .await;
+    // Read the response with a timeout
+    // The tokio::time::timeout function will return as soon as a response is received,
+    // or after the specified timeout duration if no response is received
+    let read_result =
+        tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line)).await;
 
     match read_result {
         Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),
-        Ok(Ok(_)) => {}
+        Ok(Ok(_)) => {
+            info!(
+                "Received response from server {}: {}",
+                server_id,
+                response_line.trim()
+            );
+        }
         Ok(Err(e)) => return Err(MCPError::StdoutReadError(e.to_string())),
         Err(_) => return Err(MCPError::TimeoutError(server_id.to_string())),
     }
@@ -197,28 +203,29 @@ pub async fn discover_server_tools(
     }
 
     // Read the response with a timeout
+    // The tokio::time::timeout function will return as soon as a response is received,
+    // or after the specified timeout duration if no response is received
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
 
-    let read_result = tokio::time::timeout(
-        Duration::from_secs(10),
-        reader.read_line(&mut response_line),
-    )
-    .await;
+    let read_result =
+        tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line)).await;
 
     match read_result {
         Ok(Ok(0)) => return Err("Server process closed connection".to_string()),
-        Ok(Ok(_)) => info!(
-            "Received response from server {}: {}",
-            server_id,
-            response_line.trim()
-        ),
+        Ok(Ok(_)) => {
+            info!(
+                "Received response from server {}: {}",
+                server_id,
+                response_line.trim()
+            );
+        }
         Ok(Err(e)) => return Err(format!("Failed to read from process stdout: {}", e)),
         Err(_) => {
             return Err(format!(
                 "Timeout waiting for response from server {}",
                 server_id
-            ))
+            ));
         }
     }
 
