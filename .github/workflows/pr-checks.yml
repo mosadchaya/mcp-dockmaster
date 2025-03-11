@@ -65,7 +65,8 @@ jobs:
 
       - name: Build
         working-directory: apps/mcp-dockmaster/src-tauri
-        run: npx nx run-many -t build --verbose
+        run: |
+          npx nx run-many -t build --verbose
 
       - name: Test
         working-directory: apps/mcp-dockmaster/src-tauri

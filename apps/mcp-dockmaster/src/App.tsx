@@ -1,7 +1,5 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-// Import version from package.json
-import packageJson from "../../../package.json";
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
@@ -9,6 +7,7 @@ import Registry from "./components/Registry";
 import About from "./pages/about";
 import Feedback from "./pages/feedback";
 import InitMcpOverlay from "./components/init-mcp-overlay";
+import { getVersion } from "@tauri-apps/api/app";
 
 import {
   Sidebar,
@@ -36,9 +35,7 @@ import { MessageSquare } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import { TooltipProvider } from "./components/ui/tooltip";
-
-// Get app version from package.json
-const appVersion = packageJson.version;
+import { useEffect, useState } from "react";
 
 function NavItem({
   icon: Icon,
@@ -65,6 +62,13 @@ function NavItem({
 }
 
 function AppSidebar() {
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    getVersion().then((version) => {
+      console.log("app version", version);
+      setAppVersion(version);
+    });
+  }, []);
   const items = [
     { id: "home", label: "Home", icon: HomeIcon, to: "/" },
     {
