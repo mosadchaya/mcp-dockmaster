@@ -58,7 +58,7 @@ lazy_static! {
 }
 
 // Cache duration constant (1 minutes)
-const CACHE_DURATION: Duration = Duration::from_secs(1 * 60);
+const CACHE_DURATION: Duration = Duration::from_secs(60);
 
 pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
