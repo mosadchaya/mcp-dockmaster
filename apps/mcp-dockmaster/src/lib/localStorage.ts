@@ -1,3 +1,5 @@
+import { updateAnalyticsConsent } from './analytics';
+
 interface UserConsent {
   termsAccepted: boolean;
   analyticsEnabled: boolean;
@@ -25,6 +27,9 @@ export const saveUserConsent = (termsAccepted: boolean, analyticsEnabled: boolea
       timestamp: Date.now(),
     };
     localStorage.setItem(USER_CONSENT_KEY, JSON.stringify(consent));
+    
+    // Update analytics consent state
+    updateAnalyticsConsent(analyticsEnabled);
   } catch (error) {
     console.error('Error saving user consent to localStorage:', error);
   }
