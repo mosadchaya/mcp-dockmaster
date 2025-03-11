@@ -22,7 +22,12 @@ export const getAvailableServers = async (force: boolean = false): Promise<Regis
   }
 
   try {
+    // All Tools: Stable & Unstable
     const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json');
+    // Stable Only
+    // const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.stable.json');
+    // Unstable Only
+    // const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.unstable.json');
     if (!response.ok) {
       throw new Error(`Failed to fetch tools: ${response.statusText}`);
     }

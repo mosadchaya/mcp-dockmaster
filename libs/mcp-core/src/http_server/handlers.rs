@@ -349,8 +349,15 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
+    // All Tools: Stable & Unstable
     let tools_url =
         "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json";
+    // Stable Only
+    // let tools_url =
+    //     "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.stable.json";
+    // Unstable Only
+    // let tools_url =
+    //     "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.unstable.json";
 
     let client = reqwest::Client::builder().build().unwrap_or_default();
 
