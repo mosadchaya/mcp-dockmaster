@@ -861,11 +861,11 @@ impl McpCoreProxyExt for MCPCore {
                 },
             );
         }
-        
+
         // Create configuration based on entry point
         let configuration = if let Some(script) = entry_point {
             Some(ServerConfiguration {
-                command: Some("uv".to_string()),
+                command: Some("uvx".to_string()),
                 args: Some(vec!["run".to_string(), script]),
                 env: Some(env_map),
             })
