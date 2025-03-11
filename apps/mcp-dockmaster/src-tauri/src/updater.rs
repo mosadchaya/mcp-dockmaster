@@ -1,12 +1,29 @@
 use log::{error, info};
+use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
+use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
 
+fn uninit_mcp_core(app_handle: &tauri::AppHandle) {
+    let mcp_core = app_handle.state::<MCPCore>();
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let mcp_core = mcp_core.inner().clone();
+        handle.spawn(async move {
+            let result = mcp_core.kill_all_processes().await;
+            if let Err(e) = result {
+                error!("failed to kill all MCP processes: {}", e);
+            }
+        });
+    }
+}
+
 pub async fn check_for_updates(app_handle: &tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
+    let app_handle_clone = app_handle.clone();
     let updater = app_handle
         .updater_builder()
-        .on_before_exit(|| {
+        .on_before_exit(move || {
             println!("app is about to exit on Windows!");
+            uninit_mcp_core(&app_handle_clone);
         })
         .build()?;
 
