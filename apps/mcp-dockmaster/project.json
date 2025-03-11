@@ -14,7 +14,7 @@
       "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri build",
+        "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\"",
         "cwd": "apps/mcp-dockmaster"
       },
       "configurations": {

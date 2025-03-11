@@ -156,7 +156,7 @@ jobs:
 
       - name: (Linux) Run NX build on mcp-dockmaster
         if: ${{ matrix.arch == 'x86_64-unknown-linux-gnu' }}
-        run: npx nx build mcp-dockmaster --skip-nx-cache
+        run: npx nx build mcp-dockmaster --configuration production --skip-nx-cache
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
@@ -165,7 +165,7 @@ jobs:
 
       - name: (Macos) Run NX build on mcp-dockmaster
         if: ${{ matrix.arch == 'aarch64-apple-darwin' }}
-        run: npx nx build mcp-dockmaster --skip-nx-cache
+        run: npx nx build mcp-dockmaster --configuration production --skip-nx-cache
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -180,7 +180,7 @@ jobs:
 
       - name: (Windows) Run NX build on mcp-dockmaster
         if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
-        run: npx nx build mcp-dockmaster --skip-nx-cache
+        run: npx nx build mcp-dockmaster --configuration production --skip-nx-cache
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
