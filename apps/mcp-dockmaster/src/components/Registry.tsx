@@ -65,7 +65,7 @@ const Registry: React.FC = () => {
 
   // Add state for restart dialog
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ title: string; onConfirm: () => Promise<void> } | null>(null);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ title: string; explanation?: string; onConfirm: () => Promise<void> } | null>(null);
 
   // Load tools and categories on initial mount
   useEffect(() => {
@@ -234,6 +234,7 @@ const Registry: React.FC = () => {
       }
       setConfirmDialogConfig({
         title,
+        explanation: "Restarting is necessary so the UIs like Claude can reload the list of tools.",
         onConfirm: async () => {
           if (showClaude) {
             await restartProcess(processName[0]);
@@ -931,12 +932,17 @@ const Registry: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Confirm Action</DialogTitle>
             <DialogDescription>
-             {confirmDialogConfig?.title || "Are you sure you want to proceed with this action?"}
+              {confirmDialogConfig?.title || "Are you sure you want to proceed with this action?"}
+              {confirmDialogConfig?.explanation && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {confirmDialogConfig.explanation}
+                </p>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              Cancel
+              I'll do it later
             </Button>
             <Button
               onClick={() => {
