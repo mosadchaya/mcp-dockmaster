@@ -21,6 +21,30 @@
             "endsPattern": "ready|error"
           }
         }
+      },
+      {
+        "label": "build-proxy-server",
+        "type": "shell",
+        "command": "npx",
+        "args": ["nx", "run", "mcp-proxy-server:build"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        }
+      },
+      {
+        "label": "copy-proxy-server",
+        "type": "shell",
+        "command": "npx",
+        "args": ["nx", "run", "mcp-dockmaster:copy-proxy-server-sidecar"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "dependsOn": ["build-proxy-server"]
+      },
+      {
+        "label": "setup-proxy",
+        "dependsOn": ["copy-proxy-server"],
+        "problemMatcher": []
       }
     ]
   }
