@@ -942,7 +942,7 @@ const Registry: React.FC = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              I'll do it later
+              I'll do it manually
             </Button>
             <Button
               onClick={() => {
