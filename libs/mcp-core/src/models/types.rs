@@ -343,7 +343,8 @@ impl ServerToolInfo {
                         // If type is an array, convert it to a string with the first value
                         if let Some(type_array) = type_field.as_array() {
                             if !type_array.is_empty() {
-                                if let Some(first_type) = type_array.get(0).and_then(|t| t.as_str())
+                                if let Some(first_type) =
+                                    type_array.first().and_then(|t| t.as_str())
                                 {
                                     *type_field = Value::String(first_type.to_string());
                                 }
