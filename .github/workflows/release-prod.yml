@@ -47,11 +47,11 @@ jobs:
           - arch: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
             build_output_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage
-            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage.tar.gz
-            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage.tar.gz.sig
+            build_output_update_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage
+            build_output_update_signature_file_path: apps/mcp-dockmaster/src-tauri/target/release/bundle/appimage/MCP Dockmaster_${{ needs.prebuild.outputs.version }}_amd64.AppImage.sig
             distributable_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage
-            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage.tar.gz
-            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage.tar.gz.sig
+            distributable_update_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage
+            distributable_update_signature_file_name: MCP-Dockmaster-${{ needs.prebuild.outputs.version }}.${{ github.run_number }}_x86_64-unknown-linux-gnu.AppImage.sig
 
           - arch: aarch64-apple-darwin
             os: macos-14
@@ -244,7 +244,9 @@ jobs:
         run: |
           mkdir files-to-r2
           cp "${{ matrix.build_output_file_path }}" files-to-r2/${{ matrix.distributable_file_name }}
-          cp "${{ matrix.build_output_update_file_path }}" files-to-r2/${{ matrix.distributable_update_file_name }}
+          if [ ! -z "${{ matrix.build_output_update_file_path }}" ]; then
+            cp "${{ matrix.build_output_update_file_path }}" files-to-r2/${{ matrix.distributable_update_file_name }}
+          fi
           cp "${{ matrix.build_output_update_signature_file_path }}" files-to-r2/${{ matrix.distributable_update_signature_file_name }}
           echo "signature-${{ matrix.arch }}=$(cat files-to-r2/${{ matrix.distributable_update_signature_file_name }})" >> "$GITHUB_OUTPUT"
           echo "update-url-${{ matrix.arch }}=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/${{ matrix.distributable_update_file_name }}" >> "$GITHUB_OUTPUT"
