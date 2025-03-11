@@ -23,7 +23,6 @@ export interface InputSchema {
 export interface Properties {
     [key: string]: {
         default?: any;
-        required?: boolean;
         description: string;
         exclusiveMaximum?: number;
         exclusiveMinimum?: number;

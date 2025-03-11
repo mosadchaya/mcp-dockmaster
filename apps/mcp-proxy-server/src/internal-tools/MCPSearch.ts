@@ -137,7 +137,6 @@ export class MCPSearch {
           },
           "exact": {
             "default": false,
-            "required": false,
             "description": "If true, the search will only return exact matches.",
             "title": "Exact",
             "type": "boolean"
