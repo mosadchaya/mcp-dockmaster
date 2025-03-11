@@ -619,6 +619,27 @@ const Registry: React.FC = () => {
                 )}
               </div>
             </div>
+            {/* Tools */}
+            {currentServerDetails.tools && currentServerDetails.tools.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Tools</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {currentServerDetails.tools.map((tool) => (
+                    <div key={tool.signature}>
+                      <div className="text-sm font-medium">
+                        {tool.signature.match(/^(.+)\(/)?.[1]}
+                      </div>
+                      <div className="text-sm font-small">                      
+                        {tool.description}
+                      </div>
+                      <div className="text-xs font-mono">
+                        {tool.signature}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Publisher Information */}
             {currentServerDetails.publisher && (
@@ -876,7 +897,7 @@ const Registry: React.FC = () => {
                         </CardHeader>
                         <CardContent>
                           <CardDescription className="line-clamp-2">
-                            {tool.description}
+                            {tool.short_description}
                           </CardDescription>
                         </CardContent>
                         <CardFooter className="flex items-center justify-between pt-0">

@@ -1,5 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export interface Registry {
+  count: number;
+  version: number;
+  tools: RegistryServer[];
+  categories: Record<string, number>;
+  tags: Record<string, number>;
+}
+
 export interface RegistryServer {
   id: string;
   name: string;
@@ -25,6 +33,10 @@ export interface RegistryServer {
   };
   license?: string;
   categories?: string[];
+  tools?: {
+    signature: string;
+    description: string;
+  }[];
 }
 
 export interface ServerRegistrationRequest {

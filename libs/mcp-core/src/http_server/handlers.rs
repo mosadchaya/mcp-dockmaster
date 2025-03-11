@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use axum::response::IntoResponse;
@@ -56,8 +57,8 @@ lazy_static! {
     });
 }
 
-// Cache duration constant (60 minutes)
-const CACHE_DURATION: Duration = Duration::from_secs(60 * 60);
+// Cache duration constant (1 minutes)
+const CACHE_DURATION: Duration = Duration::from_secs(1 * 60);
 
 pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
@@ -323,6 +324,15 @@ async fn handle_register_tool(
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct ToolWrapper {
+    count: u32,
+    version: u32,
+    categories: HashMap<String, u32>,
+    tags: HashMap<String, u32>,
+    tools: Vec<RegistryTool>,
+}
+
 pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
     // Check if we have a valid cache
     let use_cache = {
@@ -349,7 +359,7 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
-    let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/db.v0.json";
+    let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/registry.all.json";
 
     let client = reqwest::Client::builder().build().unwrap_or_default();
 
@@ -364,24 +374,17 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
             message: format!("Failed to fetch tools from registry: {}", e),
         })?;
 
-    let tools: Vec<Value> = response.json().await.map_err(|e| ErrorResponse {
+    let raw = response.json().await.map_err(|e| ErrorResponse {
         code: -32000,
         message: format!("Failed to parse tools from registry: {}", e),
     })?;
-    let tools: Vec<RegistryTool> = tools
-        .into_iter()
-        .filter_map(|tool| {
-            let v = serde_json::from_value::<RegistryTool>(tool.clone());
-            match v {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    println!("[TOOLS] handle_register_tool: v {:?}", e);
-                    println!("[TOOLS] handle_register_tool: tool {:?}", tool);
-                    None
-                }
-            }
-        })
-        .collect();
+
+    let tool_wrapper: ToolWrapper = serde_json::from_value(raw).map_err(|e| ErrorResponse {
+        code: -32000,
+        message: format!("Failed to parse tools from registry: {}", e),
+    })?;
+
+    let tools: Vec<RegistryTool> = tool_wrapper.tools;
 
     println!("[TOOLS] found # tools {:?}", tools.len());
 
