@@ -234,7 +234,7 @@ const Registry: React.FC = () => {
       }
       setConfirmDialogConfig({
         title,
-        explanation: "Restarting is necessary so the UIs like Claude can reload the list of tools.",
+        explanation: "Claude and Cursor need to restart so their interfaces can reload the updated list of tools provided by the Model Context Protocol (MCP).",
         onConfirm: async () => {
           if (showClaude) {
             await restartProcess(processName[0]);
