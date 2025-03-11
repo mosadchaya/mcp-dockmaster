@@ -9,7 +9,7 @@ use mcp_core::{
         ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
         ToolUninstallRequest, ToolUpdateResponse,
     },
-    types::RuntimeServer,
+    types::{IsProcessRunningRequest, RuntimeServer},
 };
 use tauri::State;
 
@@ -145,4 +145,20 @@ pub async fn import_server_from_url(
     url: String,
 ) -> Result<ServerRegistrationResponse, String> {
     mcp_core.import_server_from_url(url).await
+}
+
+#[tauri::command]
+pub async fn restart_process(
+    mcp_core: State<'_, MCPCore>,
+    process: IsProcessRunningRequest,
+) -> Result<bool, String> {
+    mcp_core.restart_process(process.process_name.as_str())
+}
+
+#[tauri::command]
+pub async fn is_process_running(
+    mcp_core: State<'_, MCPCore>,
+    process: IsProcessRunningRequest,
+) -> Result<bool, String> {
+    mcp_core.is_process_running(process.process_name.as_str())
 }

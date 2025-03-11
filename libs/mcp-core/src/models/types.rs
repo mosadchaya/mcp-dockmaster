@@ -110,6 +110,11 @@ pub struct ServerRegistrationRequest {
     pub distribution: Option<Distribution>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct IsProcessRunningRequest {
+    pub process_name: String,
+}
+
 /// MCP tool registration response
 #[derive(Debug, Serialize)]
 pub struct ServerRegistrationResponse {

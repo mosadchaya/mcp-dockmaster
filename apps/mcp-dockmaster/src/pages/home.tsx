@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { checkClaude, checkCursor, isProcessRunning } from "../lib/process";
 
 interface PrerequisiteStatus {
   name: string;
@@ -34,7 +35,8 @@ interface PrerequisiteStatus {
 }
 
 interface MCPClientStatus {
-  name: string;
+  name: 'Cursor' | 'Claude';
+  is_running: boolean;
   installed: boolean;
   icon: string;
 }
@@ -55,8 +57,8 @@ const Home: React.FC = () => {
   ]);
 
   const [mcpClients, setMCPClients] = useState<MCPClientStatus[]>([
-    { name: "Claude", installed: false, icon: claudeIcon },
-    { name: "Cursor", installed: false, icon: cursorIcon },
+    { name: "Claude", is_running: false, installed: false, icon: claudeIcon },
+    { name: "Cursor", is_running: false, installed: false, icon: cursorIcon },
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
@@ -75,32 +77,15 @@ const Home: React.FC = () => {
   } | null>(null);
 
   const checkInstalled = async () => {
-    // Check if Claude is installed
-    const checkClaude = async () => {
-      try {
-        return await invoke<boolean>("check_claude_installed");
-      } catch (error) {
-        console.error("Failed to check Claude:", error);
-        return false;
-      }
-    };
-
-    // Check if Cursor is installed
-    const checkCursor = async () => {
-      try {
-        return await invoke<boolean>("check_cursor_installed");
-      } catch (error) {
-        console.error("Failed to check Cursor:", error);
-        return false;
-      }
-    };
-    const [claudeInstalled, cursorInstalled] = await Promise.all([
+    const [claudeInstalled, cursorInstalled, claudeRunning, cursorRunning] = await Promise.all([
       checkClaude(),
       checkCursor(),
+      isProcessRunning("Claude"),
+      isProcessRunning("Cursor"),
     ]);
     setMCPClients([
-      { name: "Claude", installed: claudeInstalled, icon: claudeIcon },
-      { name: "Cursor", installed: cursorInstalled, icon: cursorIcon },
+      { name: "Claude", installed: claudeInstalled, is_running: claudeRunning, icon: claudeIcon },
+      { name: "Cursor", installed: cursorInstalled, is_running: cursorRunning, icon: cursorIcon },
     ]);
   };
 
@@ -111,7 +96,6 @@ const Home: React.FC = () => {
     );
 
     try {
-      // Check if Node.js is installed
       const checkNode = async () => {
         try {
           const installed = await invoke<boolean>("check_node_installed");
@@ -122,7 +106,6 @@ const Home: React.FC = () => {
         }
       };
 
-      // Check if uv is installed
       const checkUv = async () => {
         try {
           const installed = await invoke<boolean>("check_uv_installed");
@@ -133,7 +116,6 @@ const Home: React.FC = () => {
         }
       };
 
-      // Check if Docker is installed
       const checkDocker = async () => {
         try {
           const installed = await invoke<boolean>("check_docker_installed");
@@ -198,6 +180,10 @@ const Home: React.FC = () => {
   useEffect(() => {
     checkInstalled();
   }, []);
+
+  const restartProcess = async (process_name: string) => {
+    await invoke('restart_process', { process: { process_name } });
+  }
 
   const reload = () => {
     checkPrerequisites();
@@ -325,6 +311,21 @@ const Home: React.FC = () => {
                   >
                     Show Config
                   </Button>
+                  {client.is_running && client.installed && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const isRunning = await isProcessRunning(client.name);
+                        if (isRunning) {
+                          await restartProcess(client.name);
+                          toast.success(`${client.name} restarted successfully!`);
+                        }
+                      }}
+                    >
+                      Restart
+                    </Button>
+                  )}
                   {!client.installed && (
                     <Button
                       size="sm"
