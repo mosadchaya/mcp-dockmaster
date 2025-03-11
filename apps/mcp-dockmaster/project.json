@@ -14,15 +14,23 @@
       "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri build",
+        "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\"",
         "cwd": "apps/mcp-dockmaster"
+      },
+      "configurations": {
+        "local": {
+          "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\""
+        },
+        "production": {
+          "command": "npx tauri build"
+        }
       }
     },
     "serve": {
       "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri dev",
+        "command": "npx tauri dev --config \"./src-tauri/tauri.conf.local.json\"",
         "cwd": "apps/mcp-dockmaster"
       }
     },

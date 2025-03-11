@@ -17,7 +17,6 @@
         "WEBKIT_DISABLE_COMPOSITING_MODE": "1",
         "RUST_BACKTRACE": "1"
       },
-      "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "ui:dev"
     }
   ]

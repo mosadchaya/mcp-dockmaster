@@ -10,11 +10,12 @@ use features::mcp_proxy::{
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
 use tauri::{utils::platform, Emitter, Manager, RunEvent};
-use tauri_plugin_shell::ShellExt;
 use tray::create_tray;
+use updater::{check_for_updates, check_for_updates_command};
 
 mod features;
 mod tray;
+mod updater;
 
 mod commands {
     use std::{
@@ -166,10 +167,17 @@ pub async fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             create_tray(app.handle())?;
 
-            app.shell().sidecar("mcp-proxy-server")?;
+            // Check for updates in the background when the app is opened
+            let app_handle_clone = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = check_for_updates(&app_handle_clone, false).await;
+            });
+
             init_mcp_core(app.handle())?;
 
             // Start background initialization after the UI has started
@@ -203,6 +211,7 @@ pub async fn run() {
             import_server_from_url,
             restart_process,
             is_process_running,
+            check_for_updates_command
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")

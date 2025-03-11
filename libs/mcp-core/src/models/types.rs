@@ -190,7 +190,43 @@ pub struct InputSchemaProperty {
     #[serde(default)]
     pub description: String,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_type_field")]
     pub r#type: String,
+}
+
+// Custom deserializer for the type field that can handle both string and array
+fn deserialize_type_field<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let value = serde_json::Value::deserialize(deserializer)?;
+
+    match value {
+        // If it's a string, use it directly
+        serde_json::Value::String(s) => Ok(s),
+
+        // If it's an array, use the first string value or join them
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                Ok("string".to_string()) // Default to string if empty array
+            } else if let Some(first) = arr.first() {
+                if let Some(s) = first.as_str() {
+                    Ok(s.to_string())
+                } else {
+                    Err(Error::custom("Array's first element is not a string"))
+                }
+            } else {
+                Err(Error::custom("Cannot convert empty array to type string"))
+            }
+        }
+
+        // For any other type, return an error
+        _ => Err(Error::custom(
+            "Type field must be a string or array of strings",
+        )),
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -295,6 +331,30 @@ impl ServerToolInfo {
 
         // Create mutable copy and insert the generated fields
         let mut obj = value;
+
+        // Handle potential array fields that should be strings
+        if let Some(input_schema) = obj.get_mut("inputSchema").and_then(|v| v.as_object_mut()) {
+            if let Some(properties) = input_schema
+                .get_mut("properties")
+                .and_then(|v| v.as_object_mut())
+            {
+                for (_, prop) in properties.iter_mut() {
+                    if let Some(type_field) = prop.get_mut("type") {
+                        // If type is an array, convert it to a string with the first value
+                        if let Some(type_array) = type_field.as_array() {
+                            if !type_array.is_empty() {
+                                if let Some(first_type) =
+                                    type_array.first().and_then(|t| t.as_str())
+                                {
+                                    *type_field = Value::String(first_type.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         obj.as_object_mut()
             .ok_or("value must be an object")?
             .insert("id".to_string(), Value::String(id));

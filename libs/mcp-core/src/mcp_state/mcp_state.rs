@@ -204,7 +204,7 @@ impl MCPState {
                 // Wait longer for the server to start
                 {
                     info!("Waiting for server to start for server: {}", server_id);
-                    let sleep_future = tokio::time::sleep(Duration::from_secs(5));
+                    let sleep_future = tokio::time::sleep(Duration::from_secs(3));
                     sleep_future.await;
                     info!(
                         "Finished waiting for server to start for server: {}",
