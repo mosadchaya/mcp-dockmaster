@@ -35,7 +35,6 @@ export interface Properties {
     }
 }
 
-
 export interface RegistryTool {
     id:              string;
     name:            string;

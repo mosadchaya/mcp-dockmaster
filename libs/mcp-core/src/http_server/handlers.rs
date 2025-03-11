@@ -16,7 +16,7 @@ use crate::models::types::{
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
     ToolExecutionRequest,
 };
-use crate::types::{ConfigUpdateRequest, RegistryTool, ServerConfigUpdateRequest};
+use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -56,8 +56,8 @@ lazy_static! {
     });
 }
 
-// Cache duration constant (60 minutes)
-const CACHE_DURATION: Duration = Duration::from_secs(60 * 60);
+// Cache duration constant (1 minutes)
+const CACHE_DURATION: Duration = Duration::from_secs(60);
 
 pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
@@ -349,7 +349,15 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
-    let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/db.v0.json";
+    // All Tools: Stable & Unstable
+    let tools_url =
+        "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json";
+    // Stable Only
+    // let tools_url =
+    //     "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.stable.json";
+    // Unstable Only
+    // let tools_url =
+    //     "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.unstable.json";
 
     let client = reqwest::Client::builder().build().unwrap_or_default();
 
@@ -364,38 +372,30 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
             message: format!("Failed to fetch tools from registry: {}", e),
         })?;
 
-    let tools: Vec<Value> = response.json().await.map_err(|e| ErrorResponse {
+    let raw = response.json().await.map_err(|e| ErrorResponse {
         code: -32000,
         message: format!("Failed to parse tools from registry: {}", e),
     })?;
-    let tools: Vec<RegistryTool> = tools
-        .into_iter()
-        .filter_map(|tool| {
-            let v = serde_json::from_value::<RegistryTool>(tool.clone());
-            match v {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    println!("[TOOLS] handle_register_tool: v {:?}", e);
-                    println!("[TOOLS] handle_register_tool: tool {:?}", tool);
-                    None
-                }
-            }
-        })
-        .collect();
 
-    println!("[TOOLS] found # tools {:?}", tools.len());
+    let tool_wrapper: RegistryToolsResponse =
+        serde_json::from_value(raw).map_err(|e| ErrorResponse {
+            code: -32000,
+            message: format!("Failed to parse tools from registry: {}", e),
+        })?;
 
-    let result = RegistryToolsResponse { tools };
+    println!("[TOOLS] found # tools {:?}", tool_wrapper.tools.len());
+
+    // let result = RegistryToolsResponse { tools };
 
     // Update the cache with new data
     {
         let mut cache = REGISTRY_CACHE.lock().await;
-        cache.data = Some(serde_json::to_value(&result).unwrap_or_default());
+        cache.data = Some(serde_json::to_value(&tool_wrapper).unwrap_or_default());
         cache.timestamp = Some(Instant::now());
     }
-    info!("[TOOLS] handle_register_tool: result {:?}", result);
+    info!("[TOOLS] handle_register_tool: result {:?}", tool_wrapper);
 
-    Ok(result)
+    Ok(tool_wrapper)
 }
 
 async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {

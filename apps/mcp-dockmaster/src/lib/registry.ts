@@ -1,4 +1,4 @@
-import { RegistryServer } from "./mcpClient";
+import { Registry, RegistryServer } from "./mcpClient";
 
 interface CacheEntry {
   timestamp: number;
@@ -7,7 +7,8 @@ interface CacheEntry {
 }
 
 let serversCache: CacheEntry | null = null;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CACHE_DURATION = 60 * 1000;  // 60 seconds
+//  24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 /**
 * Get all available tools from the registry
@@ -21,14 +22,19 @@ export const getAvailableServers = async (force: boolean = false): Promise<Regis
   }
 
   try {
-    const response = await fetch('https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/db.v0.json');
+    // All Tools: Stable & Unstable
+    const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json');
+    // Stable Only
+    // const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.stable.json');
+    // Unstable Only
+    // const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.unstable.json');
     if (!response.ok) {
       throw new Error(`Failed to fetch tools: ${response.statusText}`);
     }
-    const servers: RegistryServer[] = await response.json();
+    const servers: Registry = await response.json();
     
     const categoryCounts: Record<string, number> = {};
-    servers.forEach((server) => {
+    servers.tools.forEach((server) => {
       server.categories?.forEach((category) => {
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
       });
@@ -40,11 +46,11 @@ export const getAvailableServers = async (force: boolean = false): Promise<Regis
     // Update cache
     serversCache = {
       timestamp: Date.now(),
-      data: servers,
+      data: servers.tools,
       categories: uniqueCategoriesOrdered
     };
     
-    return servers;
+    return servers.tools;
   } catch (error) {
     console.error('Error fetching available tools:', error);
     // If cache exists, return cached data even if expired

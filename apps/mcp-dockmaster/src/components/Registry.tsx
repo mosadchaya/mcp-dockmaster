@@ -69,19 +69,25 @@ const Registry: React.FC = () => {
 
   // Load tools and categories on initial mount
   useEffect(() => {
-    loadAvailableServers();
-    loadCategories();
+    const init = async () => {
+      await loadAvailableServers();
+      loadCategories();
+    };
+    init();
 
     // Add event listener for visibility change to reload tools when component becomes visible
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
-        loadAvailableServers();
+        await loadAvailableServers();
         loadCategories();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", loadAvailableServers);
+    window.addEventListener("focus", async () => {
+      await loadAvailableServers();
+      loadCategories();
+    });
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -182,7 +188,11 @@ const Registry: React.FC = () => {
   const loadCategories = async () => {
     try {
       const categoriesData = await getCategories();
-      setCategories(categoriesData);
+      // Count featured items from current availableServers state
+      const featuredCount = availableServers.filter(server => server.featured).length;
+      // Add Featured as first category if there are featured items
+      const allCategories = [["Featured", featuredCount], ...categoriesData];
+      setCategories(allCategories);
     } catch (error) {
       console.error("Failed to load categories:", error);
     }
@@ -454,7 +464,9 @@ const Registry: React.FC = () => {
       : true;
 
     const matchesCategory = selectedCategory
-      ? tool.categories?.includes(selectedCategory)
+      ? selectedCategory === "Featured" 
+        ? tool.featured 
+        : tool.categories?.includes(selectedCategory)
       : true;
 
     return matchesSearch && matchesCategory;
@@ -620,6 +632,27 @@ const Registry: React.FC = () => {
                 )}
               </div>
             </div>
+            {/* Tools */}
+            {currentServerDetails.tools && currentServerDetails.tools.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Tools</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {currentServerDetails.tools.map((tool) => (
+                    <div key={tool.signature}>
+                      <div className="text-sm font-medium">
+                        {tool.signature.match(/^(.+)\(/)?.[1]}
+                      </div>
+                      <div className="text-sm font-small">                      
+                        {tool.description}
+                      </div>
+                      <div className="text-xs font-mono">
+                        {tool.signature}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Publisher Information */}
             {currentServerDetails.publisher && (
@@ -877,15 +910,26 @@ const Registry: React.FC = () => {
                         </CardHeader>
                         <CardContent>
                           <CardDescription className="line-clamp-2">
-                            {tool.description}
+                            {tool.short_description}
                           </CardDescription>
                         </CardContent>
                         <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
-                            <div className="text-muted-foreground flex items-center gap-1 text-sm">
+                            <div className="text-muted-foreground flex items-center gap-2 text-sm">
                               <span>By </span> {tool.publisher.name}
+                              {tool.featured && (
+                                <Badge variant="outline" className="ml-2">
+                                  Featured
+                                </Badge>
+                              )}
                             </div>
                           )}
+                          {!tool.publisher && tool.featured && (
+                            <Badge variant="outline">
+                              Featured
+                            </Badge>
+                          )}
+
                           {tool.installed ? (
                             <Button
                               variant="destructive"
@@ -942,7 +986,7 @@ const Registry: React.FC = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              I'll do it manually
+              I&apos;ll do it manually
             </Button>
             <Button
               onClick={() => {
