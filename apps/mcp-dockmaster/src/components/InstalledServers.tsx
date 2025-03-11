@@ -158,14 +158,9 @@ const InstalledServers: React.FC = () => {
       // Get servers and tools data separately
       const servers = await MCPClient.listServers();
       const allServerTools = await MCPClient.listAllServerTools();
-      console.log("All server tools:", allServerTools);
 
-      // Set servers (filtered to only active servers)
-      const activeServers = servers.filter(
-        (server: RuntimeServer) => server.process_running,
-      );
-      // Sort servers by ID to maintain consistent order
-      const sortedServers = [...activeServers].sort((a, b) => a.id.localeCompare(b.id));
+      // Set servers
+      const sortedServers = [...servers].sort((a, b) => a.id.localeCompare(b.id));
       setServers(sortedServers);
 
       // Set server tools
