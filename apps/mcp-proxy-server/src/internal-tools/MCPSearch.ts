@@ -104,7 +104,14 @@ export class MCPSearch {
   }
 
   public static async init() {
-    const result = await proxyRequest<{ tools: ExtendedRegistryTool[] }>('registry/list', {});
+      let result: { tools: ExtendedRegistryTool[] } = { tools: [] };
+      try {
+        result = await proxyRequest<{ tools: ExtendedRegistryTool[] }>('registry/list', {});
+      } catch (error) {
+        console.error('Error initializing MCPSearch:', error);
+        result = { tools: [] };
+      }
+
     MCPSearch.idx = lunr(function (self: any) {
       self.ref('name');
       self.field('name');

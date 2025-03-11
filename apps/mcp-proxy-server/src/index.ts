@@ -45,14 +45,25 @@ debugLog('Setting up request handlers');
 // Handler for listing resources
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   debugLog('ListResourcesRequestSchema handler called');
-  const resources = await proxyRequest('resources/list', {});
-  return resources as any; // The backend should already return { resources: [...] }
+  try {
+    const resources = await proxyRequest('resources/list', {});
+    return resources as any; // The backend should already return { resources: [...] }
+  } catch (error) {
+    console.error('Error fetching resources list:', error);
+    return { resources: [] } as any;
+  }
 });
 
 // Handler for reading resources
 server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
   debugLog('ReadResourceRequestSchema handler called', request);
-  return await proxyRequest('resources/read', request.params);
+  try {
+    const result = await proxyRequest('resources/read', request.params);
+    return result as any;
+  } catch (error) {
+    console.error('Error fetching resource:', error);
+    return { error: 'Resource not found' } as any;
+  }
 });
 
 // Handler for listing tools
@@ -86,10 +97,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     
     // If we got here, the format is unexpected
     debugLog('Unexpected tools list format, returning empty list');
-    return { tools: [] } as any;
+    const emptyResult = { tools: [] } as any;
+    injectInternalTools(emptyResult);
+    return emptyResult;
   } catch (error) {
     console.error('Error fetching tools list:', error);
-    return { tools: [] } as any;
+    const emptyResult = { tools: [] } as any;
+    injectInternalTools(emptyResult);
+    return emptyResult;
   }
 });
 
@@ -103,21 +118,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     return result.result;
   }
 
-  const callResult = await proxyRequest('tools/call', request.params);
-  return callResult as any;
+  try {
+    const callResult = await proxyRequest('tools/call', request.params);
+    return callResult as any;
+  } catch (error) {
+    console.error('Error calling tool:', error);
+    return { error: 'Tool call failed' } as any;
+  }
 });
 
 // Handler for listing prompts
 server.setRequestHandler(ListPromptsRequestSchema, async () => {
   debugLog('ListPromptsRequestSchema handler called');
-  const prompts = await proxyRequest('prompts/list', {});
-  return prompts as any;  // The backend should already return { prompts: [...] }
+  try {
+    const prompts = await proxyRequest('prompts/list', {});
+    return prompts as any;  // The backend should already return { prompts: [...] }
+  } catch (error) {
+    console.error('Error fetching prompts list:', error);
+    return { prompts: [] } as any;
+  }
 });
 
 // Handler for getting prompts
 server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
   debugLog('GetPromptRequestSchema handler called', request);
-  return await proxyRequest('prompts/get', request.params);
+  try {
+    const result = await proxyRequest('prompts/get', request.params);
+    return result as any;
+  } catch (error) {
+    console.error('Error fetching prompt:', error);
+    return { error: 'Prompt not found' } as any;
+  }
 });
 
 debugLog('All request handlers set up');
