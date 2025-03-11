@@ -292,6 +292,10 @@ pub struct RegistryTool {
 /// Response for registry tools listing
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegistryToolsResponse {
+    pub count: u32,
+    pub version: u32,
+    pub categories: HashMap<String, u32>,
+    pub tags: HashMap<String, u32>,
     pub tools: Vec<RegistryTool>,
 }
 

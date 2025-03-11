@@ -22,7 +22,7 @@ export const getAvailableServers = async (force: boolean = false): Promise<Regis
   }
 
   try {
-    const response = await fetch('https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/registry.all.json');
+    const response = await fetch('https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json');
     if (!response.ok) {
       throw new Error(`Failed to fetch tools: ${response.statusText}`);
     }

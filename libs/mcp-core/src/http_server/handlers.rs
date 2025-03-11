@@ -324,15 +324,6 @@ async fn handle_register_tool(
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct ToolWrapper {
-    count: u32,
-    version: u32,
-    categories: HashMap<String, u32>,
-    tags: HashMap<String, u32>,
-    tools: Vec<RegistryTool>,
-}
-
 pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
     // Check if we have a valid cache
     let use_cache = {
@@ -359,7 +350,8 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
 
     // Cache is invalid or doesn't exist, fetch fresh data
     // Fetch tools from remote URL
-    let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/registry.all.json";
+    let tools_url =
+        "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json";
 
     let client = reqwest::Client::builder().build().unwrap_or_default();
 
@@ -379,26 +371,25 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         message: format!("Failed to parse tools from registry: {}", e),
     })?;
 
-    let tool_wrapper: ToolWrapper = serde_json::from_value(raw).map_err(|e| ErrorResponse {
-        code: -32000,
-        message: format!("Failed to parse tools from registry: {}", e),
-    })?;
+    let tool_wrapper: RegistryToolsResponse =
+        serde_json::from_value(raw).map_err(|e| ErrorResponse {
+            code: -32000,
+            message: format!("Failed to parse tools from registry: {}", e),
+        })?;
 
-    let tools: Vec<RegistryTool> = tool_wrapper.tools;
+    println!("[TOOLS] found # tools {:?}", tool_wrapper.tools.len());
 
-    println!("[TOOLS] found # tools {:?}", tools.len());
-
-    let result = RegistryToolsResponse { tools };
+    // let result = RegistryToolsResponse { tools };
 
     // Update the cache with new data
     {
         let mut cache = REGISTRY_CACHE.lock().await;
-        cache.data = Some(serde_json::to_value(&result).unwrap_or_default());
+        cache.data = Some(serde_json::to_value(&tool_wrapper).unwrap_or_default());
         cache.timestamp = Some(Instant::now());
     }
-    info!("[TOOLS] handle_register_tool: result {:?}", result);
+    info!("[TOOLS] handle_register_tool: result {:?}", tool_wrapper);
 
-    Ok(result)
+    Ok(tool_wrapper)
 }
 
 async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {

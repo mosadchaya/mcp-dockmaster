@@ -37,6 +37,8 @@ export interface RegistryServer {
     signature: string;
     description: string;
   }[];
+  weight: number;
+  featured: boolean;
 }
 
 export interface ServerRegistrationRequest {
