@@ -12,6 +12,7 @@ import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { termsOfServiceMarkdown } from "../constants/terms-of-service";
 import { saveUserConsent } from "../lib/localStorage";
+import { updateAnalyticsConsent } from "../lib/analytics";
 
 interface TermsConsentDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) 
 
   const handleAccept = () => {
     saveUserConsent(termsAccepted, analyticsEnabled);
+    updateAnalyticsConsent(analyticsEnabled);
     onAccept();
   };
 
