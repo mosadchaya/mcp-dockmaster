@@ -75,9 +75,6 @@ impl SpawnedProcess {
             info!("No arguments found in configuration for tool {}", tool_id);
         }
 
-        info!("Adding tool-id argument: {}", tool_id);
-        cmd.arg("--tool-id").arg(tool_id.as_str());
-
         Self::setup_process(cmd, tool_id, env_vars).await
     }
 
@@ -132,7 +129,6 @@ impl SpawnedProcess {
         cmd.arg("run")
             .arg("-i")
             .arg("--name")
-            .arg(tool_id.as_str())
             .arg("-a")
             .arg("stdout")
             .arg("-a")
