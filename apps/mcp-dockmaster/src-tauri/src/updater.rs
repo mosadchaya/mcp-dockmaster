@@ -17,7 +17,10 @@ fn uninit_mcp_core(app_handle: &tauri::AppHandle) {
     }
 }
 
-pub async fn check_for_updates(app_handle: &tauri::AppHandle) {
+pub async fn check_for_updates(
+    app_handle: &tauri::AppHandle,
+    show_dialog_when_no_update_available: bool,
+) {
     let app_handle_clone = app_handle.clone();
     let updater = app_handle
         .updater_builder()
@@ -76,7 +79,7 @@ pub async fn check_for_updates(app_handle: &tauri::AppHandle) {
             }
         });
         });
-    } else {
+    } else if show_dialog_when_no_update_available {
         app_handle
             .dialog()
             .message("You're running the latest version.")
@@ -88,5 +91,5 @@ pub async fn check_for_updates(app_handle: &tauri::AppHandle) {
 
 #[tauri::command]
 pub async fn check_for_updates_command(app_handle: tauri::AppHandle) {
-    check_for_updates(&app_handle).await
+    check_for_updates(&app_handle, true).await
 }

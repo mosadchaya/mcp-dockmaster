@@ -175,7 +175,7 @@ pub async fn run() {
             // Check for updates in the background when the app is opened
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let _ = check_for_updates(&app_handle_clone).await;
+                let _ = check_for_updates(&app_handle_clone, false).await;
             });
 
             init_mcp_core(app.handle())?;

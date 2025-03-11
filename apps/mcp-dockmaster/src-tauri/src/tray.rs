@@ -63,7 +63,7 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             "check_for_updates" => {
                 let app_handle_clone = tray.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    let _ = check_for_updates(&app_handle_clone).await;
+                    let _ = check_for_updates(&app_handle_clone, true).await;
                 });
             }
             _ => (),
