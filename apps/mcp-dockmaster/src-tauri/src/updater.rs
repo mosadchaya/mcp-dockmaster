@@ -25,31 +25,31 @@ pub async fn check_for_updates(app_handle: &tauri::AppHandle) {
             println!("app is about to exit on Windows!");
             uninit_mcp_core(&app_handle_clone);
         })
-        .build()?;
+        .build()
+        .unwrap();
 
-    let app_handle_clone = app_handle.clone();
-    tokio::spawn(async move {
-        if let Some(update) = updater.check().await.unwrap_or_else(|e| {
-            error!("Failed to check for updates: {}", e);
-            None
-        }) {
-            info!("Update available: {}", update.version);
+    if let Some(update) = updater.check().await.unwrap_or_else(|e| {
+        error!("Failed to check for updates: {}", e);
+        None
+    }) {
+        info!("Update available: {}", update.version);
+        let app_handle_clone = app_handle.clone();
+        let dialog = app_handle
+            .dialog()
+            .message("Would you like to install it? This will restart the application to apply the update.")
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Install".to_string(),
+                "Later".to_string(),
+            ))
+            .title(format!("New Update Available v{}", update.version));
+        dialog.show(move |answer| {
+        info!("user answer to the update prompt: {}", answer);
+        if !answer {
+            info!("new update available but user cancelled installation");
+            return;
+        }
 
-            let answer = app_handle_clone
-                .dialog()
-                .message("Would you like to install it? This will restart the application to apply the update.")
-                .title(format!("New Update Available v{}", update.version))
-                .buttons(MessageDialogButtons::OkCancelCustom(
-                    "Download & Install".to_string(),
-                    "Later".to_string(),
-                ))
-                .blocking_show();
-
-            if !answer {
-                info!("new update available but user cancelled installation");
-                return;
-            }
-
+        tauri::async_runtime::spawn(async move {
             let mut downloaded = 0;
             match update
                 .download_and_install(
@@ -74,15 +74,16 @@ pub async fn check_for_updates(app_handle: &tauri::AppHandle) {
                     }
                 }
             }
-        } else {
-            app_handle_clone
-                .dialog()
-                .message("You're running the latest version.")
-                .title("No Updates Available")
-                .blocking_show();
-            info!("no update available");
-        }
-    });
+        });
+        });
+    } else {
+        app_handle
+            .dialog()
+            .message("You're running the latest version.")
+            .title("No Updates Available")
+            .show(|_| {});
+        info!("no update available");
+    }
 }
 
 #[tauri::command]
