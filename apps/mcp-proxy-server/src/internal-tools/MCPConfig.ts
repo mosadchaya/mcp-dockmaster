@@ -30,8 +30,8 @@ export class MCPConfig {
   } 
 
   static tool: Tool = {
-    "fullDescription": "Configure MCP Tool settings and parameters.",
     "description": "Configure MCP Tool settings and parameters.",
+    "short_description": "Configure MCP Tool settings and parameters.",
     "inputSchema": {
       "description": "Configuration parameters for the MCP Tool.",
       "properties": {

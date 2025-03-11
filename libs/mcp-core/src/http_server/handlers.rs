@@ -12,11 +12,11 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration, 
-    ServerEnvironment, ServerRegistrationRequest, ServerRegistrationResponse, 
-    ServerToolInfo, ServerToolsResponse, ToolExecutionRequest,
+    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
+    ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
+    ToolExecutionRequest,
 };
-use crate::types::ServerConfigUpdateRequest;
+use crate::types::{ConfigUpdateRequest, RegistryTool, ServerConfigUpdateRequest};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -69,12 +69,10 @@ pub async fn handle_mcp_request(
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
-    let result = match request.method.as_str() {
-        "tools/list" => {
-            match handle_list_tools(mcp_core).await {
-                Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-                Err(error) => Err(serde_json::to_value(error).unwrap()),
-            }
+    let result: Result<Value, Value> = match request.method.as_str() {
+        "tools/list" => match handle_list_tools(mcp_core).await {
+            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+            Err(error) => Err(serde_json::to_value(error).unwrap()),
         },
         "tools/call" => {
             if let Some(params) = request.params {
@@ -117,7 +115,7 @@ pub async fn handle_mcp_request(
             } else {
                 Err(json!({
                     "code": -32602,
-                    "message": "Invalid params - missing parameters for tool registration"
+                    "message": "Missing parameters for tool installation"
                 }))
             }
         }
@@ -200,7 +198,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                 .collect();
 
             Ok(ServerToolsResponse {
-                tools: tools_with_defaults
+                tools: tools_with_defaults,
             })
         }
         Err(e) => Err(ErrorResponse {
@@ -210,73 +208,61 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
     }
 }
 
-async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<ServerRegistrationResponse, ErrorResponse> {
-    match params.get("name") {
-        Some(name) => {
-            let tool_name = name.as_str().unwrap_or("").to_string();
-            let description = params
-                .get("description")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let tools_type = params
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("node")
-                .to_string();
+#[derive(Deserialize, Debug)]
 
-            let configuration = params.get("configuration").map(|config| {
-                let command = config
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                let args = config.get("args").map(|args| {
-                    args.as_array()
-                        .unwrap_or(&Vec::new())
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .collect()
-                });
-                let env = config.get("env").map(|env| {
-                    env.as_object()
-                        .unwrap_or(&serde_json::Map::new())
-                        .iter()
-                        .map(|(k, v)| {
-                            (
-                                k.clone(),
-                                ServerEnvironment {
-                                    description: "".to_string(),
-                                    default: v.as_str().map(|s| s.to_string()),
-                                    required: false,
-                                },
-                            )
-                        })
-                        .collect()
-                });
+struct ToolRegistrationRequestByName {
+    id: String,
+    name: String,
+    description: String,
+    r#type: String,
+    configuration: Option<ServerConfiguration>,
+    distribution: Option<Distribution>,
+}
+#[derive(Deserialize, Debug)]
 
-                ServerConfiguration { command, args, env }
+struct ToolRegistrationRequestById {
+    tool_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)]
+#[serde(untagged)]
+enum ToolRegistrationRequest {
+    ByName(ToolRegistrationRequestByName),
+    ById(ToolRegistrationRequestById),
+}
+
+async fn handle_register_tool(
+    mcp_core: MCPCore,
+    params: Value,
+) -> Result<ServerRegistrationResponse, ErrorResponse> {
+    println!("[INSTALLATION] handle_register_tool: params {:?}", params);
+    let params = match serde_json::from_value(params) {
+        Ok(params) => params,
+        Err(error) => {
+            println!("[INSTALLATION] handle_register_tool: error {:?}", error);
+            return Err(ErrorResponse {
+                code: -32602,
+                message: format!(
+                    "Invalid params - missing parameters for tool registration: {}",
+                    error
+                ),
             });
+        }
+    };
 
-            let distribution = params.get("distribution").map(|dist| Distribution {
-                r#type: dist
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("error")
-                    .to_string(),
-                package: dist
-                    .get("package")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("error")
-                    .to_string(),
-            });
-
-            let tool_id = params
-                .get("id")
-                .unwrap_or(&json!("error"))
-                .as_str()
-                .unwrap_or("error")
-                .to_string();
+    match params {
+        ToolRegistrationRequest::ByName(request) => {
+            println!(
+                "[INSTALLATION] handle_register_tool: request (BY NAME) {:?}",
+                request
+            );
+            let tool_id = request.id;
+            let tool_name = request.name;
+            let description = request.description;
+            let tools_type = request.r#type;
+            let configuration = request.configuration;
+            let distribution = request.distribution;
 
             let tool = ServerRegistrationRequest {
                 server_id: tool_id.clone(),
@@ -296,10 +282,44 @@ async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Server
                 tool_id: Some(tool_id),
             })
         }
-        None => Err(ErrorResponse {
-            code: -32602,
-            message: format!("Tool not found: {:?}", params.get("name")),
-        }),
+        ToolRegistrationRequest::ById(request) => {
+            println!(
+                "[INSTALLATION] handle_register_tool: request (BY ID) {:?}",
+                request
+            );
+            let tool_id = request.tool_id;
+
+            let registry = fetch_tool_from_registry().await?;
+
+            let tool = registry
+                .tools
+                .iter()
+                .find(|tool| tool.id.as_str() == tool_id);
+            if tool.is_none() {
+                return Err(ErrorResponse {
+                    code: -32000,
+                    message: format!("Tool {} not found", tool_id),
+                });
+            }
+            let tool = tool.unwrap();
+            println!("Building tool from registry: {:?}", tool);
+            let r = mcp_core
+                .register_server(ServerRegistrationRequest {
+                    server_id: tool_id.clone(),
+                    server_name: tool.name.clone(),
+                    description: tool.description.clone(),
+                    tools_type: tool.runtime.clone(),
+                    configuration: Some(tool.config.clone()),
+                    distribution: Some(tool.distribution.clone()),
+                })
+                .await;
+            println!("[INSTALLATION] handle_register_tool: r {:?}", r);
+            Ok(ServerRegistrationResponse {
+                success: true,
+                message: "Tool installed successfully".to_string(),
+                tool_id: Some(tool_id.clone()),
+            })
+        }
     }
 }
 
@@ -339,53 +359,33 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         .header("User-Agent", "MCP-Core/1.0")
         .send()
         .await
-        .map_err(|e| {
-            ErrorResponse {
-                code: -32000,
-                message: format!("Failed to fetch tools from registry: {}", e),
-            }
+        .map_err(|e| ErrorResponse {
+            code: -32000,
+            message: format!("Failed to fetch tools from registry: {}", e),
         })?;
 
-    let tools: Vec<Value> = response.json().await.map_err(|e| {
-        ErrorResponse {
-            code: -32000,
-            message: format!("Failed to parse tools from registry: {}", e),
-        }
+    let tools: Vec<Value> = response.json().await.map_err(|e| ErrorResponse {
+        code: -32000,
+        message: format!("Failed to parse tools from registry: {}", e),
     })?;
-
-    let mut all_tools = Vec::new();
-
-    for tool in tools {
-        let mut tool_info = serde_json::Map::new();
-
-        if let Some(obj) = tool.as_object() {
-            for (key, value) in obj {
-                tool_info.insert(key.clone(), value.clone());
+    let tools: Vec<RegistryTool> = tools
+        .into_iter()
+        .filter_map(|tool| {
+            let v = serde_json::from_value::<RegistryTool>(tool.clone());
+            match v {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    println!("[TOOLS] handle_register_tool: v {:?}", e);
+                    println!("[TOOLS] handle_register_tool: tool {:?}", tool);
+                    None
+                }
             }
-        }
+        })
+        .collect();
 
-        if !tool_info.contains_key("description") {
-            tool_info.insert("description".to_string(), json!("Tool from registry"));
-        }
+    println!("[TOOLS] found # tools {:?}", tools.len());
 
-        if !tool_info.contains_key("inputSchema") {
-            tool_info.insert(
-                "inputSchema".to_string(),
-                json!({
-                    "type": "object",
-                    "properties": {}
-                }),
-            );
-        }
-
-        println!("[TOOL] handle_register_tool: tool {:?} \n\nVS\n\n{:?} \n----------------------------------------", tool, tool_info);
-
-        all_tools.push(json!(tool_info));
-    }
-
-    let result = RegistryToolsResponse {
-        tools: all_tools,
-    };
+    let result = RegistryToolsResponse { tools };
 
     // Update the cache with new data
     {
@@ -403,7 +403,7 @@ async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     let registry = mcp_state.tool_registry.read().await;
     let installed_tools = registry.get_all_servers()?;
     let registry_tools_result = fetch_tool_from_registry().await;
-    
+
     let mut registry_tools = match registry_tools_result {
         Ok(response) => serde_json::to_value(response).unwrap_or(json!({"tools": []})),
         Err(error) => return Err(serde_json::to_value(error).unwrap()),
@@ -538,7 +538,7 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
     match params.get("url").and_then(|v| v.as_str()) {
         Some(url) => {
             info!("Importing server from URL: {}", url);
-            
+
             match mcp_core.import_server_from_url(url.to_string()).await {
                 Ok(response) => {
                     if response.success {
@@ -569,48 +569,24 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
 
 async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     info!("handle_get_server_config: params {:?}", params);
-    // Extract tool_id and config from params
-    let tool_id = match params.get("tool_id").and_then(|v| v.as_str()) {
-        Some(id) => id,
-        None => {
+    let config: ConfigUpdateRequest = match serde_json::from_value(params) {
+        Ok(config) => config,
+        Err(error) => {
             return Err(json!({
                 "code": -32602,
-                "message": "Missing tool_id in parameters"
-            }))
+                "message": format!("Invalid params - missing parameters for server config: {}", error)
+            }));
         }
-    };
-
-    let config = match params.get("config") {
-        Some(Value::Object(obj)) => {
-            // Convert the object into a HashMap<String, String>
-            let mut config_map = std::collections::HashMap::new();
-            for (key, value) in obj {
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
-                    _ => value.to_string(),
-                };
-                config_map.insert(key.clone(), value_str);
-            }
-            config_map
-        }
-        _ => {
-            return Err(json!({
-                "code": -32602,
-                "message": "Invalid or missing config object in parameters"
-            }))
-        }
-    };
-
-    // Create the config update request
-    let config_request = ServerConfigUpdateRequest {
-        server_id: tool_id.to_string(),
-        config,
     };
 
     // Update the tool configuration
-    match mcp_core.update_server_config(config_request).await {
+    match mcp_core
+        .update_server_config(ServerConfigUpdateRequest {
+            server_id: config.tool_id.to_string(),
+            config: config.config,
+        })
+        .await
+    {
         Ok(response) => {
             if !response.success {
                 return Err(json!({
@@ -620,7 +596,10 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             }
 
             // After successful config update, restart the tool
-            match mcp_core.restart_server_command(tool_id.to_string()).await {
+            match mcp_core
+                .restart_server_command(config.tool_id.to_string())
+                .await
+            {
                 Ok(restart_response) => {
                     if restart_response.success {
                         Ok(json!({

@@ -10,6 +10,9 @@ import {
   dispatchServerUninstalled,
 } from "../lib/events";
 import "./Registry.css";
+import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
+import { isProcessRunning } from "../lib/process";
 
 // Import runner icons
 // @ts-ignore
@@ -59,6 +62,10 @@ const Registry: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState("");
   const [importingServer, setImportingServer] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Add state for restart dialog
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ title: string; onConfirm: () => Promise<void> } | null>(null);
 
   // Load tools and categories on initial mount
   useEffect(() => {
@@ -181,8 +188,67 @@ const Registry: React.FC = () => {
     }
   };
 
+  const restartProcess = async (process_name: string) => {
+    await invoke('restart_process', { process: { process_name } });
+  }
+
+
+  const isClaudeInstalled = async () => {
+    try {
+      return await invoke<boolean>("check_claude_installed");
+    } catch (error) {
+      console.error("Failed to check Claude:", error);
+      return false;
+    }
+  };
+
+  // Check if Cursor is installed
+  const isCursorInstalled = async () => {
+    try {
+      return await invoke<boolean>("check_cursor_installed");
+    } catch (error) {
+      console.error("Failed to check Cursor:", error);
+      return false;
+    }
+  };
+
+  const showRestartDialog = async () => {
+    const processName = ["Claude", "Cursor"];
+    const [isRunning1, isRunning2, isInstalled1, isInstalled2] = await Promise.all([
+      isProcessRunning(processName[0]),
+      isProcessRunning(processName[1]),
+      isClaudeInstalled(),
+      isCursorInstalled(),
+    ]);
+
+    const showClaude = isRunning1 && isInstalled1;
+    const showCursor = isRunning2 && isInstalled2;
+    if (showClaude || showCursor) {
+      let title = "";
+      if (showClaude && showCursor) {
+        title = `Restart ${processName[0]} and ${processName[1]}`;
+      } else if (showClaude) {
+        title = `Restart ${processName[0]}`;
+      } else if (showCursor) {
+        title = `Restart ${processName[1]}`;
+      }
+      setConfirmDialogConfig({
+        title,
+        onConfirm: async () => {
+          if (showClaude) {
+            await restartProcess(processName[0]);
+          }
+          if (showCursor) {
+            await restartProcess(processName[1]);
+          }
+          toast.success(`${title} restarted successfully!`);
+        },
+      });
+      setShowConfirmDialog(true);
+    }
+  };
+
   const installServer = async (server: RegistryServer) => {
-    // Double-check if the tool is already installed before proceeding
     const installedServers = await MCPClient.listServers();
     console.log("installedServers: ", installedServers);
 
@@ -193,7 +259,6 @@ const Registry: React.FC = () => {
     );
 
     if (isAlreadyInstalled) {
-      // Tool is already installed, update UI and don't try to install again
       setAvailableServers((prev: RegistryServer[]) =>
         prev.map((item: RegistryServer) =>
           item.id === server.id ? { ...item, installed: true } : item,
@@ -204,14 +269,10 @@ const Registry: React.FC = () => {
 
     setInstalling(server.id);
     try {
-      // For now, use a default entry point based on the tool type
       const entryPoint = getDefaultEntryPoint(server.name);
 
-      // Prepare authentication if needed
       let authentication = null;
       if (server.config && server.config.env) {
-        // For now, we don't have a way to collect env vars from the user
-        // In a real implementation, you would prompt the user for these values
         authentication = { env: server.config.env };
       }
 
@@ -234,15 +295,17 @@ const Registry: React.FC = () => {
       });
 
       if (response.success) {
-        // Update tool as installed
         setAvailableServers((prev: RegistryServer[]) =>
           prev.map((item: RegistryServer) =>
             item.id === server.id ? { ...item, installed: true } : item,
           ),
         );
 
-        // Dispatch event that a tool was installed
         dispatchServerInstalled(server.id);
+        
+        await showRestartDialog("Claude");
+        await showRestartDialog("Cursor");
+        
       }
     } catch (error) {
       console.error("Failed to install server:", error);
@@ -300,6 +363,11 @@ const Registry: React.FC = () => {
       if (response.success) {
         // Dispatch event that a tool was uninstalled with the registry ID for UI updates
         dispatchServerUninstalled(id);
+
+        // Check if the process needs to be restarted
+        await showRestartDialog("Claude");
+        await showRestartDialog("Cursor");
+        
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall tool:", response.message);
@@ -467,7 +535,7 @@ const Registry: React.FC = () => {
           </DialogHeader>
           <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
             <p className="text-amber-800 text-sm">
-              <strong>Note:</strong> We will attempt to extract required environment variables from the repository's README.md file.
+              <strong>Note:</strong> We will attempt to extract required environment variables from the repositorys README.md file.
               Please note that this process may not identify all required variables correctly.
             </p>
           </div>
@@ -520,7 +588,7 @@ const Registry: React.FC = () => {
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label className="text-right text-xs pt-1">Description</Label>
                   <div className="col-span-3 text-sm">
-                    {currentServerDetails.fullDescription || currentServerDetails.description}
+                    {currentServerDetails.description}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
@@ -858,6 +926,30 @@ const Registry: React.FC = () => {
       )}
       {renderDetailsPopup()}
       {renderGitHubImportModal()}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Action</DialogTitle>
+            <DialogDescription>
+             {confirmDialogConfig?.title || "Are you sure you want to proceed with this action?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                // Handle the confirm action here
+                setShowConfirmDialog(false);
+                confirmDialogConfig?.onConfirm();
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
