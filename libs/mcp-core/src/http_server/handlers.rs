@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use axum::response::IntoResponse;
@@ -17,7 +16,7 @@ use crate::models::types::{
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
     ToolExecutionRequest,
 };
-use crate::types::{ConfigUpdateRequest, RegistryTool, ServerConfigUpdateRequest};
+use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
