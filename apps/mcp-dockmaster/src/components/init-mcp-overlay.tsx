@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { dispatchServerStatusChanged } from "../lib/events";
 import { useAppStore } from "@/store/app";
 import { Progress } from "./ui/progress";
+import { TermsConsentDialog } from "./terms-consent-dialog";
+import { getUserConsent } from "../lib/localStorage";
 
 interface LoadingOverlayProps {
   children: React.ReactNode;
@@ -15,9 +17,12 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
   children: React.ReactNode;
 }) => {
   const [progress, setProgress] = useState(0);
+  const [showTerms, setShowTerms] = useState(false);
 
   const appState = useAppStore((state) => state.appState);
   const setAppState = useAppStore((state) => state.setAppState);
+  const userConsented = useAppStore((state) => state.userConsented);
+  const setUserConsented = useAppStore((state) => state.setUserConsented);
 
   useEffect(() => {
     setAppState("pending");
@@ -60,6 +65,23 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
     };
   }, []);
 
+  // Check if user has consented when app is ready
+  useEffect(() => {
+    if (appState === "ready") {
+      const consent = getUserConsent();
+      if (!consent || !consent.termsAccepted) {
+        setShowTerms(true);
+      } else {
+        setUserConsented(true);
+      }
+    }
+  }, [appState]);
+
+  const handleTermsAccepted = () => {
+    setShowTerms(false);
+    setUserConsented(true);
+  };
+
   if (appState === "pending") {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -95,6 +117,9 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
   }
 
   if (appState === "ready") {
+    if (!userConsented) {
+      return <TermsConsentDialog open={showTerms} onAccept={handleTermsAccepted} />;
+    }
     return children;
   }
 
