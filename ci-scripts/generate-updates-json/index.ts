@@ -1,6 +1,6 @@
-import fs from "fs";
-import { formatRFC3339 } from "date-fns";
-import z from "zod";
+import fs from "node:fs";
+import { formatRFC3339 } from "npm:date-fns";
+import z from "npm:zod";
 
 const envSchema = z.object({
   JSON_PATH: z.string().min(1),

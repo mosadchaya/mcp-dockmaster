@@ -308,7 +308,7 @@ jobs:
           WINDOWS_x86_64_URL: ${{ needs.release-mcp-dockmaster.outputs.update-url-x86_64-pc-windows-msvc }}
         run: |
           mkdir files-to-r2
-          npx ts-node ./ci-scripts/generate-updates-json.ts
+          deno run -A ./ci-scripts/generate-updates-json/index.ts
           echo "updates-next-json-url=https://download.mcp-dockmaster.com/mcp-dockmaster/binaries/production/updates-next.json" >> "$GITHUB_OUTPUT"
 
       - name: Upload updates.json to R2
