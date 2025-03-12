@@ -215,6 +215,14 @@
   background-color: #ef4444;
 }
 
+.server-status-dot.starting {
+  background-color: #f59e0b; /* Amber/yellow color for starting state */
+}
+
+.server-status-dot.error {
+  background-color: #dc2626; /* Red color for error state */
+}
+
 .server-status-text {
   color: #6c757d;
 }
@@ -708,6 +716,26 @@
 
 .server-status-badge .stopped {
   background-color: #ef4444;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.server-status-badge .starting {
+  background-color: #f59e0b;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.server-status-badge .error {
+  background-color: #dc2626;
   color: white;
   padding: 0.25rem 0.75rem;
   border-radius: 1rem;
