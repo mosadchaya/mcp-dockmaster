@@ -87,9 +87,8 @@ const InstalledServers: React.FC = () => {
     const checkServersNeedRefresh = () => {
       // Check if any server has a mismatch between status and enabled state
       const needsRefresh = servers.some(server => 
-        (server.status === 'running' && !server.enabled) || // Running but should be stopped
-        (server.status === 'stopped' && server.enabled) ||  // Stopped but should be running
-        (server.status === 'starting' && server.enabled)    // Starting and should be running
+        (server.status !== 'running' && server.enabled) || // Not running but should be running
+        (server.status !== 'stopped' && !server.enabled)   // Not stopped but should be stopped
       );
       
       if (needsRefresh) {
