@@ -24,16 +24,33 @@ use toml::Table;
 
 use super::mcp_core::MCPCore;
 
+/// Helper function to emit server status change events to the frontend
+/// 
+/// This function emits a "server-status-changed" event with the server ID and status
+/// as payload. The frontend can listen for these events to update the UI in real-time.
+fn emit_server_status_change(app_handle: &tauri::AppHandle, server_id: &str, status: &ServerStatus) {
+    if let Err(e) = app_handle.emit("server-status-changed", json!({
+        "server_id": server_id,
+        "status": status
+    })) {
+        error!("Failed to emit server status changed event: {}", e);
+    } else {
+        info!("Emitted server status changed event for server: {}", server_id);
+    }
+}
+
 #[async_trait]
 pub trait McpCoreProxyExt {
     async fn register_server(
         &self,
+        app_handle: tauri::AppHandle,
         tool: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
     async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>;
     async fn list_server_tools(
         &self,
+        app_handle: tauri::AppHandle,
         request: DiscoverServerToolsRequest,
     ) -> Result<Vec<ServerToolInfo>, String>;
     async fn execute_proxy_tool(
@@ -42,6 +59,7 @@ pub trait McpCoreProxyExt {
     ) -> Result<ToolExecutionResponse, String>;
     async fn update_server_status(
         &self,
+        app_handle: tauri::AppHandle,
         request: ServerUpdateRequest,
     ) -> Result<ToolUpdateResponse, String>;
     async fn update_server_config(
@@ -52,7 +70,11 @@ pub trait McpCoreProxyExt {
         &self,
         request: ToolUninstallRequest,
     ) -> Result<ServerUninstallResponse, String>;
-    async fn restart_server_command(&self, tool_id: String) -> Result<ToolUpdateResponse, String>;
+    async fn restart_server_command(
+        &self,
+        app_handle: tauri::AppHandle,
+        tool_id: String
+    ) -> Result<ToolUpdateResponse, String>;
     async fn init_mcp_server(&self) -> Result<()>;
     async fn kill_all_processes(&self) -> Result<()>;
     /// Import a server from a GitHub repository URL
@@ -81,6 +103,7 @@ impl McpCoreProxyExt for MCPCore {
     /// Register a new tool with the MCP server
     async fn register_server(
         &self,
+        app_handle: tauri::AppHandle,
         request: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String> {
         // Log configuration details if present
@@ -204,14 +227,23 @@ impl McpCoreProxyExt for MCPCore {
                                 (child_opt, ServerStatus::Running)
                             );
                             info!("Updated status to Running for server: {}", server_id);
+                            
+                            // Emit status change event
+                            emit_server_status_change(&app_handle, &server_id, &ServerStatus::Running);
                         }
                     }
                     Ok(Err(e)) => {
                         error!("Error discovering tools from server {}: {}", server_id, e);
+                        
+                        // Emit error status change event
+                        emit_server_status_change(&app_handle, &server_id, &ServerStatus::Error(e.clone()));
                     }
                     Err(_) => {
                         error!("Timeout while discovering tools from server {}", server_id);
                         info!("Added default tool for server {} after timeout", server_id);
+                        
+                        // Emit timeout error status change event
+                        emit_server_status_change(&app_handle, &server_id, &ServerStatus::Error("Timeout while discovering tools".to_string()));
                     }
                 }
             }
@@ -282,6 +314,7 @@ impl McpCoreProxyExt for MCPCore {
     /// Discover tools from a specific MCP server
     async fn list_server_tools(
         &self,
+        app_handle: tauri::AppHandle,
         request: DiscoverServerToolsRequest,
     ) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
@@ -324,7 +357,13 @@ impl McpCoreProxyExt for MCPCore {
                     (child_opt, ServerStatus::Running)
                 );
                 info!("Updated status to Running for server: {}", request.server_id);
+                
+                // Emit status change event
+                emit_server_status_change(&app_handle, &request.server_id, &ServerStatus::Running);
             }
+        } else if result.is_err() {
+            // Emit error status change event
+            emit_server_status_change(&app_handle, &request.server_id, &ServerStatus::Error(result.clone().err().unwrap()));
         }
 
         // Release the process_manager lock before accessing server_tools
@@ -403,6 +442,7 @@ impl McpCoreProxyExt for MCPCore {
     /// Update a tool's status (enabled/disabled)
     async fn update_server_status(
         &self,
+        app_handle: tauri::AppHandle,
         request: ServerUpdateRequest,
     ) -> Result<ToolUpdateResponse, String> {
         info!(
@@ -480,6 +520,9 @@ impl McpCoreProxyExt for MCPCore {
                                         (child_opt, ServerStatus::Running)
                                     );
                                     info!("Updated status to Running for server: {}", request.server_id);
+                                    
+                                    // Emit status change event
+                                    emit_server_status_change(&app_handle, &request.server_id, &ServerStatus::Running);
                                 }
                             }
                             Err(e) => {
@@ -487,6 +530,9 @@ impl McpCoreProxyExt for MCPCore {
                                     "Failed to discover tools for server {}: {}",
                                     request.server_id, e
                                 );
+                                
+                                // Emit error status change event
+                                emit_server_status_change(&app_handle, &request.server_id, &ServerStatus::Error(e.clone()));
                             }
                         }
                     }
@@ -678,6 +724,7 @@ impl McpCoreProxyExt for MCPCore {
     /// Restart a server by its ID
     async fn restart_server_command(
         &self,
+        app_handle: tauri::AppHandle,
         server_id: String,
     ) -> Result<ToolUpdateResponse, String> {
         let mcp_state = self.mcp_state.read().await;
@@ -698,6 +745,9 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         info!("Tool '{}' found, attempting to restart", server_id);
+        
+        // Emit status change event for Starting
+        emit_server_status_change(&app_handle, &server_id, &ServerStatus::Starting);
 
         // Restart the tool using MCPState
         let restart_result = mcp_state.restart_server(&server_id).await;
@@ -705,6 +755,20 @@ impl McpCoreProxyExt for MCPCore {
         match restart_result {
             Ok(_) => {
                 info!("Successfully restarted tool: {}", server_id);
+                
+                // Get current status to emit event
+                let status = {
+                    let process_manager = mcp_state.process_manager.read().await;
+                    if let Some((_, status)) = process_manager.processes.get(&server_id) {
+                        status.clone()
+                    } else {
+                        ServerStatus::Stopped
+                    }
+                };
+                
+                // Emit status change event
+                emit_server_status_change(&app_handle, &server_id, &status);
+                
                 Ok(ToolUpdateResponse {
                     success: true,
                     message: format!("Tool '{}' restarted successfully", server_id),
@@ -712,6 +776,10 @@ impl McpCoreProxyExt for MCPCore {
             }
             Err(e) => {
                 error!("Failed to restart tool {}: {}", server_id, e);
+                
+                // Emit error status change event
+                emit_server_status_change(&app_handle, &server_id, &ServerStatus::Error(e.clone()));
+                
                 Ok(ToolUpdateResponse {
                     success: false,
                     message: format!("Failed to restart tool: {}", e),
@@ -929,7 +997,10 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        self.register_server(request).await
+        // Since we don't have an app_handle here, we can't pass it to register_server
+        // This is called from import_server_from_url which doesn't have an app_handle parameter
+        // In the future, this should be updated to propagate the app_handle
+        self.register_server(tauri::AppHandle::default(), request).await
     }
 
     /// Process a Python project from pyproject.toml content
@@ -1030,6 +1101,9 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        self.register_server(request).await
+        // Since we don't have an app_handle here, we can't pass it to register_server
+        // This is called from import_server_from_url which doesn't have an app_handle parameter
+        // In the future, this should be updated to propagate the app_handle
+        self.register_server(tauri::AppHandle::default(), request).await
     }
 }
