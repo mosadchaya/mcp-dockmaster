@@ -4,7 +4,7 @@ use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
-    ServerRegistrationResponse, ServerToolInfo, ServerUninstallResponse, ServerUpdateRequest,
+    ServerRegistrationResponse, ServerStatus, ServerToolInfo, ServerUninstallResponse, ServerUpdateRequest,
     ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest,
     ToolUpdateResponse,
 };
@@ -232,9 +232,13 @@ impl McpCoreProxyExt for MCPCore {
         let mut tools = Vec::new();
 
         for (id, tool_struct) in tool_map {
-            let process_running = {
+            let status = {
                 let process_manager = mcp_state.process_manager.read().await;
-                process_manager.processes.contains_key(&id)
+                if process_manager.processes.contains_key(&id) {
+                    ServerStatus::Running
+                } else {
+                    ServerStatus::Stopped
+                }
             };
 
             let tool_count = {
@@ -245,7 +249,7 @@ impl McpCoreProxyExt for MCPCore {
             tools.push(RuntimeServer {
                 definition: tool_struct,
                 id: ServerId::new(id),
-                process_running,
+                status,
                 tool_count,
             });
         }
@@ -394,15 +398,20 @@ impl McpCoreProxyExt for MCPCore {
                 // Extract and clone the necessary values
                 let tools_type = tool.tools_type.clone();
                 let entry_point = tool.entry_point.clone().unwrap_or_default();
-                let process_running = {
+                let status = {
                     let process_manager = mcp_state.process_manager.read().await;
-                    process_manager
+                    if process_manager
                         .processes
                         .get(&request.server_id)
                         .is_some_and(|p| p.is_some())
+                    {
+                        ServerStatus::Running
+                    } else {
+                        ServerStatus::Stopped
+                    }
                 };
 
-                Some((tools_type, entry_point, process_running))
+                Some((tools_type, entry_point, status))
             } else {
                 None
             }

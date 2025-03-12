@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig } from "../lib/mcpClient";
+import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig, ServerStatus } from "../lib/mcpClient";
 import { 
   dispatchServerStatusChanged, 
   dispatchServerUninstalled, 
@@ -92,7 +92,7 @@ const InstalledServers: React.FC = () => {
         // Instead of calling loadData which would trigger another render,
         // just ensure we have the server tools for this server
         const server = servers.find((s) => s.id === tool.server_id);
-        if (server && server.process_running) {
+        if (server && server.status === 'running') {
           discoverToolsForServer(tool.server_id);
         }
       }
@@ -454,7 +454,7 @@ const InstalledServers: React.FC = () => {
       const server = servers.find((s) => s.id === serverId);
       console.log("Server found:", server);
 
-      if (server?.process_running) {
+      if (server?.status === 'running') {
         console.log("Server is running, discovering tools");
         discoverToolsForServer(server.id);
       } else {
@@ -480,12 +480,24 @@ const InstalledServers: React.FC = () => {
             <Badge
               variant="outline"
               className={
-                server.process_running
+                server.status === 'running'
                   ? "bg-emerald-500 text-white"
+                  : server.status === 'starting'
+                  ? "bg-yellow-500 text-white"
+                  : server.status.startsWith("Error:")
+                  ? "bg-red-500 text-white"
                   : "bg-red-500 text-white"
               }
             >
-              {server.process_running ? "Running" : "Stopped"}
+              {server.status === 'running' 
+                ? "Running" 
+                : server.status === 'stopped' 
+                ? "Stopped" 
+                : server.status === 'starting' 
+                ? "Starting" 
+                : server.status.startsWith("Error:") 
+                ? server.status 
+                : "Stopped"}
             </Badge>
           </div>
           <button
@@ -513,10 +525,14 @@ const InstalledServers: React.FC = () => {
         ) : (
           <div className="empty-tools-message">
             <p>
-              {server.process_running
+              {server.status === 'running'
                 ? hasUnsetRequiredEnvVars(server)
                   ? <span className="warning-text">This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear.</span>
                   : 'No tools discovered from this server yet. Click "Refresh Tools" to discover available tools.'
+                : server.status === 'starting'
+                ? "Server is starting. Please wait..."
+                : server.status.startsWith("Error:")
+                ? <span className="error-text">Server error: {server.status.substring(7)}</span>
                 : "Server is not running. Start the server to discover available tools."}
             </p>
           </div>
@@ -556,7 +572,7 @@ const InstalledServers: React.FC = () => {
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label className="text-right text-xs pt-1">Status</Label>
                   <div className="col-span-3">
-                    {currentInfoServer.process_running ? (
+                    {currentInfoServer.status === 'running' ? (
                       <span className="text-green-500 text-sm">Running</span>
                     ) : (
                       <span className="text-red-500 text-sm">Stopped</span>
@@ -923,10 +939,26 @@ const InstalledServers: React.FC = () => {
                 >
                   <div className="flex items-center gap-1">
                     <span
-                      className={`server-status-dot ${server.process_running ? "running" : "stopped"}`}
+                      className={`server-status-dot ${
+                        server.status === 'running' 
+                          ? "running" 
+                          : server.status === 'starting' 
+                          ? "starting" 
+                          : server.status.startsWith("Error:") 
+                          ? "error" 
+                          : "stopped"
+                      }`}
                     ></span>
                     <span className="server-status-text">
-                      Status: {server.process_running ? "Running" : "Stopped"}
+                      Status: {server.status === 'running' 
+                        ? "Running" 
+                        : server.status === 'stopped' 
+                        ? "Stopped" 
+                        : server.status === 'starting' 
+                        ? "Starting" 
+                        : server.status.startsWith("Error:") 
+                        ? server.status 
+                        : "Stopped"}
                     </span>
                   </div>
                   <span className="flex items-center gap-1">

@@ -46,6 +46,16 @@ pub enum ToolType {
     Docker,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerStatus {
+    Running,
+    Stopped,
+    Starting,
+    #[serde(serialize_with = "serialize_error", deserialize_with = "deserialize_error")]
+    Error(String),
+}
+
 #[derive(Debug, Serialize)]
 pub struct ToolConfigUpdateResponse {
     pub success: bool,
@@ -95,7 +105,7 @@ pub struct RuntimeServer {
     #[serde(flatten)]
     pub definition: ServerDefinition,
     pub id: ServerId,
-    pub process_running: bool,
+    pub status: ServerStatus,
     pub tool_count: usize,
 }
 
@@ -256,6 +266,27 @@ pub struct ServerToolInfo {
 
 fn default_is_active() -> bool {
     true
+}
+
+// Custom serializer for the Error variant to format as "Error: message"
+fn serialize_error<S>(error_message: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&format!("Error: {}", error_message))
+}
+
+// Custom deserializer for the Error variant that handles "Error: message" format
+fn deserialize_error<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.starts_with("Error: ") {
+        Ok(s[7..].to_string()) // Remove "Error: " prefix
+    } else {
+        Ok(s) // Return as is if it doesn't have the prefix
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
