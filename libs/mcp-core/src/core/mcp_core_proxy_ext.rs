@@ -234,8 +234,8 @@ impl McpCoreProxyExt for MCPCore {
         for (id, tool_struct) in tool_map {
             let status = {
                 let process_manager = mcp_state.process_manager.read().await;
-                if process_manager.processes.contains_key(&id) {
-                    ServerStatus::Running
+                if let Some((_, status)) = process_manager.processes.get(&id) {
+                    status.clone()
                 } else {
                     ServerStatus::Stopped
                 }
@@ -403,7 +403,7 @@ impl McpCoreProxyExt for MCPCore {
                     if process_manager
                         .processes
                         .get(&request.server_id)
-                        .is_some_and(|p| p.is_some())
+                        .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
                     {
                         ServerStatus::Running
                     } else {
@@ -465,7 +465,7 @@ impl McpCoreProxyExt for MCPCore {
             } else {
                 // If disabling, shut down the server
                 let mut process_manager = mcp_state.process_manager.write().await;
-                if let Some(Some(process)) = process_manager.processes.get_mut(&request.server_id) {
+                if let Some((Some(process), status)) = process_manager.processes.get_mut(&request.server_id) {
                     // Kill the process
                     if let Err(e) = kill_process(process).await {
                         return Ok(ToolUpdateResponse {
@@ -613,7 +613,7 @@ impl McpCoreProxyExt for MCPCore {
 
         // Kill the process if it's running
         let mut process_manager = mcp_state.process_manager.write().await;
-        if let Some(Some(process)) = process_manager.processes.get_mut(&request.server_id) {
+        if let Some((Some(process), status)) = process_manager.processes.get_mut(&request.server_id) {
             if let Err(e) = kill_process(process).await {
                 return Ok(ServerUninstallResponse {
                     success: false,
