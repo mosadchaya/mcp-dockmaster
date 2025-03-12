@@ -44,7 +44,17 @@ mod tests {
             "param1".to_string(),
             InputSchemaProperty {
                 description: "Test parameter".to_string(),
-                r#type: "string".to_string(),
+                r#type: Some(serde_json::Value::String("string".to_string())),
+                title: None,
+                format: None,
+                default: None,
+                minimum: None,
+                maximum: None,
+                exclusive_minimum: None,
+                exclusive_maximum: None,
+                additional_properties: None,
+                all_of: None,
+                additional_fields: HashMap::new(),
             },
         );
 
@@ -52,6 +62,11 @@ mod tests {
             properties,
             required: vec!["param1".to_string()],
             r#type: "object".to_string(),
+            title: None,
+            description: None,
+            additional_properties: None,
+            schema: None,
+            additional_fields: HashMap::new(),
         };
 
         let tool = ServerToolInfo {
@@ -290,7 +305,6 @@ mod tests {
         // Verify is_active is now true
         assert_eq!(retrieved_updated_tool.is_active, true);
     }
-
 
     #[test]
     #[serial]

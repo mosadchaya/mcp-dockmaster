@@ -10,28 +10,35 @@ export interface Tool {
     server_id:   string;
     installed:   boolean;
     categories: string[];
+    is_active?: boolean;
 }
 
 export interface InputSchema {
     description: string;
     properties:  Properties;
     required:    string[];
-    title:       string;
+    title?:      string;
     type:        string;
+    additionalProperties?: boolean;
+    $schema?:    string;
 }
 
 export interface Properties {
-    [key: string]: {
-        default?: any;
-        description: string;
-        exclusiveMaximum?: number;
-        exclusiveMinimum?: number;
-        minimum?: number;
-        maximum?: number;
-        title: string;
-        type: string;
-        additionalProperties?: boolean;
-    }
+    [key: string]: PropertyDefinition;
+}
+
+export interface PropertyDefinition {
+    default?: any;
+    description?: string;
+    exclusiveMaximum?: number;
+    exclusiveMinimum?: number;
+    minimum?: number;
+    maximum?: number;
+    title?: string;
+    type?: string | string[];
+    format?: string;
+    additionalProperties?: boolean;
+    allOf?: PropertyDefinition[];
 }
 
 export interface RegistryTool {
@@ -53,24 +60,7 @@ export interface RegistryTool {
 export interface Config {
     command: string;
     args:    string[];
-    env:     Env;
-}
-
-export interface Env {
-    HELIUS_API_KEY?:      HeliusAPIKey;
-    REPLICATE_API_TOKEN?: ReplicateAPIToken;
-    VIRUSTOTAL_API_KEY?:  ReplicateAPIToken;
-}
-
-export interface HeliusAPIKey {
-    required:    boolean;
-    description: string;
-}
-
-export interface ReplicateAPIToken {
-    description: string;
-    type:        string;
-    required:    boolean;
+    env:     any; // FIX THIS
 }
 
 export interface Distribution {
@@ -83,3 +73,25 @@ export interface Publisher {
     name: string;
     url:  string;
 }
+
+/**
+ * Definition for a tool the client can call.
+ */
+export interface OfficialTool {
+    /**
+     * The name of the tool.
+     */
+    name: string;
+    /**
+     * A human-readable description of the tool.
+     */
+    description?: string;
+    /**
+     * A JSON Schema object defining the expected parameters for the tool.
+     */
+    inputSchema: {
+      type: "object";
+      properties?: { [key: string]: object };
+      required?: string[];
+    };
+  }
