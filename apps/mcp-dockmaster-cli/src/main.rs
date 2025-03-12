@@ -153,7 +153,7 @@ async fn main() {
                 println!("{}. {}", i + 1, server.definition.name);
                 println!("   ID: {}", server.id);
                 println!("   Type: {}", server.definition.tools_type);
-                println!("   Running: {}", server.process_running);
+                println!("   Status: {}", server.status);
                 println!("   Tool Count: {}", server.tool_count);
                 println!();
             }

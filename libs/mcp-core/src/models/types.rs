@@ -283,7 +283,8 @@ where
 {
     let s = String::deserialize(deserializer)?;
     if s.starts_with("Error: ") {
-        Ok(s[7..].to_string()) // Remove "Error: " prefix
+        // Use a safer way to remove the prefix
+        Ok(s.trim_start_matches("Error: ").to_string())
     } else {
         Ok(s) // Return as is if it doesn't have the prefix
     }
