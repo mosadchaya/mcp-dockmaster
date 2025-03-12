@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf};
 use directories::ProjectDirs;
 use log::info;
 
+pub mod command;
 pub mod github;
 
 /// Get the default storage path

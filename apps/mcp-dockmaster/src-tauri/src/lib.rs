@@ -18,36 +18,26 @@ mod tray;
 mod updater;
 
 mod commands {
-    use std::{
-        process::Command,
-        sync::atomic::{AtomicBool, Ordering},
-    };
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use mcp_core::core::{mcp_core::MCPCore, mcp_core_runtimes_ext::McpCoreRuntimesExt};
 
     // Global flag to track initialization status
     pub static INITIALIZATION_COMPLETE: AtomicBool = AtomicBool::new(false);
 
     #[tauri::command]
     pub async fn check_node_installed() -> Result<bool, String> {
-        match Command::new("node").arg("--version").output() {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+        MCPCore::is_nodejs_installed().await
     }
 
     #[tauri::command]
     pub async fn check_uv_installed() -> Result<bool, String> {
-        match Command::new("uv").arg("--version").output() {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+        MCPCore::is_uv_installed().await
     }
 
     #[tauri::command]
     pub async fn check_docker_installed() -> Result<bool, String> {
-        match Command::new("docker").arg("--version").output() {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+        MCPCore::is_docker_installed().await
     }
 
     #[tauri::command]

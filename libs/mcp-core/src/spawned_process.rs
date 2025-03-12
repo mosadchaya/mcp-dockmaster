@@ -1,6 +1,7 @@
 use crate::{
     error::{MCPError, MCPResult},
     models::types::{ServerConfiguration, ServerId, ToolType},
+    utils::command::CommandWrappedInShellBuilder,
 };
 use log::{error, info};
 use serde_json::json;
@@ -59,7 +60,8 @@ impl SpawnedProcess {
             "Using command to start process for tool {}: {}",
             tool_id, command
         );
-        let mut cmd = Command::new(command);
+
+        let mut cmd_builder = CommandWrappedInShellBuilder::new(command);
 
         if let Some(args) = &config.args {
             info!(
@@ -69,12 +71,13 @@ impl SpawnedProcess {
             );
             for (i, arg) in args.iter().enumerate() {
                 info!("Arg {}: {}", i, arg);
-                cmd.arg(arg);
+                cmd_builder.arg(arg);
             }
         } else {
             info!("No arguments found in configuration for tool {}", tool_id);
         }
 
+        let cmd = cmd_builder.build();
         Self::setup_process(cmd, tool_id, env_vars).await
     }
 
@@ -92,15 +95,16 @@ impl SpawnedProcess {
 
         info!("Using Python command: {}", command);
 
-        let mut cmd = Command::new(command);
+        let mut cmd_builder = CommandWrappedInShellBuilder::new(command);
 
         if let Some(args) = &config.args {
             info!("Args: {:?}", args);
             for arg in args {
-                cmd.arg(arg);
+                cmd_builder.arg(arg);
             }
         }
 
+        let cmd = cmd_builder.build();
         Self::setup_process(cmd, tool_id, env_vars).await
     }
 
@@ -124,9 +128,10 @@ impl SpawnedProcess {
         }
 
         info!("Using Docker command");
-        let mut cmd = Command::new(command);
+        let mut cmd_builder = CommandWrappedInShellBuilder::new(command);
 
-        cmd.arg("run")
+        cmd_builder
+            .arg("run")
             .arg("-i")
             .arg("--name")
             .arg("-a")
@@ -140,9 +145,11 @@ impl SpawnedProcess {
         if let Some(args) = &config.args {
             info!("Args: {:?}", args);
             for arg in args {
-                cmd.arg(arg);
+                cmd_builder.arg(arg);
             }
         }
+
+        let cmd = cmd_builder.build();
 
         Self::setup_process(cmd, tool_id, env_vars).await
     }
