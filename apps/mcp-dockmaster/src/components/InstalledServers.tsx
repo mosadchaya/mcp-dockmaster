@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig } from "../lib/mcpClient";
-import { listen } from "@tauri-apps/api/event";
 import { 
   dispatchServerStatusChanged, 
   dispatchServerUninstalled, 
@@ -79,33 +78,6 @@ const InstalledServers: React.FC = () => {
 
     return () => {
       window.removeEventListener("focus", loadData);
-    };
-  }, []);
-  
-  // Listen for real-time server status updates from the backend
-  useEffect(() => {
-    const listenForStatusChanges = async () => {
-      const unlisten = await listen("server-status-changed", (event: any) => {
-        const { server_id, status } = event.payload;
-        console.log(`Received server status changed event: ${server_id} -> ${JSON.stringify(status)}`);
-        
-        // Update UI without full reload
-        setServers(prev => 
-          prev.map(server => 
-            server.id === server_id 
-              ? { ...server, status } 
-              : server
-          )
-        );
-      });
-      
-      return unlisten;
-    };
-    
-    const unlistenPromise = listenForStatusChanges();
-    
-    return () => {
-      unlistenPromise.then(unlisten => unlisten());
     };
   }, []);
 

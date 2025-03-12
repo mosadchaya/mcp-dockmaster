@@ -16,11 +16,10 @@ use tauri::State;
 /// Register a new tool with the MCP server
 #[tauri::command]
 pub async fn register_server(
-    app_handle: tauri::AppHandle,
     mcp_core: State<'_, MCPCore>,
     request: ServerRegistrationRequest,
 ) -> Result<ServerRegistrationResponse, String> {
-    mcp_core.register_server(app_handle, request).await
+    mcp_core.register_server(request).await
 }
 
 /// List all registered tools
@@ -40,11 +39,10 @@ pub async fn list_all_server_tools(
 /// Discover tools from a specific MCP server
 #[tauri::command]
 pub async fn discover_tools(
-    app_handle: tauri::AppHandle,
     mcp_core: State<'_, MCPCore>,
     request: DiscoverServerToolsRequest,
 ) -> Result<Vec<ServerToolInfo>, String> {
-    mcp_core.list_server_tools(app_handle, request).await
+    mcp_core.list_server_tools(request).await
 }
 
 /// Execute a tool from an MCP server
@@ -59,11 +57,10 @@ pub async fn execute_proxy_tool(
 /// Update a tool's status (enabled/disabled)
 #[tauri::command]
 pub async fn update_server_status(
-    app_handle: tauri::AppHandle,
     mcp_core: State<'_, MCPCore>,
     request: ServerUpdateRequest,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core.update_server_status(app_handle, request).await
+    mcp_core.update_server_status(request).await
 }
 
 /// Update a tool's configuration (environment variables)
@@ -99,11 +96,10 @@ pub async fn clear_database_command(mcp_core: State<'_, MCPCore>) -> Result<(), 
 /// Restart a tool by its ID
 #[tauri::command(rename_all = "camelCase")]
 pub async fn restart_server_command(
-    app_handle: tauri::AppHandle,
     mcp_core: State<'_, MCPCore>,
     server_id: String,
 ) -> Result<ToolUpdateResponse, String> {
-    mcp_core.restart_server_command(app_handle, server_id).await
+    mcp_core.restart_server_command(server_id).await
 }
 
 // Check if Claude is installed
