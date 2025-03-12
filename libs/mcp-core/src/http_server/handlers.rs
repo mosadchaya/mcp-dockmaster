@@ -417,12 +417,10 @@ async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     {
         let tool_name = tool.get("name").unwrap().as_str().unwrap();
         if installed_tools.contains_key(tool_name) {
-            println!("Tool {} is installed", tool_name);
             tool.as_object_mut()
                 .unwrap()
                 .insert("installed".to_string(), json!(true));
         } else {
-            println!("Tool {} is not installed", tool_name);
             tool.as_object_mut()
                 .unwrap()
                 .insert("installed".to_string(), json!(false));
