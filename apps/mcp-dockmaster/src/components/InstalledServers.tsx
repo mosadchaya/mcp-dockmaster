@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig, ServerStatus } from "../lib/mcpClient";
+import MCPClient, { RuntimeServer, ServerToolInfo, RuntimeEnvConfig } from "../lib/mcpClient";
 import { 
   dispatchServerStatusChanged, 
   dispatchServerUninstalled, 
