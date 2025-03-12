@@ -187,11 +187,11 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     let mut tool = tool;
                     // Ensure input_schema has a default if not present
                     if tool.input_schema.is_none() {
-                        tool.input_schema = Some(InputSchema {
-                            properties: Default::default(),
-                            required: Vec::new(),
+                        let default_schema = InputSchema {
                             r#type: "object".to_string(),
-                        });
+                            ..Default::default()
+                        };
+                        tool.input_schema = Some(default_schema);
                     }
                     tool
                 })
@@ -393,7 +393,6 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         cache.data = Some(serde_json::to_value(&tool_wrapper).unwrap_or_default());
         cache.timestamp = Some(Instant::now());
     }
-    info!("[TOOLS] handle_register_tool: result {:?}", tool_wrapper);
 
     Ok(tool_wrapper)
 }
@@ -417,12 +416,10 @@ async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
     {
         let tool_name = tool.get("name").unwrap().as_str().unwrap();
         if installed_tools.contains_key(tool_name) {
-            println!("Tool {} is installed", tool_name);
             tool.as_object_mut()
                 .unwrap()
                 .insert("installed".to_string(), json!(true));
         } else {
-            println!("Tool {} is not installed", tool_name);
             tool.as_object_mut()
                 .unwrap()
                 .insert("installed".to_string(), json!(false));

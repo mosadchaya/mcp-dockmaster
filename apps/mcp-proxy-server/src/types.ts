@@ -16,22 +16,28 @@ export interface InputSchema {
     description: string;
     properties:  Properties;
     required:    string[];
-    title:       string;
+    title?:      string;
     type:        string;
+    additionalProperties?: boolean;
+    $schema?:    string;
 }
 
 export interface Properties {
-    [key: string]: {
-        default?: any;
-        description: string;
-        exclusiveMaximum?: number;
-        exclusiveMinimum?: number;
-        minimum?: number;
-        maximum?: number;
-        title: string;
-        type: string;
-        additionalProperties?: boolean;
-    }
+    [key: string]: PropertyDefinition;
+}
+
+export interface PropertyDefinition {
+    default?: any;
+    description?: string;
+    exclusiveMaximum?: number;
+    exclusiveMinimum?: number;
+    minimum?: number;
+    maximum?: number;
+    title?: string;
+    type?: string | string[];
+    format?: string;
+    additionalProperties?: boolean;
+    allOf?: PropertyDefinition[];
 }
 
 export interface RegistryTool {
