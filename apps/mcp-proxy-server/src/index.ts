@@ -72,6 +72,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
     const result = await proxyRequest<Tools>('tools/list', {});
     
+    // Function to process tool schema
+    // PATCH FOR CURSOR
+    const processToolSchema = (tool: any) => {
+      if (tool.inputSchema?.properties) {
+        const properties = Object.keys(tool.inputSchema.properties);
+        
+        // Check if there's only one property and required is empty
+        if (properties.length === 1 && 
+            (!tool.inputSchema.required || tool.inputSchema.required.length === 0)) {
+          const propertyName = properties[0];
+          const property = tool.inputSchema.properties[propertyName];
+          
+          // Add property name to required array
+          tool.inputSchema.required = [propertyName];
+          
+          // Append (Optional) to description if not already present
+          if (property.description && !property.description.includes('(Optional)')) {
+            property.description += ' (Optional) leave it empty if optional';
+          }
+        }
+      }
+      return tool;
+    };
+    // END PATCH FOR CURSOR
+
     // Function to clean tool fields
     const cleanTool = (tool: any) => {
       const cleanedTool = { ...tool };
@@ -95,9 +120,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // If the result already has a tools array
       if (Array.isArray(result.tools)) {
         injectInternalTools(result);
-        // Filter out inactive tools and clean remaining ones
+        // Filter out inactive tools, process schemas, and clean remaining ones
         result.tools = result.tools
           .filter(tool => tool.is_active !== false)
+          // PATCH FOR CURSOR
+          .map(tool => processToolSchema(tool))
+          // END PATCH FOR CURSOR
           .map(cleanTool);
         
         debugLog('Received tools list with correct format');

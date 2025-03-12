@@ -185,58 +185,118 @@ pub struct Distribution {
     pub package: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct InputSchemaProperty {
     #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub description: String,
+
+    // Type can be a string or array of strings
     #[serde(default)]
-    #[serde(deserialize_with = "deserialize_type_field")]
-    pub r#type: String,
-}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<Value>,
 
-// Custom deserializer for the type field that can handle both string and array
-fn deserialize_type_field<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error;
+    // Additional fields from the JSON example
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 
-    let value = serde_json::Value::deserialize(deserializer)?;
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
 
-    match value {
-        // If it's a string, use it directly
-        serde_json::Value::String(s) => Ok(s),
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<Value>,
 
-        // If it's an array, use the first string value or join them
-        serde_json::Value::Array(arr) => {
-            if arr.is_empty() {
-                Ok("string".to_string()) // Default to string if empty array
-            } else if let Some(first) = arr.first() {
-                if let Some(s) = first.as_str() {
-                    Ok(s.to_string())
-                } else {
-                    Err(Error::custom("Array's first element is not a string"))
-                }
-            } else {
-                Err(Error::custom("Cannot convert empty array to type string"))
-            }
-        }
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum: Option<f64>,
 
-        // For any other type, return an error
-        _ => Err(Error::custom(
-            "Type field must be a string or array of strings",
-        )),
-    }
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maximum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "exclusiveMinimum")]
+    pub exclusive_minimum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "exclusiveMaximum")]
+    pub exclusive_maximum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "additionalProperties")]
+    pub additional_properties: Option<bool>,
+
+    // Support for allOf arrays
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "allOf")]
+    pub all_of: Option<Vec<Value>>,
+
+    // Catch-all for any other properties
+    #[serde(flatten)]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub additional_fields: HashMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputSchema {
     #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub properties: HashMap<String, InputSchemaProperty>,
+
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub required: Vec<String>,
+
     #[serde(default)]
     pub r#type: String,
+
+    // Additional fields from the JSON example - all made optional with default values
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "additionalProperties")]
+    pub additional_properties: Option<bool>,
+
+    #[serde(rename = "$schema")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+
+    // Catch-all for any other properties - made optional with default value
+    #[serde(flatten)]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub additional_fields: HashMap<String, Value>,
+}
+
+impl Default for InputSchema {
+    fn default() -> Self {
+        Self {
+            properties: HashMap::new(),
+            required: Vec::new(),
+            r#type: "object".to_string(),
+            title: None,
+            description: None,
+            additional_properties: None,
+            schema: None,
+            additional_fields: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -335,29 +395,6 @@ impl ServerToolInfo {
 
         // Create mutable copy and insert the generated fields
         let mut obj = value;
-
-        // Handle potential array fields that should be strings
-        if let Some(input_schema) = obj.get_mut("inputSchema").and_then(|v| v.as_object_mut()) {
-            if let Some(properties) = input_schema
-                .get_mut("properties")
-                .and_then(|v| v.as_object_mut())
-            {
-                for (_, prop) in properties.iter_mut() {
-                    if let Some(type_field) = prop.get_mut("type") {
-                        // If type is an array, convert it to a string with the first value
-                        if let Some(type_array) = type_field.as_array() {
-                            if !type_array.is_empty() {
-                                if let Some(first_type) =
-                                    type_array.first().and_then(|t| t.as_str())
-                                {
-                                    *type_field = Value::String(first_type.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         obj.as_object_mut()
             .ok_or("value must be an object")?
