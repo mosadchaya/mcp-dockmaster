@@ -37,6 +37,17 @@ impl fmt::Display for ServerId {
     }
 }
 
+impl fmt::Display for ServerStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerStatus::Running => write!(f, "Running"),
+            ServerStatus::Stopped => write!(f, "Stopped"),
+            ServerStatus::Starting => write!(f, "Starting"),
+            ServerStatus::Error(msg) => write!(f, "Error: {}", msg),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolType {
