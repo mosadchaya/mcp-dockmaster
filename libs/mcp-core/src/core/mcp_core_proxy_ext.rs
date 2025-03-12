@@ -162,7 +162,7 @@ impl McpCoreProxyExt for MCPCore {
                     let mut process_manager = mcp_state.process_manager.write().await;
                     process_manager
                         .processes
-                        .insert(server_id.clone(), Some(process));
+                        .insert(server_id.clone(), (Some(process), ServerStatus::Starting));
                     process_manager
                         .process_ios
                         .insert(server_id.clone(), (stdin, stdout));
@@ -281,7 +281,7 @@ impl McpCoreProxyExt for MCPCore {
             process_manager
                 .processes
                 .get(&request.server_id)
-                .is_some_and(|p| p.is_some())
+                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
         };
 
         if !server_running {
@@ -465,7 +465,7 @@ impl McpCoreProxyExt for MCPCore {
             } else {
                 // If disabling, shut down the server
                 let mut process_manager = mcp_state.process_manager.write().await;
-                if let Some((Some(process), status)) = process_manager.processes.get_mut(&request.server_id) {
+                if let Some((Some(process), _status)) = process_manager.processes.get_mut(&request.server_id) {
                     // Kill the process
                     if let Err(e) = kill_process(process).await {
                         return Ok(ToolUpdateResponse {
@@ -613,7 +613,7 @@ impl McpCoreProxyExt for MCPCore {
 
         // Kill the process if it's running
         let mut process_manager = mcp_state.process_manager.write().await;
-        if let Some((Some(process), status)) = process_manager.processes.get_mut(&request.server_id) {
+        if let Some((Some(process), _status)) = process_manager.processes.get_mut(&request.server_id) {
             if let Err(e) = kill_process(process).await {
                 return Ok(ServerUninstallResponse {
                     success: false,
