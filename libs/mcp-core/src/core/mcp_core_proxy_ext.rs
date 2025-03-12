@@ -380,9 +380,14 @@ impl McpCoreProxyExt for MCPCore {
         &self,
         request: ServerUpdateRequest,
     ) -> Result<ToolUpdateResponse, String> {
-        let mcp_state = self.mcp_state.read().await;
+        info!(
+            "Updating tool status for: {} to {}",
+            request.server_id, request.enabled
+        );
+
         // First, check if the tool exists and get the necessary information
         let tool_info = {
+            let mcp_state = self.mcp_state.read().await;
             let registry = mcp_state.tool_registry.read().await;
 
             if let Ok(tool) = registry.get_server(&request.server_id) {
@@ -413,23 +418,60 @@ impl McpCoreProxyExt for MCPCore {
 
         // Now handle the process based on the enabled status
         let result = {
+            // Update the tool's enabled status in registry
+            let mcp_state = self.mcp_state.read().await;
             let registry = mcp_state.tool_registry.write().await;
-
-            // Get the current tool data
             let mut tool = registry.get_server(&request.server_id)?;
-
-            // Update the enabled status
             tool.enabled = request.enabled;
-
-            // Save the updated tool
             registry.save_server(&request.server_id, &tool)?;
-
-            // Drop the write lock before trying to restart the tool
-            drop(registry);
+            drop(registry); // Drop registry lock early
 
             if request.enabled {
-                mcp_state.restart_server(&request.server_id).await
+                // If enabling, restart the server
+                let result = mcp_state.restart_server(&request.server_id).await;
+                drop(mcp_state); // Drop mcp_state lock before next operations
+
+                // After restart, attempt to discover tools
+                if result.is_ok() {
+                    let mcp_state = self.mcp_state.read().await;
+                    let mut process_manager = mcp_state.process_manager.write().await;
+                    if let Some((stdin, stdout)) =
+                        process_manager.process_ios.get_mut(&request.server_id)
+                    {
+                        match discover_server_tools(&request.server_id, stdin, stdout).await {
+                            Ok(tools) => {
+                                let mut server_tools = mcp_state.server_tools.write().await;
+                                server_tools.insert(request.server_id.clone(), tools);
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to discover tools for server {}: {}",
+                                    request.server_id, e
+                                );
+                            }
+                        }
+                    }
+                }
+                result
             } else {
+                // If disabling, shut down the server
+                let mut process_manager = mcp_state.process_manager.write().await;
+                if let Some(Some(process)) = process_manager.processes.get_mut(&request.server_id) {
+                    // Kill the process
+                    if let Err(e) = kill_process(process).await {
+                        return Ok(ToolUpdateResponse {
+                            success: false,
+                            message: format!("Failed to kill process: {}", e),
+                        });
+                    }
+                    // Remove process and IOs from process manager
+                    process_manager.processes.remove(&request.server_id);
+                    process_manager.process_ios.remove(&request.server_id);
+
+                    // Remove tools for this server
+                    let mut server_tools = mcp_state.server_tools.write().await;
+                    server_tools.remove(&request.server_id);
+                }
                 Ok(())
             }
         };
@@ -446,12 +488,17 @@ impl McpCoreProxyExt for MCPCore {
         Ok(ToolUpdateResponse {
             success: true,
             message: format!(
-                "Tool '{}' status updated to {}",
+                "Tool '{}' status updated to {} and process {}",
                 request.server_id,
                 if request.enabled {
                     "enabled"
                 } else {
                     "disabled"
+                },
+                if request.enabled {
+                    "started"
+                } else {
+                    "stopped"
                 }
             ),
         })
