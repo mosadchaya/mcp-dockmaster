@@ -224,6 +224,18 @@ impl MCPState {
                             tools.len(),
                             server_id
                         );
+                        
+                        // Update the process status to Running after successful tool discovery
+                        {
+                            let mut process_manager = self.process_manager.write().await;
+                            if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
+                                process_manager.processes.insert(
+                                    server_id.to_string(), 
+                                    (child_opt, ServerStatus::Running)
+                                );
+                                info!("Updated status to Running for server: {}", server_id);
+                            }
+                        }
                     }
                     Err(e) => {
                         error!("Failed to discover tools from server {}: {}", server_id, e);
@@ -252,6 +264,15 @@ impl MCPState {
         };
 
         let tools = discover_server_tools(server_id, stdin, stdout).await?;
+
+        // Update the process status to Running after successful tool discovery
+        if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
+            process_manager.processes.insert(
+                server_id.to_string(), 
+                (child_opt, ServerStatus::Running)
+            );
+            info!("Updated status to Running for server: {}", server_id);
+        }
 
         // Update the server_tools map with the discovered tools
         let mut server_tools = self.server_tools.write().await;

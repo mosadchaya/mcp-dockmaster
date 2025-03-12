@@ -195,6 +195,16 @@ impl McpCoreProxyExt for MCPCore {
                         let mcp_state = mcp_state_clone.write().await;
                         let mut server_tools = mcp_state.server_tools.write().await;
                         server_tools.insert(server_id.clone(), tools);
+                        
+                        // Update the process status to Running after successful tool discovery
+                        let mut process_manager = mcp_state.process_manager.write().await;
+                        if let Some((child_opt, _)) = process_manager.processes.remove(&server_id) {
+                            process_manager.processes.insert(
+                                server_id.clone(), 
+                                (child_opt, ServerStatus::Running)
+                            );
+                            info!("Updated status to Running for server: {}", server_id);
+                        }
                     }
                     Ok(Err(e)) => {
                         error!("Error discovering tools from server {}: {}", server_id, e);
@@ -305,6 +315,17 @@ impl McpCoreProxyExt for MCPCore {
                 request.server_id
             ))
         };
+
+        // Update the process status to Running after successful tool discovery
+        if result.is_ok() {
+            if let Some((child_opt, _)) = process_manager.processes.remove(&request.server_id) {
+                process_manager.processes.insert(
+                    request.server_id.clone(), 
+                    (child_opt, ServerStatus::Running)
+                );
+                info!("Updated status to Running for server: {}", request.server_id);
+            }
+        }
 
         // Release the process_manager lock before accessing server_tools
         drop(process_manager);
@@ -451,6 +472,15 @@ impl McpCoreProxyExt for MCPCore {
                             Ok(tools) => {
                                 let mut server_tools = mcp_state.server_tools.write().await;
                                 server_tools.insert(request.server_id.clone(), tools);
+                                
+                                // Update the process status to Running after successful tool discovery
+                                if let Some((child_opt, _)) = process_manager.processes.remove(&request.server_id) {
+                                    process_manager.processes.insert(
+                                        request.server_id.clone(), 
+                                        (child_opt, ServerStatus::Running)
+                                    );
+                                    info!("Updated status to Running for server: {}", request.server_id);
+                                }
                             }
                             Err(e) => {
                                 error!(
