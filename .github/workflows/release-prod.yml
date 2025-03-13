@@ -4,8 +4,7 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
-    branches:
-      - "agallardol/windows-signing"
+
 defaults:
   run:
     working-directory: ./
@@ -26,8 +25,7 @@ jobs:
         uses: Saionaro/extract-package-version@v1.2.1
 
       - name: Check version match
-        if: false
-        # if: ${{ github.ref_name != steps.package-version.outputs.version }}
+        if: ${{ github.ref_name != steps.package-version.outputs.version }}
         uses: actions/github-script@v3
         with:
           script: |
@@ -319,54 +317,54 @@ jobs:
           source_dir: files-to-r2
           destination_dir: ./mcp-dockmaster/binaries/production/
 
-  # notify-slack:
-  #   environment: production
-  #   needs:
-  #     - prebuild
-  #     - release-mcp-dockmaster
-  #     - rollout-mcp-dockmaster
-  #   name: Notify Slack
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - name: Post MCP Dockmaster to a Slack channel
-  #       id: slack
-  #       uses: slackapi/slack-github-action@v1.26.0
-  #       env:
-  #         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  #       with:
-  #         channel-id: "C08H37BA10A"
-  #         payload: |
-  #           {
-  #             "blocks": [
-  #               {
-  #                 "type": "header",
-  #                 "text": {
-  #                   "type": "plain_text",
-  #                   "text": "📦 New build: MCP Dockmaster v${{ needs.prebuild.outputs.version }}.${{ github.run_number }}",
-  #                   "emoji": true
-  #                 }
-  #               },
-  #               {
-  #                 "type": "divider"
-  #               },
-  #               {
-  #                 "type": "section",
-  #                 "text": {
-  #                   "type": "mrkdwn",
-  #                   "text": "Download it from:\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-aarch64-apple-darwin }}|Macos>\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-x86_64-pc-windows-msvc }}|Windows>\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-x86_64-unknown-linux-gnu }}|Linux>"
-  #                 }
-  #               },
-  #               {
-  #                 "type": "divider"
-  #               },
-  #               {
-  #                 "type": "context",
-  #                 "elements": [
-  #                   {
-  #                     "type": "mrkdwn",
-  #                     "text": "_💡 Rename file <${{ needs.rollout-mcp-dockmaster.outputs.updates-next-json-url }}|updates-next.json> to updates.json to start the rollout through the auto updater_"
-  #                   }
-  #                 ]
-  #               }
-  #             ]
-  #           }
+  notify-slack:
+    environment: production
+    needs:
+      - prebuild
+      - release-mcp-dockmaster
+      - rollout-mcp-dockmaster
+    name: Notify Slack
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Post MCP Dockmaster to a Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        with:
+          channel-id: "C08H37BA10A"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📦 New build: MCP Dockmaster v${{ needs.prebuild.outputs.version }}.${{ github.run_number }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Download it from:\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-aarch64-apple-darwin }}|Macos>\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-x86_64-pc-windows-msvc }}|Windows>\n* <${{ needs.release-mcp-dockmaster.outputs.app-url-x86_64-unknown-linux-gnu }}|Linux>"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "_💡 Rename file <${{ needs.rollout-mcp-dockmaster.outputs.updates-next-json-url }}|updates-next.json> to updates.json to start the rollout through the auto updater_"
+                    }
+                  ]
+                }
+              ]
+            }
