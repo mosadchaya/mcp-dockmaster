@@ -62,6 +62,7 @@ const InstalledServers: React.FC = () => {
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
+  const [transitioningServers, setTransitioningServers] = useState<Set<string>>(new Set());
   const [currentConfigTool, setCurrentConfigTool] =
     useState<RuntimeServer | null>(null);
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
@@ -97,6 +98,13 @@ const InstalledServers: React.FC = () => {
           setServers(prevServers => {
             // Create a map of servers needing refresh
             const refreshIds = new Set(serversNeedingRefresh.map(s => s.id));
+            
+            // Clear transitioning state for refreshed servers
+            setTransitioningServers(prev => {
+              const newSet = new Set([...prev]);
+              refreshIds.forEach(id => newSet.delete(id));
+              return newSet;
+            });
             
             // Update only servers that need refresh
             return prevServers.map(server => {
@@ -210,6 +218,8 @@ const InstalledServers: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
+    // Clear transitioning servers when loading new data
+    setTransitioningServers(new Set());
     try {
       // Get servers and tools data separately
       const newServers = await MCPClient.listServers();
@@ -286,6 +296,9 @@ const InstalledServers: React.FC = () => {
       const server = servers.find(server => server.id === id);
       if (!server) return;
 
+      // Mark this server as transitioning
+      setTransitioningServers(prev => new Set([...prev, id]));
+
       // Update the UI optimistically
       setServers(prev =>
         prev.map(server =>
@@ -310,11 +323,21 @@ const InstalledServers: React.FC = () => {
             server.id === id ? { ...server, enabled: server.enabled } : server,
           ),
         );
+        
+        // Remove from transitioning servers
+        setTransitioningServers(prev => {
+          const newSet = new Set([...prev]);
+          newSet.delete(id);
+          return newSet;
+        });
       }
     } catch (error) {
       console.error("Error toggling server status:", error);
       // Refresh the list to ensure UI is in sync with backend
       loadData();
+      
+      // Clear all transitioning servers on error
+      setTransitioningServers(new Set());
     }
   };
 
@@ -1019,25 +1042,29 @@ const InstalledServers: React.FC = () => {
                   <div className="flex items-center gap-1">
                     <span
                       className={`server-status-dot ${
-                        server.status === 'running' 
-                          ? "running" 
-                          : server.status === 'starting' 
-                          ? "starting" 
-                          : server.status.startsWith("Error:") 
-                          ? "error" 
-                          : "stopped"
+                        transitioningServers.has(server.id)
+                          ? "transitioning"
+                          : server.status === 'running' 
+                            ? "running" 
+                            : server.status === 'starting' 
+                              ? "starting" 
+                              : server.status.startsWith("Error:") 
+                                ? "error" 
+                                : "stopped"
                       }`}
                     ></span>
                     <span className="server-status-text">
-                      Status: {server.status === 'running' 
-                        ? "Running" 
-                        : server.status === 'stopped' 
-                        ? "Stopped" 
-                        : server.status === 'starting' 
-                        ? "Starting" 
-                        : server.status.startsWith("Error:") 
-                        ? server.status 
-                        : "Stopped"}
+                      Status: {transitioningServers.has(server.id)
+                        ? "Updating..." 
+                        : server.status === 'running' 
+                          ? "Running" 
+                          : server.status === 'stopped' 
+                            ? "Stopped" 
+                            : server.status === 'starting' 
+                              ? "Starting..." 
+                              : server.status.startsWith("Error:") 
+                                ? server.status 
+                                : "Stopped"}
                     </span>
                   </div>
                   <span className="flex items-center gap-1">
