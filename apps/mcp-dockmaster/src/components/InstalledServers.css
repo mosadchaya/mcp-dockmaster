@@ -217,6 +217,8 @@
 
 .server-status-dot.starting {
   background-color: #f59e0b; /* Amber/yellow color for starting state */
+  position: relative;
+  overflow: hidden;
 }
 
 .server-status-dot.error {
@@ -229,6 +231,7 @@
   overflow: hidden;
 }
 
+.server-status-dot.starting::after,
 .server-status-dot.transitioning::after {
   content: "";
   position: absolute;

@@ -1061,7 +1061,7 @@ const InstalledServers: React.FC = () => {
                           : server.status === 'stopped' 
                             ? "Stopped" 
                             : server.status === 'starting' 
-                              ? "Starting" 
+                              ? "Starting..." 
                               : server.status.startsWith("Error:") 
                                 ? server.status 
                                 : "Stopped"}
