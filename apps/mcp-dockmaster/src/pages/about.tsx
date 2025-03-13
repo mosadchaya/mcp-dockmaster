@@ -49,6 +49,9 @@ const About = () => {
           For more information about MCP Dockmaster, please visit our website or
           contact our support team.
         </p>
+        <p className="mt-2">
+          GitHub: <a href="http://github.com/dcSpark/mcp-dockmaster/" className="text-blue-500 hover:underline">http://github.com/dcSpark/mcp-dockmaster/</a>
+        </p>
       </section>
     </div>
   );
