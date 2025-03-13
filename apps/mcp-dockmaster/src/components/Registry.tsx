@@ -67,6 +67,11 @@ const Registry: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ title: string; explanation?: string; onConfirm: () => Promise<void> } | null>(null);
 
+  // Add state for ENV variable collection dialog
+  const [showEnvVarsDialog, setShowEnvVarsDialog] = useState(false);
+  const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
+  const [currentServerForEnvVars, setCurrentServerForEnvVars] = useState<RegistryServer | null>(null);
+
   // Load tools and categories on initial mount
   useEffect(() => {
     const init = async () => {
@@ -222,6 +227,18 @@ const Registry: React.FC = () => {
     }
   };
 
+  // Helper function to check if a server has missing required ENV variables
+  const hasRequiredEnvVars = (server: RegistryServer): boolean => {
+    if (!server.config?.env) return false;
+    
+    // Check if any required env vars exist
+    return Object.entries(server.config.env).some((entry) => {
+      const [_, value] = entry;
+      // If the env var is required, it needs attention
+      return typeof value === 'object' && value.required === true;
+    });
+  };
+
   const showRestartDialog = async () => {
     const processName = ["Claude", "Cursor"];
     const [isRunning1, isRunning2, isInstalled1, isInstalled2] = await Promise.all([
@@ -259,6 +276,10 @@ const Registry: React.FC = () => {
     }
   };
 
+  const handleEnvVarChange = (key: string, value: string) => {
+    setEnvVarValues((prev) => ({ ...prev, [key]: value }));
+  };
+
   const installServer = async (server: RegistryServer) => {
     const installedServers = await MCPClient.listServers();
     console.log("installedServers: ", installedServers);
@@ -278,13 +299,54 @@ const Registry: React.FC = () => {
       return;
     }
 
+    // Check if the server has required ENV variables
+    if (hasRequiredEnvVars(server)) {
+      // Initialize env var values with defaults
+      const initialEnvVars: Record<string, string> = {};
+      if (server.config?.env) {
+        Object.entries(server.config.env).forEach(([key, value]) => {
+          if (typeof value === 'object') {
+            initialEnvVars[key] = value.default || '';
+          }
+        });
+      }
+      
+      setEnvVarValues(initialEnvVars);
+      setCurrentServerForEnvVars(server);
+      setShowEnvVarsDialog(true);
+      return;
+    }
+
+    // If no required ENV vars or they're already set, proceed with installation
+    await performInstallation(server);
+  };
+
+  const performInstallation = async (server: RegistryServer, customEnvVars?: Record<string, string>) => {
     setInstalling(server.id);
     try {
       const entryPoint = getDefaultEntryPoint(server.name);
 
       let authentication = null;
       if (server.config && server.config.env) {
-        authentication = { env: server.config.env };
+        // Create a copy of the original env configuration
+        const envConfig = { ...server.config.env };
+        
+        // Update with custom values if provided
+        if (customEnvVars) {
+          Object.entries(customEnvVars).forEach(([key, value]) => {
+            if (typeof envConfig[key] === 'object') {
+              // Update the default value while preserving other properties
+              envConfig[key] = {
+                ...envConfig[key],
+                default: value
+              };
+            } else {
+              envConfig[key] = value;
+            }
+          });
+        }
+        
+        authentication = { env: envConfig };
       }
 
       console.log(
@@ -316,7 +378,6 @@ const Registry: React.FC = () => {
         
         await showRestartDialog("Claude");
         await showRestartDialog("Cursor");
-        
       }
     } catch (error) {
       console.error("Failed to install server:", error);
@@ -581,6 +642,72 @@ const Registry: React.FC = () => {
   };
   
   // Function to render the details popup
+  const renderEnvVarsDialog = () => {
+    if (!showEnvVarsDialog || !currentServerForEnvVars) return null;
+    
+    return (
+      <Dialog open={showEnvVarsDialog} onOpenChange={setShowEnvVarsDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Configure Environment Variables</DialogTitle>
+            <DialogDescription>
+              {currentServerForEnvVars.name} requires the following environment variables to be configured before installation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {currentServerForEnvVars.config?.env && Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
+              // Skip if not an object or not required
+              if (typeof value !== 'object' || !value.required) return null;
+              
+              const description = value.description || '';
+              const defaultValue = value.default || '';
+              const isRequired = value.required;
+              
+              return (
+                <div key={key} className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right text-xs pt-1" htmlFor={`env-${key}`}>
+                    {key}
+                    {isRequired && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  <div className="col-span-3 space-y-1">
+                    <Input
+                      id={`env-${key}`}
+                      value={envVarValues[key] || defaultValue}
+                      onChange={(e) => handleEnvVarChange(key, e.target.value)}
+                      placeholder={description}
+                    />
+                    {description && (
+                      <p className="text-muted-foreground text-xs">{description}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEnvVarsDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowEnvVarsDialog(false);
+                performInstallation(currentServerForEnvVars, envVarValues);
+              }}
+              disabled={Object.entries(currentServerForEnvVars.config?.env || {}).some(([key, value]) => {
+                // Check if any required field is empty
+                return typeof value === 'object' && 
+                       value.required && 
+                       (!envVarValues[key] || envVarValues[key].trim() === '');
+              })}
+            >
+              Install
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderDetailsPopup = () => {
     if (!detailsPopupVisible || !currentServerDetails) return null;
     
@@ -971,6 +1098,7 @@ const Registry: React.FC = () => {
       )}
       {renderDetailsPopup()}
       {renderGitHubImportModal()}
+      {renderEnvVarsDialog()}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
