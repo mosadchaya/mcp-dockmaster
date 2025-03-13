@@ -528,6 +528,11 @@ const InstalledServers: React.FC = () => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setCurrentInfoServer(server);
     setInfoPopupVisible(true);
+    
+    // If the server is running, discover tools for it
+    if (server.status === 'running') {
+      discoverToolsForServer(server.id);
+    }
   };
   
   const closeInfoPopup = () => {
@@ -647,6 +652,9 @@ const InstalledServers: React.FC = () => {
   const renderInfoPopup = () => {
     if (!infoPopupVisible || !currentInfoServer) return null;
     
+    // Filter tools for this server
+    const toolsForServer = serverTools.filter((t) => t.server_id === currentInfoServer.id);
+    
     return (
       <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>
         <DialogContent className="sm:max-w-[600px]">
@@ -718,6 +726,26 @@ const InstalledServers: React.FC = () => {
                 )}
               </div>
             </div>
+            
+            {/* Tools Section */}
+            {toolsForServer.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Tools</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {toolsForServer.map((tool) => (
+                    <div key={tool.id}>
+                      <div className="text-sm font-medium">{tool.name}</div>
+                      <div className="text-sm font-small">{tool.description}</div>
+                      {tool.inputSchema && (
+                        <div className="text-xs font-mono">
+                          {JSON.stringify(tool.inputSchema, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Configuration */}
             {currentInfoServer.configuration && (
