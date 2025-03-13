@@ -95,15 +95,16 @@ impl SpawnedProcess {
 
         info!("Using Python command: {}", command);
 
-        let mut cmd = Command::new(command);
+        let mut cmd_builder = CommandWrappedInShellBuilder::new(command);
 
         if let Some(args) = &config.args {
             info!("Args: {:?}", args);
             for arg in args {
-                cmd.arg(arg);
+                cmd_builder.arg(arg);
             }
         }
 
+        let cmd = cmd_builder.build();
         Self::setup_process(cmd, tool_id, env_vars).await
     }
 
@@ -127,9 +128,10 @@ impl SpawnedProcess {
         }
 
         info!("Using Docker command");
-        let mut cmd = Command::new(command);
+        let mut cmd_builder = CommandWrappedInShellBuilder::new(command);
 
-        cmd.arg("run")
+        cmd_builder
+            .arg("run")
             .arg("-i")
             .arg("--name")
             .arg("-a")
@@ -143,9 +145,11 @@ impl SpawnedProcess {
         if let Some(args) = &config.args {
             info!("Args: {:?}", args);
             for arg in args {
-                cmd.arg(arg);
+                cmd_builder.arg(arg);
             }
         }
+
+        let cmd = cmd_builder.build();
 
         Self::setup_process(cmd, tool_id, env_vars).await
     }
