@@ -67,6 +67,7 @@ const InstalledServers: React.FC = () => {
     useState<RuntimeServer | null>(null);
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
   const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
+  const [envOperationInProgress, setEnvOperationInProgress] = useState(false);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -74,18 +75,30 @@ const InstalledServers: React.FC = () => {
   useEffect(() => {
     loadData();
 
-    // Reload when the window regains focus
-    window.addEventListener("focus", loadData);
+    // Create a named function for the event listener so we can remove it properly
+    const handleFocus = () => {
+      if (!envOperationInProgress) {
+        loadData();
+      }
+    };
+
+    // Reload when the window regains focus, but skip if ENV operation is in progress
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      window.removeEventListener("focus", loadData);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [envOperationInProgress]);
 
   // Add auto-refresh feature that runs every 2 seconds but only when server status and enabled state don't match
   useEffect(() => {
     // Helper function to check if any server needs refresh based on status/enabled mismatch
     const checkServersNeedRefresh = () => {
+      // Skip refresh if ENV operation is in progress
+      if (envOperationInProgress) {
+        return;
+      }
+      
       // Check if any server has a mismatch between status and enabled state
       const serversNeedingRefresh = servers.filter(server => 
         (server.status !== 'running' && server.enabled) || // Not running but should be running
@@ -409,6 +422,7 @@ const InstalledServers: React.FC = () => {
   const saveEnvVars = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setSavingConfig(true);
+    setEnvOperationInProgress(true); // Set flag to prevent auto-refresh
 
     try {
       // Find the server to update
@@ -514,6 +528,7 @@ const InstalledServers: React.FC = () => {
       addNotification("Error updating configuration", "error");
     } finally {
       setSavingConfig(false);
+      setEnvOperationInProgress(false); // Reset flag to allow auto-refresh again
     }
   };
 
