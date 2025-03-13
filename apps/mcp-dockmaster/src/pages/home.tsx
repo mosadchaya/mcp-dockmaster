@@ -88,6 +88,7 @@ const Home: React.FC = () => {
     setMCPClients([
       { name: "Claude", installed: claudeInstalled, is_running: claudeRunning, icon: claudeIcon },
       { name: "Cursor", installed: cursorInstalled, is_running: cursorRunning, icon: cursorIcon },
+      { name: "Generic", installed: true, is_running: true, icon: dockerIcon },
     ]);
   };
 
@@ -165,10 +166,13 @@ const Home: React.FC = () => {
   };
 
   const openInstallUrl = async (
-    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor",
+    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor" | "Generic",
   ) => {
     try {
-      await openUrl(installUrls[toolName]);
+      // Skip for Generic as it doesn't have an install URL
+      if (toolName !== "Generic") {
+        await openUrl(installUrls[toolName]);
+      }
     } catch (error) {
       console.error(`Failed to open install URL for ${toolName}:`, error);
       toast.error(`Failed to open installation page for ${toolName}`);
@@ -317,7 +321,7 @@ const Home: React.FC = () => {
                   >
                     Show Config
                   </Button>
-                  {client.is_running && client.installed && (
+                  {client.is_running && client.installed && client.name !== "Generic" && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -332,7 +336,7 @@ const Home: React.FC = () => {
                       Restart
                     </Button>
                   )}
-                  {!client.installed && (
+                  {!client.installed && client.name !== "Generic" && (
                     <Button
                       size="sm"
                       variant="outline"
