@@ -213,7 +213,7 @@ const Home: React.FC = () => {
     fetchConfigs();
   }, []);
 
-  const handleInstallClick = (appName: "Claude" | "Cursor") => {
+  const handleInstallClick = (appName: "Claude" | "Cursor" | "Generic") => {
     setConfirmDialogConfig({
       title: appName,
       onConfirm: async () => {
@@ -341,7 +341,7 @@ const Home: React.FC = () => {
                       size="sm"
                       variant="outline"
                       onClick={() =>
-                        handleInstallClick(client.name as "Claude" | "Cursor")
+                        handleInstallClick(client.name as "Claude" | "Cursor" | "Generic")
                       }
                     >
                       Install
