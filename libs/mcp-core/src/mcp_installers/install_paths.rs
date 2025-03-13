@@ -77,3 +77,18 @@ pub fn backup_file(file_path: &str) -> Result<String, io::Error> {
     fs::copy(file_path, &backup_path)?;
     Ok(backup_path)
 }
+
+pub fn get_generic_config(binary_path: &str) -> String {
+    format!(
+        "
+For any MCP client, configure with:
+
+```
+Server Name: mcp-dockmaster
+Command: {}
+Arguments: []
+```
+        ",
+        binary_path
+    )
+}

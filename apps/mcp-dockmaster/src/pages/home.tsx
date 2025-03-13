@@ -59,12 +59,14 @@ const Home: React.FC = () => {
   const [mcpClients, setMCPClients] = useState<MCPClientStatus[]>([
     { name: "Claude", is_running: false, installed: false, icon: claudeIcon },
     { name: "Cursor", is_running: false, installed: false, icon: cursorIcon },
+    { name: "Generic", is_running: true, installed: true, icon: dockerIcon },
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
 
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
+  const [genericConfig, setGenericConfig] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
@@ -195,8 +197,10 @@ const Home: React.FC = () => {
       try {
         const claude = await invoke<string>("get_claude_config");
         const cursor = await invoke<string>("get_cursor_config");
+        const generic = await invoke<string>("get_generic_config");
         setClaudeConfig(claude);
         setCursorConfig(cursor);
+        setGenericConfig(generic);
       } catch (error) {
         console.error("Failed to fetch configurations:", error);
       }
@@ -299,7 +303,9 @@ const Home: React.FC = () => {
                     variant="outline"
                     onClick={() => {
                       const config =
-                        client.name === "Claude" ? claudeConfig : cursorConfig;
+                        client.name === "Claude" ? claudeConfig : 
+                        client.name === "Cursor" ? cursorConfig : 
+                        genericConfig;
                       if (config) {
                         setConfigDialogContent({
                           title: client.name,
