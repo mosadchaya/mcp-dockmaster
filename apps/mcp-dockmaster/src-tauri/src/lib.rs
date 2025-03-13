@@ -95,6 +95,39 @@ fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> {
         None => Err("failed to get proxy server sidecar path".to_string()),
     }?;
 
+    #[cfg(linux)]
+    {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|_| "failed to get app data dir")?;
+
+        use std::fs;
+        if !app_data_dir.exists() {
+            fs::create_dir_all(&app_data_dir).map_err(|e| {
+                format!(
+                    "failed to create app data directory {}: {}",
+                    app_data_dir.display(),
+                    e
+                )
+            })?;
+        }
+
+        let source_path = proxy_server_sidecar_path.clone();
+        let destination_path = app_data_dir.join(proxy_server_sidecar_name);
+
+        if let Err(e) = fs::copy(&source_path, &destination_path) {
+            let error_message = format!(
+                "failed to copy proxy server sidecar binary from {} to {}: {}",
+                proxy_server_sidecar_path.display(),
+                destination_path.display(),
+                e
+            );
+            return Err(error_message);
+        }
+        proxy_server_sidecar_path = destination_path;
+    }
+
     if !proxy_server_sidecar_path.exists() {
         let error_message = format!(
             "proxy server sidecar binary not found in path {}",
