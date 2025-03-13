@@ -13,7 +13,7 @@ pub trait McpCoreRuntimesExt {
 impl McpCoreRuntimesExt for MCPCore {
     async fn is_nodejs_installed() -> Result<bool, String> {
         info!("Checking if Node.js is installed");
-        let mut command_builder = CommandWrappedInShellBuilder::new("echo $PATH && node");
+        let mut command_builder = CommandWrappedInShellBuilder::new("node");
         command_builder.arg("-v");
         let mut command = command_builder.build();
         info!("Executing command: node -v");
