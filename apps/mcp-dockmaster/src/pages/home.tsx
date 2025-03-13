@@ -199,14 +199,31 @@ const Home: React.FC = () => {
   useEffect(() => {
     const fetchConfigs = async () => {
       try {
-        const claude = await invoke<string>("get_claude_config");
-        const cursor = await invoke<string>("get_cursor_config");
-        const generic = await invoke<string>("get_generic_config");
-        setClaudeConfig(claude);
-        setCursorConfig(cursor);
-        setGenericConfig(generic);
+        const [claudeResult, cursorResult, genericResult] = await Promise.allSettled([
+          invoke<string>("get_claude_config"),
+          invoke<string>("get_cursor_config"),
+          invoke<string>("get_generic_config")
+        ]);
+        
+        if (claudeResult.status === 'fulfilled' && claudeResult.value) {
+          setClaudeConfig(claudeResult.value);
+        }
+        if (cursorResult.status === 'fulfilled' && cursorResult.value) {
+          setCursorConfig(cursorResult.value);
+        }
+        if (genericResult.status === 'fulfilled' && genericResult.value) {
+          setGenericConfig(genericResult.value);
+        }
+
+        // If all configs failed, show error
+        if (claudeResult.status === 'rejected' && 
+            cursorResult.status === 'rejected' && 
+            genericResult.status === 'rejected') {
+          toast.error("Failed to fetch all configurations");
+        }
       } catch (error) {
         console.error("Failed to fetch configurations:", error);
+        toast.error("Failed to fetch configurations");
       }
     };
 
@@ -310,13 +327,11 @@ const Home: React.FC = () => {
                         client.name === "Claude" ? claudeConfig : 
                         client.name === "Cursor" ? cursorConfig : 
                         genericConfig;
-                      if (config) {
-                        setConfigDialogContent({
-                          title: client.name,
-                          config: config,
-                        });
-                        setShowConfigDialog(true);
-                      }
+                      setConfigDialogContent({
+                        title: client.name,
+                        config: config || "No configuration available.",
+                      });
+                      setShowConfigDialog(true);
                     }}
                   >
                     Show Config
