@@ -1,6 +1,6 @@
 use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
-use crate::models::types::ServerToolInfo;
+use crate::models::types::{ServerStatus, ServerToolInfo};
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
 use async_trait::async_trait;
@@ -42,7 +42,7 @@ impl MCPState {
     pub async fn kill_all_processes(&self) {
         let mut process_manager = self.process_manager.write().await;
         for (tool_id, process_opt) in process_manager.processes.iter_mut() {
-            if let Some(process) = process_opt {
+            if let (Some(process), _) = process_opt {
                 if let Err(e) = process.kill().await {
                     error!("Failed to kill process for tool {}: {}", tool_id, e);
                 } else {
@@ -90,7 +90,7 @@ impl MCPState {
             process_manager
                 .processes
                 .get(server_id)
-                .is_some_and(|p| p.is_some())
+                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
         };
 
         if process_running {
@@ -102,7 +102,7 @@ impl MCPState {
             // Get the process and kill it
             {
                 let mut process_manager = self.process_manager.write().await;
-                if let Some(Some(process)) = process_manager.processes.get_mut(server_id) {
+                if let Some((Some(process), _)) = process_manager.processes.get_mut(server_id) {
                     if let Err(e) = kill_process(process).await {
                         error!("Failed to kill process for server {}: {}", server_id, e);
                         return Err(format!("Failed to kill process: {}", e));
@@ -110,10 +110,10 @@ impl MCPState {
                     info!("Successfully killed process for server {}", server_id);
                 }
 
-                // Remove the process from the registry
+                // Remove the process from the registry and set status to Stopped
                 process_manager
                     .processes
-                    .insert(server_id.to_string(), None);
+                    .insert(server_id.to_string(), (None, ServerStatus::Stopped));
 
                 // Remove the process IOs
                 process_manager.process_ios.remove(server_id);
@@ -195,7 +195,7 @@ impl MCPState {
                     let mut process_manager = self.process_manager.write().await;
                     process_manager
                         .processes
-                        .insert(server_id.to_string(), Some(process));
+                        .insert(server_id.to_string(), (Some(process), ServerStatus::Starting));
                     process_manager
                         .process_ios
                         .insert(server_id.to_string(), (stdin, stdout));
@@ -224,6 +224,18 @@ impl MCPState {
                             tools.len(),
                             server_id
                         );
+                        
+                        // Update the process status to Running after successful tool discovery
+                        {
+                            let mut process_manager = self.process_manager.write().await;
+                            if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
+                                process_manager.processes.insert(
+                                    server_id.to_string(), 
+                                    (child_opt, ServerStatus::Running)
+                                );
+                                info!("Updated status to Running for server: {}", server_id);
+                            }
+                        }
                     }
                     Err(e) => {
                         error!("Failed to discover tools from server {}: {}", server_id, e);
@@ -252,6 +264,15 @@ impl MCPState {
         };
 
         let tools = discover_server_tools(server_id, stdin, stdout).await?;
+
+        // Update the process status to Running after successful tool discovery
+        if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
+            process_manager.processes.insert(
+                server_id.to_string(), 
+                (child_opt, ServerStatus::Running)
+            );
+            info!("Updated status to Running for server: {}", server_id);
+        }
 
         // Update the server_tools map with the discovered tools
         let mut server_tools = self.server_tools.write().await;
@@ -314,7 +335,7 @@ impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
                             process_manager
                                 .processes
                                 .get(&id_str)
-                                .is_some_and(|p| p.is_some())
+                                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
                         };
 
                         if !process_running {

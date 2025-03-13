@@ -97,9 +97,11 @@ export interface ServerDefinition {
   distribution?: Distribution;
 }
 
+export type ServerStatus = 'running' | 'stopped' | 'starting' | string;
+
 export interface RuntimeServer extends ServerDefinition {
   id: string;  // Using string instead of ToolId since we don't need the full Rust implementation
-  process_running: boolean;
+  status: ServerStatus;
   tool_count: number;
   sourceUrl?: string;
 }
@@ -253,4 +255,4 @@ export class MCPClient {
   }
 }
 
-export default MCPClient;        
+export default MCPClient;                
