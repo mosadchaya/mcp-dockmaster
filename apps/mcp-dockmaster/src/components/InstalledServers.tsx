@@ -86,13 +86,30 @@ const InstalledServers: React.FC = () => {
     // Helper function to check if any server needs refresh based on status/enabled mismatch
     const checkServersNeedRefresh = () => {
       // Check if any server has a mismatch between status and enabled state
-      const needsRefresh = servers.some(server => 
+      const serversNeedingRefresh = servers.filter(server => 
         (server.status !== 'running' && server.enabled) || // Not running but should be running
         (server.status !== 'stopped' && !server.enabled)   // Not stopped but should be stopped
       );
       
-      if (needsRefresh) {
-        loadData();
+      if (serversNeedingRefresh.length > 0) {
+        // Only refresh servers that need it
+        MCPClient.listServers().then(newServers => {
+          setServers(prevServers => {
+            // Create a map of servers needing refresh
+            const refreshIds = new Set(serversNeedingRefresh.map(s => s.id));
+            
+            // Update only servers that need refresh
+            return prevServers.map(server => {
+              if (refreshIds.has(server.id)) {
+                const updatedServer = newServers.find(s => s.id === server.id);
+                return updatedServer || server;
+              }
+              return server;
+            }).sort((a, b) => a.id.localeCompare(b.id)); // Maintain consistent order
+          });
+        }).catch(error => {
+          console.error("Failed to refresh servers:", error);
+        });
       }
     };
     
@@ -135,10 +152,23 @@ const InstalledServers: React.FC = () => {
         return;
       }
 
-      // Otherwise, just refresh the specific tool
+      // Otherwise, just refresh the specific server
       const server = servers.find((s) => s.id === serverId);
       if (server) {
-        loadData();
+        // Get updated server data
+        MCPClient.listServers().then(newServers => {
+          const updatedServer = newServers.find(s => s.id === serverId);
+          if (updatedServer) {
+            // Update only the changed server
+            setServers(prevServers => 
+              prevServers.map(s => 
+                s.id === serverId ? updatedServer : s
+              )
+            );
+          }
+        }).catch(error => {
+          console.error("Failed to update server status:", error);
+        });
       }
     };
 
@@ -147,8 +177,10 @@ const InstalledServers: React.FC = () => {
       const { toolId } = event.detail;
       console.log("Server uninstalled:", toolId);
       
-      // Refresh all data
-      loadData();
+      // Remove the uninstalled server from the list
+      setServers(prevServers => 
+        prevServers.filter(server => server.id !== toolId)
+      );
     };
 
     document.addEventListener(
@@ -180,13 +212,36 @@ const InstalledServers: React.FC = () => {
     setLoading(true);
     try {
       // Get servers and tools data separately
-      const servers = await MCPClient.listServers();
+      const newServers = await MCPClient.listServers();
       const allServerTools = await MCPClient.listAllServerTools();
-
-      // Set servers
-      const sortedServers = [...servers].sort((a, b) => a.id.localeCompare(b.id));
-      setServers(sortedServers);
-
+      
+      // Update servers using a diff-based approach
+      setServers(prevServers => {
+        // Create a map of existing servers by ID for quick lookup
+        const existingServersMap = new Map(
+          prevServers.map(server => [server.id, server])
+        );
+        
+        // Process new servers and update only what changed
+        const updatedServers = newServers.map(newServer => {
+          const existingServer = existingServersMap.get(newServer.id);
+          
+          // If server doesn't exist or has changes, use the new server data
+          if (!existingServer || 
+              existingServer.status !== newServer.status || 
+              existingServer.enabled !== newServer.enabled ||
+              existingServer.tool_count !== newServer.tool_count) {
+            return newServer;
+          }
+          
+          // Otherwise, keep the existing server to prevent unnecessary re-renders
+          return existingServer;
+        });
+        
+        // Sort servers to maintain consistent order
+        return [...updatedServers].sort((a, b) => a.id.localeCompare(b.id));
+      });
+      
       // Set server tools
       setServerTools(allServerTools);
     } catch (error) {
