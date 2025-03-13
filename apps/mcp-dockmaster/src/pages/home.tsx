@@ -35,7 +35,7 @@ interface PrerequisiteStatus {
 }
 
 interface MCPClientStatus {
-  name: 'Cursor' | 'Claude';
+  name: 'Cursor' | 'Claude' | 'Generic';
   is_running: boolean;
   installed: boolean;
   icon: string;
