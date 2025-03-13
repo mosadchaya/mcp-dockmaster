@@ -293,7 +293,7 @@ const Home: React.FC = () => {
                     <p className="font-medium">{client.name}</p>
                     <button
                       onClick={() =>
-                        openInstallUrl(client.name as "Claude" | "Cursor")
+                        openInstallUrl(client.name as "Claude" | "Cursor" | "Generic")
                       }
                       className="text-muted-foreground hover:text-foreground transition-colors"
                     >
