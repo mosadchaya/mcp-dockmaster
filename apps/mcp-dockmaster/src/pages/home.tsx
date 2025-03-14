@@ -261,25 +261,63 @@ const Home: React.FC = () => {
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>1</span>
               </div>
-              <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
+              <div className="flex items-center gap-2 flex-1">
+                <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
+                {prerequisites.every(p => p.installed) ? (
+                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                    ✓
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    ✗
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>2</span>
               </div>
-              <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
+              <div className="flex items-center gap-2 flex-1">
+                <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
+                {mcpClients.some(c => c.installed) ? (
+                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                    ✓
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    ✗
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>3</span>
               </div>
-              <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
+              <div className="flex items-center gap-2 flex-1">
+                <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
+                <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
+                  ?
+                </Badge>
+              </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>4</span>
               </div>
-              <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
+              <div className="flex items-center gap-2 flex-1">
+                <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
+                {mcpClients.every(c => c.installed) ? (
+                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                    ✓
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    ✗
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -295,13 +333,13 @@ const Home: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="grid gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {mcpClients.map((client) => (
               <div
                 key={client.name}
-                className="hover:bg-muted/10 flex items-center justify-between rounded-lg border p-4 transition-colors"
+                className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-3">
                   <div
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full",
@@ -327,50 +365,7 @@ const Home: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const config =
-                        client.name === "Claude" ? claudeConfig : cursorConfig;
-                      if (config) {
-                        setConfigDialogContent({
-                          title: client.name,
-                          config: config,
-                        });
-                        setShowConfigDialog(true);
-                      }
-                    }}
-                  >
-                    Show Config
-                  </Button>
-                  {client.is_running && client.installed && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        const isRunning = await isProcessRunning(client.name);
-                        if (isRunning) {
-                          await restartProcess(client.name);
-                          toast.success(`${client.name} restarted successfully!`);
-                        }
-                      }}
-                    >
-                      Restart
-                    </Button>
-                  )}
-                  {!client.installed && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        handleInstallClick(client.name as "Claude" | "Cursor")
-                      }
-                    >
-                      Install
-                    </Button>
-                  )}
+                <div className="flex flex-col items-center gap-2 mt-3">
                   <span className="status-indicator">
                     {client.installed ? (
                       <Badge className="bg-green-500 text-white hover:bg-green-600">
@@ -385,6 +380,51 @@ const Home: React.FC = () => {
                       </Badge>
                     )}
                   </span>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const config =
+                          client.name === "Claude" ? claudeConfig : cursorConfig;
+                        if (config) {
+                          setConfigDialogContent({
+                            title: client.name,
+                            config: config,
+                          });
+                          setShowConfigDialog(true);
+                        }
+                      }}
+                    >
+                      Show Config
+                    </Button>
+                    {client.is_running && client.installed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          const isRunning = await isProcessRunning(client.name);
+                          if (isRunning) {
+                            await restartProcess(client.name);
+                            toast.success(`${client.name} restarted successfully!`);
+                          }
+                        }}
+                      >
+                        Restart
+                      </Button>
+                    )}
+                    {!client.installed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          handleInstallClick(client.name as "Claude" | "Cursor")
+                        }
+                      >
+                        Install
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
