@@ -65,7 +65,16 @@ const Registry: React.FC = () => {
 
   // Add state for restart dialog
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ title: string; explanation?: string; onConfirm: () => Promise<void> } | null>(null);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{ 
+    title: string; 
+    explanation?: string; 
+    showClaude?: boolean;
+    showCursor?: boolean;
+    onRestartClaude?: () => Promise<void>;
+    onRestartCursor?: () => Promise<void>;
+    onRestartBoth?: () => Promise<void>;
+    onConfirm?: () => Promise<void>;
+  } | null>(null);
 
   // Add state for ENV variable collection dialog
   const [showEnvVarsDialog, setShowEnvVarsDialog] = useState(false);
@@ -249,23 +258,29 @@ const Registry: React.FC = () => {
     if (showClaude || showCursor) {
       let title = "";
       if (showClaude && showCursor) {
-        title = `Restart ${processName[0]} and ${processName[1]}`;
+        title = `Restart Claude and Cursor`;
       } else if (showClaude) {
-        title = `Restart ${processName[0]}`;
+        title = `Restart Claude`;
       } else if (showCursor) {
-        title = `Restart ${processName[1]}`;
+        title = `Restart Cursor`;
       }
       setConfirmDialogConfig({
         title,
         explanation: "Claude and Cursor need to restart so their interfaces can reload the updated list of tools provided by the Model Context Protocol (MCP).",
-        onConfirm: async () => {
-          if (showClaude) {
-            await restartProcess(processName[0]);
-          }
-          if (showCursor) {
-            await restartProcess(processName[1]);
-          }
-          toast.success(`${title} restarted successfully!`);
+        showClaude,
+        showCursor,
+        onRestartClaude: async () => {
+          await restartProcess(processName[0]);
+          toast.success(`Claude restarted successfully!`);
+        },
+        onRestartCursor: async () => {
+          await restartProcess(processName[1]);
+          toast.success(`Cursor restarted successfully!`);
+        },
+        onRestartBoth: async () => {
+          await restartProcess(processName[0]);
+          await restartProcess(processName[1]);
+          toast.success(`Claude and Cursor restarted successfully!`);
         },
       });
       setShowConfirmDialog(true);
@@ -393,8 +408,7 @@ const Registry: React.FC = () => {
 
         dispatchServerInstalled(server.id);
         
-        await showRestartDialog("Claude");
-        await showRestartDialog("Cursor");
+        await showRestartDialog();
       }
     } catch (error) {
       console.error("Failed to install server:", error);
@@ -454,8 +468,7 @@ const Registry: React.FC = () => {
         dispatchServerUninstalled(id);
 
         // Check if the process needs to be restarted
-        await showRestartDialog("Claude");
-        await showRestartDialog("Cursor");
+        await showRestartDialog();
         
       } else {
         // If the API call fails, revert the UI change
@@ -1186,19 +1199,50 @@ const Registry: React.FC = () => {
               )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
               I&apos;ll do it manually
             </Button>
-            <Button
-              onClick={() => {
-                // Handle the confirm action here
-                setShowConfirmDialog(false);
-                confirmDialogConfig?.onConfirm();
-              }}
-            >
-              Confirm
-            </Button>
+            {confirmDialogConfig?.showClaude && (
+              <Button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  confirmDialogConfig?.onRestartClaude?.();
+                }}
+              >
+                Restart Claude
+              </Button>
+            )}
+            {confirmDialogConfig?.showCursor && (
+              <Button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  confirmDialogConfig?.onRestartCursor?.();
+                }}
+              >
+                Restart Cursor
+              </Button>
+            )}
+            {confirmDialogConfig?.showClaude && confirmDialogConfig?.showCursor && (
+              <Button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  confirmDialogConfig?.onRestartBoth?.();
+                }}
+              >
+                Restart Both
+              </Button>
+            )}
+            {confirmDialogConfig?.onConfirm && (
+              <Button
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  confirmDialogConfig?.onConfirm?.();
+                }}
+              >
+                Confirm
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
