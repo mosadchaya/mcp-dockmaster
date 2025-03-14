@@ -565,46 +565,6 @@ const Home: React.FC = () => {
           </CollapsibleContent>
         </Collapsible>
       </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 mt-3">
-                      <span className="status-indicator">
-                        {prerequisite.installed ? (
-                          <Badge className="bg-green-500 text-white hover:bg-green-600">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="border-red-500 bg-red-500/10 text-red-500"
-                          >
-                            Inactive
-                          </Badge>
-                        )}
-                      </span>
-                      {!prerequisite.installed && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2"
-                          onClick={() =>
-                            openInstallUrl(
-                              prerequisite.name as
-                                | "Node.js"
-                                | "UV (Python)"
-                                | "Docker",
-                            )
-                          }
-                        >
-                          Install
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
                             Active
                           </Badge>
                         ) : (
