@@ -357,12 +357,33 @@ const Registry: React.FC = () => {
         authentication,
       );
 
+      // Create a modified configuration with updated ENV values
+      let modifiedConfig = server.config;
+      
+      if (customEnvVars && server.config?.env) {
+        // Create a deep copy of the configuration
+        modifiedConfig = {
+          ...server.config,
+          env: { ...server.config.env }
+        };
+        
+        // Update the env values with user input
+        Object.entries(customEnvVars).forEach(([key, value]) => {
+          if (modifiedConfig.env && typeof modifiedConfig.env[key] === 'object') {
+            modifiedConfig.env[key] = {
+              ...modifiedConfig.env[key],
+              default: value
+            };
+          }
+        });
+      }
+      
       const response = await MCPClient.registerServer({
         server_id: server.id,
         server_name: server.name,
         description: server.description,
         tools_type: server.runtime,
-        configuration: server.config,
+        configuration: modifiedConfig,
         distribution: server.distribution,
         authentication: authentication,
       });
