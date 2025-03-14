@@ -76,6 +76,7 @@ const Home: React.FC = () => {
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
   const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
   const [isRegistryDetailsOpen, setIsRegistryDetailsOpen] = useState(false);
+  const [isRestartOptionsOpen, setIsRestartOptionsOpen] = useState(false);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
@@ -511,7 +512,10 @@ const Home: React.FC = () => {
                     <Button 
                       size="sm" 
                       className="mt-2 flex items-center gap-2"
-                      onClick={() => openUrl("https://github.com/anthropics/anthropic-cookbook/tree/main/mcp")}
+                      onClick={() => {
+                        // Navigate to MCP Server Registry inside the app
+                        window.location.href = "/registry";
+                      }}
                     >
                       <span>View Registry</span>
                       <ExternalLink className="h-3 w-3" />
@@ -524,17 +528,100 @@ const Home: React.FC = () => {
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>4</span>
               </div>
-              <div className="flex items-center gap-2 flex-1">
-                <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
-                {mcpClients.every(c => c.installed) ? (
-                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
-                    ✓
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
-                    ✗
-                  </Badge>
-                )}
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
+                  {mcpClients.every(c => c.installed) ? (
+                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                      ✓
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                      ✗
+                    </Badge>
+                  )}
+                </div>
+                
+                <Collapsible 
+                  open={isRestartOptionsOpen}
+                  onOpenChange={setIsRestartOptionsOpen}
+                  className="ml-2 border-l-2 pl-4 border-muted"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                      <span className="text-xs">Restart Options</span>
+                      {isRestartOptionsOpen ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    <p className="text-muted-foreground text-sm">
+                      Restart your MCP clients to apply the changes and start using your MCPs.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      {mcpClients.map((client) => (
+                        <div
+                          key={client.name}
+                          className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
+                        >
+                          <div className="flex flex-col items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 items-center justify-center rounded-full",
+                                client.is_running && "bg-green-500/10",
+                                !client.is_running && "bg-red-500/10",
+                              )}
+                            >
+                              <img
+                                src={client.icon}
+                                alt={client.name}
+                                className="h-5 w-5"
+                              />
+                            </div>
+                            <p className="font-medium">{client.name}</p>
+                          </div>
+                          <div className="flex flex-col items-center gap-2 mt-3">
+                            <span className="status-indicator">
+                              {client.is_running ? (
+                                <Badge className="bg-green-500 text-white hover:bg-green-600">
+                                  Running
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-500 bg-red-500/10 text-red-500"
+                                >
+                                  Not Running
+                                </Badge>
+                              )}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2 flex items-center gap-2"
+                              onClick={async () => {
+                                try {
+                                  await restartProcess(client.name);
+                                  toast.success(`${client.name} restarted successfully!`);
+                                  await checkInstalled();
+                                } catch (error) {
+                                  console.error(`Failed to restart ${client.name}:`, error);
+                                  toast.error(`Failed to restart ${client.name}`);
+                                }
+                              }}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              <span>Restart</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
           </div>
