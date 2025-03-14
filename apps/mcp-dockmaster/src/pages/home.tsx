@@ -246,16 +246,10 @@ const Home: React.FC = () => {
             {isChecking ? "Checking..." : "Refresh"}
           </Button>
         </div>
-        <p className="text-muted-foreground text-sm">
-          Select an option from the sidebar to get started.
-        </p>
       </div>
       <div className="space-y-4">
         <div className="space-y-2">
-          <h2 className="text-lg font-medium">What is MCP?</h2>
-          <p className="text-muted-foreground text-sm">
-            MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs. It simplifies integration, keeping AI workflows straightforward and effective.
-          </p>
+          <h2 className="text-lg font-medium">What is MCP?</h2> <p className="text-muted-foreground text-sm">MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs. It simplifies integration, keeping AI workflows straightforward and effective.</p>
         </div>
       </div>
       
@@ -267,33 +261,25 @@ const Home: React.FC = () => {
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>1</span>
               </div>
-              <p className="text-muted-foreground text-sm">
-                Make sure that you have Node.js, Python, and Docker installed so you can run MCPs. These tools provide the necessary environment for MCP Dockmaster to function properly.
-              </p>
+              <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>2</span>
               </div>
-              <p className="text-muted-foreground text-sm">
-                Add Dockmaster to Cursor, Claude Desktop, or any other MCP client. This integration enables your AI applications to access the tools you configure in MCP Dockmaster.
-              </p>
+              <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>3</span>
               </div>
-              <p className="text-muted-foreground text-sm">
-                Install MCPs from the registry or a GitHub URL. This allows you to extend your AI applications with various capabilities and integrations.
-              </p>
+              <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>4</span>
               </div>
-              <p className="text-muted-foreground text-sm">
-                Restart Claude Desktop and Cursor to apply the changes, and you're ready to go! Your AI applications will now have access to all the tools you've configured.
-              </p>
+              <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
             </div>
           </div>
         </div>
