@@ -250,6 +250,54 @@ const Home: React.FC = () => {
           Select an option from the sidebar to get started.
         </p>
       </div>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-lg font-medium">What is MCP?</h2>
+          <p className="text-muted-foreground text-sm">
+            MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs. It simplifies integration, keeping AI workflows straightforward and effective.
+          </p>
+        </div>
+      </div>
+      
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-lg font-medium">Getting Started</h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <span>1</span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Make sure that you have Node.js, Python, and Docker installed so you can run MCPs. These tools provide the necessary environment for MCP Dockmaster to function properly.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <span>2</span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Add Dockmaster to Cursor, Claude Desktop, or any other MCP client. This integration enables your AI applications to access the tools you configure in MCP Dockmaster.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <span>3</span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Install MCPs from the registry or a GitHub URL. This allows you to extend your AI applications with various capabilities and integrations.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <span>4</span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Restart Claude Desktop and Cursor to apply the changes, and you're ready to go! Your AI applications will now have access to all the tools you've configured.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
@@ -366,13 +414,13 @@ const Home: React.FC = () => {
           </p>
         </div>
         <div className="space-y-4">
-          <div className="grid gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {prerequisites.map((prerequisite) => (
               <div
                 key={prerequisite.name}
-                className="hover:bg-muted/10 flex items-center justify-between rounded-lg border p-4 transition-colors"
+                className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-3">
                   <div
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full",
@@ -386,7 +434,7 @@ const Home: React.FC = () => {
                       className="h-5 w-5"
                     />
                   </div>
-                  <div>
+                  <div className="text-center">
                     <p className="font-medium">{prerequisite.name}</p>
                     <p className="text-muted-foreground text-sm">
                       {prerequisite.installed
@@ -396,12 +444,12 @@ const Home: React.FC = () => {
                   </div>
                 </div>
                 {prerequisite.loading ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-3">
                     <span className="loading-indicator">Checking...</span>
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-center gap-2 mt-3">
                     <span className="status-indicator">
                       {prerequisite.installed ? (
                         <Badge className="bg-green-500 text-white hover:bg-green-600">
@@ -420,7 +468,7 @@ const Home: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="ml-2"
+                        className="mt-2"
                         onClick={() =>
                           openInstallUrl(
                             prerequisite.name as
