@@ -227,16 +227,12 @@ const Registry: React.FC = () => {
     }
   };
 
-  // Helper function to check if a server has missing required ENV variables
-  const hasRequiredEnvVars = (server: RegistryServer): boolean => {
+  // Helper function to check if a server has any ENV variables (required or optional)
+  const hasEnvVars = (server: RegistryServer): boolean => {
     if (!server.config?.env) return false;
     
-    // Check if any required env vars exist
-    return Object.entries(server.config.env).some((entry) => {
-      const [_, value] = entry;
-      // If the env var is required, it needs attention
-      return typeof value === 'object' && value.required === true;
-    });
+    // Check if any env vars exist
+    return Object.keys(server.config.env).length > 0;
   };
 
   const showRestartDialog = async () => {
@@ -299,8 +295,8 @@ const Registry: React.FC = () => {
       return;
     }
 
-    // Check if the server has required ENV variables
-    if (hasRequiredEnvVars(server)) {
+    // Check if the server has any ENV variables (required or optional)
+    if (hasEnvVars(server)) {
       // Initialize env var values with defaults
       const initialEnvVars: Record<string, string> = {};
       if (server.config?.env) {
@@ -666,44 +662,101 @@ const Registry: React.FC = () => {
   const renderEnvVarsDialog = () => {
     if (!showEnvVarsDialog || !currentServerForEnvVars) return null;
     
+    // Check if there are any ENV variables
+    const hasEnvVars = currentServerForEnvVars.config?.env && 
+                      Object.keys(currentServerForEnvVars.config.env).length > 0;
+    
+    // Count required ENV variables
+    const requiredEnvVarsCount = hasEnvVars ? 
+      Object.values(currentServerForEnvVars.config.env).filter(
+        value => typeof value === 'object' && value.required
+      ).length : 0;
+    
     return (
       <Dialog open={showEnvVarsDialog} onOpenChange={setShowEnvVarsDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Configure Environment Variables</DialogTitle>
             <DialogDescription>
-              {currentServerForEnvVars.name} requires the following environment variables to be configured before installation.
+              {requiredEnvVarsCount > 0 
+                ? `${currentServerForEnvVars.name} requires ${requiredEnvVarsCount} environment variable(s) to be configured before installation.`
+                : `Configure optional environment variables for ${currentServerForEnvVars.name}.`
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            {currentServerForEnvVars.config?.env && Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
-              // Skip if not an object or not required
-              if (typeof value !== 'object' || !value.required) return null;
-              
-              const description = value.description || '';
-              const defaultValue = value.default || '';
-              const isRequired = value.required;
-              
-              return (
-                <div key={key} className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1" htmlFor={`env-${key}`}>
-                    {key}
-                    {isRequired && <span className="text-red-500 ml-1">*</span>}
-                  </Label>
-                  <div className="col-span-3 space-y-1">
-                    <Input
-                      id={`env-${key}`}
-                      value={envVarValues[key] || defaultValue}
-                      onChange={(e) => handleEnvVarChange(key, e.target.value)}
-                      placeholder={description}
-                    />
-                    {description && (
-                      <p className="text-muted-foreground text-xs">{description}</p>
-                    )}
+            {hasEnvVars && (
+              <>
+                {/* Required ENV variables section */}
+                {requiredEnvVarsCount > 0 && (
+                  <div className="mb-2">
+                    <h3 className="text-sm font-medium mb-2">Required Environment Variables</h3>
+                    {Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
+                      // Only show required ENV variables in this section
+                      if (typeof value !== 'object' || !value.required) return null;
+                      
+                      const description = value.description || '';
+                      const defaultValue = value.default || '';
+                      
+                      return (
+                        <div key={key} className="grid grid-cols-4 items-start gap-4 mb-3">
+                          <Label className="text-right text-xs pt-1" htmlFor={`env-${key}`}>
+                            {key}
+                            <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <div className="col-span-3 space-y-1">
+                            <Input
+                              id={`env-${key}`}
+                              value={envVarValues[key] || defaultValue}
+                              onChange={(e) => handleEnvVarChange(key, e.target.value)}
+                              placeholder={description}
+                            />
+                            {description && (
+                              <p className="text-muted-foreground text-xs">{description}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              );
-            })}
+                )}
+                
+                {/* Optional ENV variables section */}
+                {Object.entries(currentServerForEnvVars.config.env).some(
+                  ([_, value]) => typeof value === 'object' && !value.required
+                ) && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Optional Environment Variables</h3>
+                    {Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
+                      // Only show optional ENV variables in this section
+                      if (typeof value !== 'object' || value.required) return null;
+                      
+                      const description = value.description || '';
+                      const defaultValue = value.default || '';
+                      
+                      return (
+                        <div key={key} className="grid grid-cols-4 items-start gap-4 mb-3">
+                          <Label className="text-right text-xs pt-1" htmlFor={`env-${key}`}>
+                            {key}
+                          </Label>
+                          <div className="col-span-3 space-y-1">
+                            <Input
+                              id={`env-${key}`}
+                              value={envVarValues[key] || defaultValue}
+                              onChange={(e) => handleEnvVarChange(key, e.target.value)}
+                              placeholder={description}
+                            />
+                            {description && (
+                              <p className="text-muted-foreground text-xs">{description}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEnvVarsDialog(false)}>
