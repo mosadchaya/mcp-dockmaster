@@ -537,6 +537,9 @@ const InstalledServers: React.FC = () => {
     setConfigPopupVisible(false);
     setCurrentConfigTool(null);
     setEnvVarValues({});
+    
+    // Force a data reload when closing the ENV popup to ensure we have the latest server states
+    loadData();
   };
   
   const openInfoPopup = (server: RuntimeServer, e: React.MouseEvent) => {
