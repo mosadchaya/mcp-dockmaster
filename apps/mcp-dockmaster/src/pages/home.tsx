@@ -75,7 +75,7 @@ const Home: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isGettingStartedOpen, setIsGettingStartedOpen] = useState(true);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
-  const [isRunnerEnvOpen, setIsRunnerEnvOpen] = useState(true);
+  const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
@@ -287,17 +287,110 @@ const Home: React.FC = () => {
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>1</span>
               </div>
-              <div className="flex items-center gap-2 flex-1">
-                <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
-                {prerequisites.every(p => p.installed) ? (
-                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
-                    ✓
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
-                    ✗
-                  </Badge>
-                )}
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
+                  {prerequisites.every(p => p.installed) ? (
+                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                      ✓
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                      ✗
+                    </Badge>
+                  )}
+                </div>
+                
+                <Collapsible 
+                  open={isEnvDetailsOpen}
+                  onOpenChange={setIsEnvDetailsOpen}
+                  className="ml-2 border-l-2 pl-4 border-muted"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                      <span className="text-xs">Environment Details</span>
+                      {isEnvDetailsOpen ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    <div className="grid grid-cols-3 gap-4">
+                      {prerequisites.map((prerequisite) => (
+                        <div
+                          key={prerequisite.name}
+                          className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
+                        >
+                          <div className="flex flex-col items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 items-center justify-center rounded-full",
+                                prerequisite.installed && "bg-green-500/10",
+                                !prerequisite.installed && "bg-red-500/10",
+                              )}
+                            >
+                              <img
+                                src={prerequisite.icon}
+                                alt={prerequisite.name}
+                                className="h-5 w-5"
+                              />
+                            </div>
+                            <div className="text-center">
+                              <p className="font-medium">{prerequisite.name}</p>
+                              <p className="text-muted-foreground text-sm">
+                                {prerequisite.installed
+                                  ? "Installed and running"
+                                  : "Not installed or not running"}
+                              </p>
+                            </div>
+                          </div>
+                          {prerequisite.loading ? (
+                            <div className="flex items-center gap-2 mt-3">
+                              <span className="loading-indicator">Checking...</span>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 mt-3">
+                              <span className="status-indicator">
+                                {prerequisite.installed ? (
+                                  <Badge className="bg-green-500 text-white hover:bg-green-600">
+                                    Active
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-red-500 bg-red-500/10 text-red-500"
+                                  >
+                                    Inactive
+                                  </Badge>
+                                )}
+                              </span>
+                              {!prerequisite.installed && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-2"
+                                  onClick={() =>
+                                    openInstallUrl(
+                                      prerequisite.name as
+                                        | "Node.js"
+                                        | "UV (Python)"
+                                        | "Docker",
+                                    )
+                                  }
+                                >
+                                  Install
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -472,69 +565,46 @@ const Home: React.FC = () => {
           </CollapsibleContent>
         </Collapsible>
       </div>
-
-      <div className="space-y-4">
-        <Collapsible
-          open={isRunnerEnvOpen}
-          onOpenChange={setIsRunnerEnvOpen}
-          className="space-y-2"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Runner Environment Support</h2>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-9 p-0">
-                {isRunnerEnvOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                <span className="sr-only">Toggle section</span>
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent className="space-y-4">
-            <p className="text-muted-foreground text-sm">
-              The following tools are required to run MCP Dockmaster.
-            </p>
-            <div className="grid grid-cols-3 gap-4">
-              {prerequisites.map((prerequisite) => (
-                <div
-                  key={prerequisite.name}
-                  className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-full",
-                        prerequisite.installed && "bg-green-500/10",
-                        !prerequisite.installed && "bg-red-500/10",
-                      )}
-                    >
-                      <img
-                        src={prerequisite.icon}
-                        alt={prerequisite.name}
-                        className="h-5 w-5"
-                      />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-medium">{prerequisite.name}</p>
-                      <p className="text-muted-foreground text-sm">
-                        {prerequisite.installed
-                          ? "Installed and running"
-                          : "Not installed or not running"}
-                      </p>
-                    </div>
-                  </div>
-                  {prerequisite.loading ? (
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="loading-indicator">Checking...</span>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 mt-3">
                       <span className="status-indicator">
                         {prerequisite.installed ? (
                           <Badge className="bg-green-500 text-white hover:bg-green-600">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-red-500 bg-red-500/10 text-red-500"
+                          >
+                            Inactive
+                          </Badge>
+                        )}
+                      </span>
+                      {!prerequisite.installed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() =>
+                            openInstallUrl(
+                              prerequisite.name as
+                                | "Node.js"
+                                | "UV (Python)"
+                                | "Docker",
+                            )
+                          }
+                        >
+                          Install
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
                             Active
                           </Badge>
                         ) : (
