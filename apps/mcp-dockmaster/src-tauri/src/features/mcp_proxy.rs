@@ -138,6 +138,12 @@ pub async fn get_cursor_config(mcp_core: State<'_, MCPCore>) -> Result<String, S
     mcp_core.get_cursor_config()
 }
 
+// Get Generic config
+#[tauri::command]
+pub async fn get_generic_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
+    mcp_core.get_generic_config()
+}
+
 /// Import a server from a GitHub repository URL
 #[tauri::command]
 pub async fn import_server_from_url(

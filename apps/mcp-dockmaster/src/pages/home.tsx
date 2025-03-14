@@ -35,7 +35,7 @@ interface PrerequisiteStatus {
 }
 
 interface MCPClientStatus {
-  name: 'Cursor' | 'Claude';
+  name: 'Cursor' | 'Claude' | 'Generic';
   is_running: boolean;
   installed: boolean;
   icon: string;
@@ -59,12 +59,14 @@ const Home: React.FC = () => {
   const [mcpClients, setMCPClients] = useState<MCPClientStatus[]>([
     { name: "Claude", is_running: false, installed: false, icon: claudeIcon },
     { name: "Cursor", is_running: false, installed: false, icon: cursorIcon },
+    { name: "Generic", is_running: true, installed: true, icon: dockerIcon },
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
 
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
+  const [genericConfig, setGenericConfig] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
@@ -86,6 +88,7 @@ const Home: React.FC = () => {
     setMCPClients([
       { name: "Claude", installed: claudeInstalled, is_running: claudeRunning, icon: claudeIcon },
       { name: "Cursor", installed: cursorInstalled, is_running: cursorRunning, icon: cursorIcon },
+      { name: "Generic", installed: true, is_running: true, icon: dockerIcon },
     ]);
   };
 
@@ -163,10 +166,13 @@ const Home: React.FC = () => {
   };
 
   const openInstallUrl = async (
-    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor",
+    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor" | "Generic",
   ) => {
     try {
-      await openUrl(installUrls[toolName]);
+      // Skip for Generic as it doesn't have an install URL
+      if (toolName !== "Generic") {
+        await openUrl(installUrls[toolName]);
+      }
     } catch (error) {
       console.error(`Failed to open install URL for ${toolName}:`, error);
       toast.error(`Failed to open installation page for ${toolName}`);
@@ -193,19 +199,38 @@ const Home: React.FC = () => {
   useEffect(() => {
     const fetchConfigs = async () => {
       try {
-        const claude = await invoke<string>("get_claude_config");
-        const cursor = await invoke<string>("get_cursor_config");
-        setClaudeConfig(claude);
-        setCursorConfig(cursor);
+        const [claudeResult, cursorResult, genericResult] = await Promise.allSettled([
+          invoke<string>("get_claude_config"),
+          invoke<string>("get_cursor_config"),
+          invoke<string>("get_generic_config")
+        ]);
+        
+        if (claudeResult.status === 'fulfilled' && claudeResult.value) {
+          setClaudeConfig(claudeResult.value);
+        }
+        if (cursorResult.status === 'fulfilled' && cursorResult.value) {
+          setCursorConfig(cursorResult.value);
+        }
+        if (genericResult.status === 'fulfilled' && genericResult.value) {
+          setGenericConfig(genericResult.value);
+        }
+
+        // If all configs failed, show error
+        if (claudeResult.status === 'rejected' && 
+            cursorResult.status === 'rejected' && 
+            genericResult.status === 'rejected') {
+          toast.error("Failed to fetch all configurations");
+        }
       } catch (error) {
         console.error("Failed to fetch configurations:", error);
+        toast.error("Failed to fetch configurations");
       }
     };
 
     fetchConfigs();
   }, []);
 
-  const handleInstallClick = (appName: "Claude" | "Cursor") => {
+  const handleInstallClick = (appName: "Claude" | "Cursor" | "Generic") => {
     setConfirmDialogConfig({
       title: appName,
       onConfirm: async () => {
@@ -285,7 +310,7 @@ const Home: React.FC = () => {
                     <p className="font-medium">{client.name}</p>
                     <button
                       onClick={() =>
-                        openInstallUrl(client.name as "Claude" | "Cursor")
+                        openInstallUrl(client.name as "Claude" | "Cursor" | "Generic")
                       }
                       className="text-muted-foreground hover:text-foreground transition-colors"
                     >
@@ -299,19 +324,19 @@ const Home: React.FC = () => {
                     variant="outline"
                     onClick={() => {
                       const config =
-                        client.name === "Claude" ? claudeConfig : cursorConfig;
-                      if (config) {
-                        setConfigDialogContent({
-                          title: client.name,
-                          config: config,
-                        });
-                        setShowConfigDialog(true);
-                      }
+                        client.name === "Claude" ? claudeConfig : 
+                        client.name === "Cursor" ? cursorConfig : 
+                        genericConfig;
+                      setConfigDialogContent({
+                        title: client.name,
+                        config: config || "No configuration available.",
+                      });
+                      setShowConfigDialog(true);
                     }}
                   >
                     Show Config
                   </Button>
-                  {client.is_running && client.installed && (
+                  {client.is_running && client.installed && client.name !== "Generic" && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -326,12 +351,12 @@ const Home: React.FC = () => {
                       Restart
                     </Button>
                   )}
-                  {!client.installed && (
+                  {!client.installed && client.name !== "Generic" && (
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() =>
-                        handleInstallClick(client.name as "Claude" | "Cursor")
+                        handleInstallClick(client.name as "Claude" | "Cursor" | "Generic")
                       }
                     >
                       Install
