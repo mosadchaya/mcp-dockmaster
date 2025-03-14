@@ -1,6 +1,5 @@
 use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
-use crate::mcp_state::mcp_state::McpStateProcessMonitor;
-use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
+use crate::mcp_state::mcp_state_process_utils::kill_process;
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
@@ -19,7 +18,6 @@ use log::{error, info};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use tokio::time::Duration;
 use toml::Table;
 
 use super::mcp_core::MCPCore;
@@ -120,108 +118,7 @@ impl McpCoreProxyExt for MCPCore {
             let mcp_state = mcp_state_clone.write().await;
             let mut server_tools = mcp_state.server_tools.write().await;
             server_tools.insert(server_id.clone(), Vec::new());
-        }
-
-        // Extract environment variables from the tool configuration
-        let env_vars = if let Some(configuration) = &server.configuration {
-            configuration.env.as_ref().map(|map| {
-                // Convert ToolEnvironment -> just the defaults
-                map.iter()
-                    .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
-                    .collect::<HashMap<String, String>>()
-            })
-        } else {
-            None
-        };
-
-        // Create the config_value for the spawn functions
-        let config_value = if let Some(configuration) = &server.configuration {
-            json!({
-                "command": configuration.command,
-                "args": configuration.args
-            })
-        } else {
-            return Err("Configuration is required for tools".to_string());
-        };
-
-        // Spawn process based on tool type
-        let spawn_result = spawn_process(
-            &config_value,
-            &server_id,
-            &request.tools_type,
-            env_vars.as_ref(),
-        )
-        .await;
-
-        let mcp_state_clone = self.mcp_state.clone();
-        match spawn_result {
-            Ok((process, stdin, stdout)) => {
-                info!("Process spawned successfully for tool ID: {}", server_id);
-                {
-                    let mcp_state = mcp_state_clone.write().await;
-                    let mut process_manager = mcp_state.process_manager.write().await;
-                    process_manager
-                        .processes
-                        .insert(server_id.clone(), (Some(process), ServerStatus::Starting));
-                    process_manager
-                        .process_ios
-                        .insert(server_id.clone(), (stdin, stdout));
-                }
-                // Wait a moment for the server to start
-                info!("Waiting for server to initialize...");
-                tokio::time::sleep(Duration::from_secs(3)).await;
-
-                // Try to discover tools from this server with a timeout to avoid hanging
-                info!("Attempting to discover tools from server {}", server_id);
-                let discover_result = tokio::time::timeout(Duration::from_secs(3), async {
-                    let mcp_state = mcp_state_clone.write().await;
-                    let mut process_manager = mcp_state.process_manager.write().await;
-                    if let Some((stdin, stdout)) = process_manager.process_ios.get_mut(&server_id) {
-                        discover_server_tools(&server_id, stdin, stdout).await
-                    } else {
-                        Err(format!("Server {} not found or not running", server_id))
-                    }
-                })
-                .await;
-
-                // Handle the result of the discovery attempt
-                match discover_result {
-                    Ok(Ok(tools)) => {
-                        info!(
-                            "Successfully discovered {} tools from {}",
-                            tools.len(),
-                            server_id
-                        );
-                        let mcp_state = mcp_state_clone.write().await;
-                        let mut server_tools = mcp_state.server_tools.write().await;
-                        server_tools.insert(server_id.clone(), tools);
-
-                        // Update the process status to Running after successful tool discovery
-                        let mut process_manager = mcp_state.process_manager.write().await;
-                        if let Some((child_opt, _)) = process_manager.processes.remove(&server_id) {
-                            process_manager
-                                .processes
-                                .insert(server_id.clone(), (child_opt, ServerStatus::Running));
-                            info!("Updated status to Running for server: {}", server_id);
-                        }
-                    }
-                    Ok(Err(e)) => {
-                        error!("Error discovering tools from server {}: {}", server_id, e);
-                    }
-                    Err(_) => {
-                        error!("Timeout while discovering tools from server {}", server_id);
-                        info!("Added default tool for server {} after timeout", server_id);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to spawn process for {}: {}", server_id, e);
-                return Ok(ServerRegistrationResponse {
-                    success: false,
-                    message: format!("Tool registered but failed to start process: {}", e),
-                    tool_id: Some(server_id),
-                });
-            }
+            let _ = mcp_state.restart_server(&server_id).await;
         }
 
         info!("Tool registration completed for: {}", request.server_name);
@@ -242,9 +139,9 @@ impl McpCoreProxyExt for MCPCore {
 
         for (id, tool_struct) in tool_map {
             let status = {
-                let process_manager = mcp_state.process_manager.read().await;
-                if let Some((_, status)) = process_manager.processes.get(&id) {
-                    status.clone()
+                let clients = mcp_state.clients.read().await;
+                if let Some(client) = clients.get(&id) {
+                    ServerStatus::Running
                 } else {
                     ServerStatus::Stopped
                 }
@@ -284,67 +181,40 @@ impl McpCoreProxyExt for MCPCore {
         request: DiscoverServerToolsRequest,
     ) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
-        // Check if the server exists and is running
-        let server_running = {
-            let process_manager = mcp_state.process_manager.read().await;
-            process_manager
-                .processes
-                .get(&request.server_id)
-                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
-        };
+        // Store the guard first
+        let clients_guard = mcp_state.clients.read().await;
+        // Then get the reference from the guard
+        let client = clients_guard.get(&request.server_id);
+        if client.is_none() {
+            return Err(format!("Server with ID '{}' not found", request.server_id));
+        }
 
-        if !server_running {
+        let client = client.unwrap();
+        let tools = client.list_tools(None).await;
+        if tools.is_err() {
             return Err(format!(
-                "Server with ID '{}' is not running",
+                "Failed to list tools for server: {}",
                 request.server_id
             ));
         }
-
-        let mcp_state = self.mcp_state.read().await;
-        let mut process_manager = mcp_state.process_manager.write().await;
-
-        // Discover tools from the server
-        let result = if let Some((stdin, stdout)) =
-            process_manager.process_ios.get_mut(&request.server_id)
-        {
-            discover_server_tools(&request.server_id, stdin, stdout).await
-        } else {
-            Err(format!(
-                "Server {} not found or not running",
-                request.server_id
-            ))
-        };
-
-        // Update the process status to Running after successful tool discovery
-        if result.is_ok() {
-            if let Some((child_opt, _)) = process_manager.processes.remove(&request.server_id) {
-                process_manager.processes.insert(
-                    request.server_id.clone(),
-                    (child_opt, ServerStatus::Running),
-                );
-                info!(
-                    "Updated status to Running for server: {}",
-                    request.server_id
-                );
-            }
-        }
-
-        // Release the process_manager lock before accessing server_tools
-        drop(process_manager);
-
-        {
-            let mcp_state = self.mcp_state.read().await;
-            let mut server_tools = mcp_state.server_tools.write().await;
-            // Get a write lock on server_tools to update
-            match result {
-                Ok(tools) => {
-                    // Store the discovered tools and return them
-                    server_tools.insert(request.server_id.clone(), tools.clone());
-                    Ok(tools)
-                }
-                Err(e) => Err(format!("Failed to discover tools: {}", e)),
-            }
-        }
+        let tools = tools.unwrap();
+        Ok(tools
+            .tools
+            .iter()
+            .map(|t| ServerToolInfo {
+                id: t.name.clone(),
+                name: t.name.clone(),
+                description: t.description.clone(),
+                server_id: request.server_id.clone(),
+                proxy_id: Some(request.server_id.clone()),
+                is_active: true,
+                input_schema: if t.input_schema.is_object() {
+                    serde_json::from_value(t.input_schema.clone()).ok()
+                } else {
+                    None
+                },
+            })
+            .collect())
     }
 
     /// Execute a tool from an MCP server
@@ -820,8 +690,8 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         // Start the process monitor
-        let mcp_state_clone = self.mcp_state.clone();
-        mcp_state_clone.start_process_monitor().await;
+        // let mcp_state_clone = self.mcp_state.clone();
+        // mcp_state_clone.start_process_monitor().await;
 
         Ok(())
     }
