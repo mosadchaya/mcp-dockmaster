@@ -249,7 +249,7 @@ const Home: React.FC = () => {
       </div>
       <div className="space-y-4">
         <div className="space-y-2">
-          <h2 className="text-lg font-medium">What is MCP?</h2> <p className="text-muted-foreground text-sm">MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs. It simplifies integration, keeping AI workflows straightforward and effective.</p>
+          <p className="text-muted-foreground text-sm"><strong>What is MCP?</strong> MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs.</p>
         </div>
       </div>
       
