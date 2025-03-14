@@ -193,6 +193,22 @@ const Home: React.FC = () => {
     checkInstalled();
     checkMCPServers();
   }, []);
+  
+  // Update collapsible sections based on prerequisites status
+  useEffect(() => {
+    // If all prerequisites are installed, collapse the environment details section
+    if (prerequisites.every(p => p.installed) && !isChecking) {
+      setIsEnvDetailsOpen(false);
+    }
+  }, [prerequisites, isChecking]);
+  
+  // Update collapsible sections based on MCP clients status
+  useEffect(() => {
+    // If any MCP client is installed, collapse the integration details section
+    if (mcpClients.some(c => c.installed)) {
+      setIsIntegrationOpen(false);
+    }
+  }, [mcpClients]);
 
   const checkMCPServers = async () => {
     try {
