@@ -33,6 +33,7 @@ import {
   CollapsibleContent,
 } from "../components/ui/collapsible";
 import { checkClaude, checkCursor, isProcessRunning } from "../lib/process";
+import MCPClient from "../lib/mcpClient";
 
 interface PrerequisiteStatus {
   name: string;
@@ -70,13 +71,14 @@ const Home: React.FC = () => {
   ]);
 
   const [isChecking, setIsChecking] = useState(false);
+  const [mcpServers, setMCPServers] = useState<boolean>(false);
 
   // State variables for UI components
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
   const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
   const [isRegistryDetailsOpen, setIsRegistryDetailsOpen] = useState(false);
-  const [isRestartOptionsOpen, setIsRestartOptionsOpen] = useState(false);
+  const [isRestartOptionsOpen, setIsRestartOptionsOpen] = useState(true); // Default to open
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
@@ -189,7 +191,18 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     checkInstalled();
+    checkMCPServers();
   }, []);
+
+  const checkMCPServers = async () => {
+    try {
+      const servers = await MCPClient.listServers();
+      setMCPServers(servers.length > 0);
+    } catch (error) {
+      console.error("Failed to check MCP servers:", error);
+      setMCPServers(false);
+    }
+  };
 
   const restartProcess = async (process_name: string) => {
     await invoke('restart_process', { process: { process_name } });
@@ -198,6 +211,7 @@ const Home: React.FC = () => {
   const reload = () => {
     checkPrerequisites();
     checkInstalled();
+    checkMCPServers();
   };
 
   useEffect(() => {
@@ -422,7 +436,7 @@ const Home: React.FC = () => {
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 mt-2">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       {mcpClients.map((client) => (
                         <div
                           key={client.name}
@@ -493,9 +507,16 @@ const Home: React.FC = () => {
               <div className="flex flex-col gap-2 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
-                  <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
-                    ?
-                  </Badge>
+                  {/* Check if at least one MCP server is installed */}
+                  {mcpServers ? (
+                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                      ✓
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
+                      ?
+                    </Badge>
+                  )}
                 </div>
                 
                 <Collapsible 
@@ -569,8 +590,8 @@ const Home: React.FC = () => {
                     <p className="text-muted-foreground text-sm">
                       Restart your MCP clients to apply the changes and start using your MCPs.
                     </p>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
-                      {mcpClients.filter(client => client.name !== "Generic").map((client) => (
+                    <div className="grid grid-cols-3 gap-4 mt-2">
+                      {mcpClients.map((client) => (
                         <div
                           key={client.name}
                           className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
