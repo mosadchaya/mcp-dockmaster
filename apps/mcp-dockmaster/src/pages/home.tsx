@@ -73,7 +73,6 @@ const Home: React.FC = () => {
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [isGettingStartedOpen, setIsGettingStartedOpen] = useState(true);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
   const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
@@ -264,25 +263,11 @@ const Home: React.FC = () => {
       </div>
       
       <div className="space-y-4">
-        <Collapsible
-          open={isGettingStartedOpen}
-          onOpenChange={setIsGettingStartedOpen}
-          className="space-y-2"
-        >
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium">Getting Started</h2>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-9 p-0">
-                {isGettingStartedOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                <span className="sr-only">Toggle section</span>
-              </Button>
-            </CollapsibleTrigger>
           </div>
-          <CollapsibleContent className="space-y-4">
+          <div className="space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>1</span>
@@ -397,28 +382,135 @@ const Home: React.FC = () => {
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>2</span>
               </div>
-              <div className="flex items-center gap-2 flex-1">
-                <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
-                {mcpClients.some(c => c.installed) ? (
-                  <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
-                    ✓
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
-                    ✗
-                  </Badge>
-                )}
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
+                  {mcpClients.some(c => c.installed) ? (
+                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                      ✓
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                      ✗
+                    </Badge>
+                  )}
+                </div>
+                
+                <Collapsible 
+                  open={isIntegrationOpen}
+                  onOpenChange={setIsIntegrationOpen}
+                  className="ml-2 border-l-2 pl-4 border-muted"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                      <span className="text-xs">Integration Details</span>
+                      {isIntegrationOpen ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      {mcpClients.map((client) => (
+                        <div
+                          key={client.name}
+                          className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
+                        >
+                          <div className="flex flex-col items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 items-center justify-center rounded-full",
+                                client.installed && "bg-green-500/10",
+                                !client.installed && "bg-red-500/10",
+                              )}
+                            >
+                              <img
+                                src={client.icon}
+                                alt={client.name}
+                                className="h-5 w-5"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{client.name}</p>
+                              <button
+                                onClick={() =>
+                                  openInstallUrl(client.name as "Claude" | "Cursor")
+                                }
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-center gap-2 mt-3">
+                            <span className="status-indicator">
+                              {client.installed ? (
+                                <Badge className="bg-green-500 text-white hover:bg-green-600">
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-500 bg-red-500/10 text-red-500"
+                                >
+                                  Inactive
+                                </Badge>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleInstallClick(client.name)}
+                              >
+                                Install
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>3</span>
               </div>
-              <div className="flex items-center gap-2 flex-1">
-                <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
-                <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
-                  ?
-                </Badge>
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
+                  <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
+                    ?
+                  </Badge>
+                </div>
+                
+                <Collapsible 
+                  className="ml-2 border-l-2 pl-4 border-muted"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                      <span className="text-xs">Registry Details</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    <p className="text-muted-foreground text-sm">
+                      Browse available MCPs from the registry to extend your AI applications with various capabilities.
+                    </p>
+                    <Button 
+                      size="sm" 
+                      className="mt-2 flex items-center gap-2"
+                      onClick={() => openUrl("https://github.com/anthropics/anthropic-cookbook/tree/main/mcp")}
+                    >
+                      <span>View Registry</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -438,87 +530,73 @@ const Home: React.FC = () => {
                 )}
               </div>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <Collapsible
-          open={isIntegrationOpen}
-          onOpenChange={setIsIntegrationOpen}
-          className="space-y-2"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-9 p-0">
-                {isIntegrationOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                <span className="sr-only">Toggle section</span>
-              </Button>
-            </CollapsibleTrigger>
+      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+        <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {configDialogContent?.title} Configuration
+            </DialogTitle>
+            <DialogDescription>
+              Use this configuration to connect {configDialogContent?.title} to
+              your MCP servers:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            <pre className="rounded-md bg-black p-4 text-sm text-white">
+              <code className="break-words whitespace-pre-wrap">
+                {configDialogContent?.config}
+              </code>
+            </pre>
           </div>
-          <CollapsibleContent className="space-y-4">
-            <p className="text-muted-foreground text-sm">
-              Using the proxy tool, you will be able to integrate with MCP clients
-              like Claude offering all the tools you configure in MCP Dockmaster.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              {mcpClients.map((client) => (
-                <div
-                  key={client.name}
-                  className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-full",
-                        client.installed && "bg-green-500/10",
-                        !client.installed && "bg-red-500/10",
-                      )}
-                    >
-                      <img
-                        src={client.icon}
-                        alt={client.name}
-                        className="h-5 w-5"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{client.name}</p>
-                      <button
-                        onClick={() =>
-                          openInstallUrl(client.name as "Claude" | "Cursor")
-                        }
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 mt-3">
-                    <span className="status-indicator">
-                      {client.installed ? (
-                        <Badge className="bg-green-500 text-white hover:bg-green-600">
-                          Active
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-red-500 bg-red-500/10 text-red-500"
-                        >
-                          Inactive
-                        </Badge>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const config =
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowConfigDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Installation</DialogTitle>
+            <DialogDescription>
+              Please make sure {confirmDialogConfig?.title} is closed before
+              continuing.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (confirmDialogConfig) {
+                  await confirmDialogConfig.onConfirm();
+                  setShowConfirmDialog(false);
+                }
+              }}
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default Home;
                             client.name === "Claude" ? claudeConfig : cursorConfig;
                           if (config) {
                             setConfigDialogContent({
