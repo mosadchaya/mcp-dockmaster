@@ -75,6 +75,7 @@ const Home: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
   const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
+  const [isRegistryDetailsOpen, setIsRegistryDetailsOpen] = useState(false);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
@@ -489,12 +490,18 @@ const Home: React.FC = () => {
                 </div>
                 
                 <Collapsible 
+                  open={isRegistryDetailsOpen}
+                  onOpenChange={setIsRegistryDetailsOpen}
                   className="ml-2 border-l-2 pl-4 border-muted"
                 >
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
                       <span className="text-xs">Registry Details</span>
-                      <ChevronRight className="h-3 w-3" />
+                      {isRegistryDetailsOpen ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 mt-2">
@@ -532,116 +539,6 @@ const Home: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {configDialogContent?.title} Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Use this configuration to connect {configDialogContent?.title} to
-              your MCP servers:
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto">
-            <pre className="rounded-md bg-black p-4 text-sm text-white">
-              <code className="break-words whitespace-pre-wrap">
-                {configDialogContent?.config}
-              </code>
-            </pre>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowConfigDialog(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Installation</DialogTitle>
-            <DialogDescription>
-              Please make sure {confirmDialogConfig?.title} is closed before
-              continuing.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfirmDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (confirmDialogConfig) {
-                  await confirmDialogConfig.onConfirm();
-                  setShowConfirmDialog(false);
-                }
-              }}
-            >
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default Home;
-                            client.name === "Claude" ? claudeConfig : cursorConfig;
-                          if (config) {
-                            setConfigDialogContent({
-                              title: client.name,
-                              config: config,
-                            });
-                            setShowConfigDialog(true);
-                          }
-                        }}
-                      >
-                        Show Config
-                      </Button>
-                      {client.is_running && client.installed && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            const isRunning = await isProcessRunning(client.name);
-                            if (isRunning) {
-                              await restartProcess(client.name);
-                              toast.success(`${client.name} restarted successfully!`);
-                            }
-                          }}
-                        >
-                          Restart
-                        </Button>
-                      )}
-                      {!client.installed && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleInstallClick(client.name as "Claude" | "Cursor")
-                          }
-                        >
-                          Install
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
       </div>
 
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
