@@ -1,12 +1,11 @@
-use crate::models::types::{ServerStatus, ServerToolInfo};
+use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
-use async_trait::async_trait;
-use log::{error, info, warn};
+use log::{error, info};
+use mcp_client::transport::stdio::StdioTransport;
 use mcp_client::transport::stdio::StdioTransportHandle;
 use mcp_client::{
-    ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, StdioTransport,
-    Transport,
+    ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport,
 };
 use mcp_core::Tool;
 use serde_json::{json, Value};
@@ -14,9 +13,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-
-use super::process_manager::ProcessManager;
-
 /// MCPState: the main service layer
 ///
 /// This module coordinates database operations, process management, and discovered tools.
@@ -25,18 +21,16 @@ use super::process_manager::ProcessManager;
 #[derive(Clone)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
-    pub process_manager: Arc<RwLock<ProcessManager>>,
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
     pub clients: Arc<RwLock<HashMap<String, Arc<dyn McpClientTrait + Send + Sync>>>>,
     pub transport_manager: Arc<
         RwLock<HashMap<String, Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>>>,
     >,
-    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
 }
 
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
-        process_manager: Arc<RwLock<ProcessManager>>,
         server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
         clients: Arc<RwLock<HashMap<String, Arc<dyn McpClientTrait + Send + Sync>>>>,
         transport_manager: Arc<
@@ -47,7 +41,6 @@ impl MCPState {
     ) -> Self {
         Self {
             tool_registry,
-            process_manager,
             server_tools,
             clients,
             transport_manager,
@@ -57,7 +50,19 @@ impl MCPState {
     /// Kill all running processes
     pub async fn kill_all_processes(&self) {
         for transport in self.transport_manager.read().await.values() {
-            transport.close().await;
+            let _ = transport.close().await;
+        }
+    }
+
+    /// Kill a process by its ID
+    pub async fn kill_process(&self, server_id: &str) {
+        let transport = self.transport_manager.read().await.get(server_id).cloned();
+        if let Some(transport) = transport {
+            let _ = transport.close().await;
+            self.transport_manager.write().await.remove(server_id);
+            self.clients.write().await.remove(server_id);
+            self.server_tools.write().await.remove(server_id);
+            let _ = self.tool_registry.write().await.delete_server(server_id);
         }
     }
 
@@ -106,7 +111,7 @@ impl MCPState {
         }
 
         let client = self.clients.read().await.get(server_id).cloned();
-        if let Some(client) = client {
+        if let Some(_client) = client {
             info!("Successfully got client for server: {}", server_id);
             return Ok(());
         } else {
@@ -258,71 +263,5 @@ impl MCPState {
             info!("No client found for server: {}", server_id);
             return Err(format!("No client found for server: {}", server_id));
         }
-    }
-}
-
-#[async_trait]
-pub trait McpStateProcessMonitor {
-    async fn start_process_monitor(self);
-}
-
-#[async_trait]
-impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
-    // Start a background task that periodically checks if processes are running
-    async fn start_process_monitor(self) {
-        info!("Starting process monitor task");
-
-        let self_clone_read_guard = self.read().await;
-        let tool_registry = self_clone_read_guard.tool_registry.clone();
-        let process_manager = self_clone_read_guard.process_manager.clone();
-        drop(self_clone_read_guard);
-
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-
-            loop {
-                interval.tick().await;
-
-                // Get all tools from database
-                let tools_result = {
-                    let registry = tool_registry.read().await;
-                    registry.get_all_servers()
-                };
-
-                let tools = match tools_result {
-                    Ok(tools) => tools,
-                    Err(e) => {
-                        error!("Failed to get tools from database: {}", e);
-                        continue;
-                    }
-                };
-
-                // Check all enabled tools
-                for (id_str, tool) in tools {
-                    if tool.enabled {
-                        // Check if process is running
-                        let process_running = {
-                            let process_manager = process_manager.read().await;
-                            process_manager
-                                .processes
-                                .get(&id_str)
-                                .is_some_and(|(p, status)| {
-                                    matches!(status, ServerStatus::Running) && p.is_some()
-                                })
-                        };
-
-                        if !process_running {
-                            warn!("Process for tool {} is not running but should be. Will attempt restart.", id_str);
-                            let self_clone_write_guard = self.write().await;
-                            if let Err(e) = self_clone_write_guard.restart_server(&id_str).await {
-                                error!("Failed to restart tool {}: {}", id_str, e);
-                            } else {
-                                info!("Successfully restarted tool: {}", id_str);
-                            }
-                        }
-                    }
-                }
-            }
-        });
     }
 }

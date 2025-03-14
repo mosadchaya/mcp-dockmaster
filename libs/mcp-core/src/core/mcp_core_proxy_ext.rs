@@ -1,5 +1,3 @@
-use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
-use crate::mcp_state::mcp_state_process_utils::kill_process;
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
@@ -10,13 +8,12 @@ use crate::models::types::{
 use crate::utils::github::{
     extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
 };
-use crate::MCPError;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use toml::Table;
 
@@ -140,7 +137,7 @@ impl McpCoreProxyExt for MCPCore {
         for (id, tool_struct) in tool_map {
             let status = {
                 let clients = mcp_state.clients.read().await;
-                if let Some(client) = clients.get(&id) {
+                if let Some(_client) = clients.get(&id) {
                     ServerStatus::Running
                 } else {
                     ServerStatus::Stopped
@@ -201,18 +198,23 @@ impl McpCoreProxyExt for MCPCore {
         Ok(tools
             .tools
             .iter()
-            .map(|t| ServerToolInfo {
-                id: t.name.clone(),
-                name: t.name.clone(),
-                description: t.description.clone(),
-                server_id: request.server_id.clone(),
-                proxy_id: Some(request.server_id.clone()),
-                is_active: true,
-                input_schema: if t.input_schema.is_object() {
-                    serde_json::from_value(t.input_schema.clone()).ok()
+            .map(|t| {
+                let input_schema = if t.input_schema.is_object() {
+                    let schema_clone = t.input_schema.clone();
+                    serde_json::from_value(schema_clone).ok()
                 } else {
                     None
-                },
+                };
+
+                ServerToolInfo {
+                    id: t.name.clone(),
+                    name: t.name.clone(),
+                    description: t.description.clone(),
+                    server_id: request.server_id.clone(),
+                    proxy_id: Some(request.server_id.clone()),
+                    is_active: true,
+                    input_schema,
+                }
             })
             .collect())
     }
@@ -234,42 +236,22 @@ impl McpCoreProxyExt for MCPCore {
         let tool_id = parts[1];
 
         // Execute the tool on the server
-        let mut process_manager = mcp_state.process_manager.write().await;
-
-        // Check if the server exists
-        let result = if !process_manager.process_ios.contains_key(server_id) {
-            Err(MCPError::ServerNotFound(server_id.to_string()))
-        } else {
-            // Get stdin/stdout for the server
-            let (stdin, stdout) = process_manager.process_ios.get_mut(server_id).unwrap();
-
-            // Execute the tool
-
-            execute_server_tool(
-                server_id,
-                tool_id,
-                request.parameters.clone(),
-                stdin,
-                stdout,
-            )
-            .await
+        let clients_guard = mcp_state.clients.read().await;
+        let client = clients_guard.get(server_id);
+        if client.is_none() {
+            return Err(format!("Server with ID '{}' not found", server_id));
+        }
+        let client = client.unwrap();
+        let result = match client.call_tool(tool_id, request.parameters.clone()).await {
+            Ok(result) => result,
+            Err(e) => return Err(format!("Tool execution error: {}", e)),
         };
 
-        // Release the lock
-        drop(process_manager);
-
-        match result {
-            Ok(result) => Ok(ToolExecutionResponse {
-                success: true,
-                result: Some(result),
-                error: None,
-            }),
-            Err(e) => Ok(ToolExecutionResponse {
-                success: false,
-                result: None,
-                error: Some(e.to_string()),
-            }),
-        }
+        Ok(ToolExecutionResponse {
+            success: true,
+            result: Some(serde_json::to_value(result).unwrap()),
+            error: None,
+        })
     }
 
     /// Update a tool's status (enabled/disabled)
@@ -292,14 +274,8 @@ impl McpCoreProxyExt for MCPCore {
                 let tools_type = tool.tools_type.clone();
                 let entry_point = tool.entry_point.clone().unwrap_or_default();
                 let status = {
-                    let process_manager = mcp_state.process_manager.read().await;
-                    if process_manager
-                        .processes
-                        .get(&request.server_id)
-                        .is_some_and(|(p, status)| {
-                            matches!(status, ServerStatus::Running) && p.is_some()
-                        })
-                    {
+                    let clients = mcp_state.clients.read().await;
+                    if let Some(_client) = clients.get(&request.server_id) {
                         ServerStatus::Running
                     } else {
                         ServerStatus::Stopped
@@ -332,18 +308,7 @@ impl McpCoreProxyExt for MCPCore {
 
         let result = if request.enabled {
             // If enabling, first set status to Starting
-            {
-                let mcp_state = self.mcp_state.read().await;
-                let mut process_manager = mcp_state.process_manager.write().await;
-                // Set status to Starting before restart
-                process_manager
-                    .processes
-                    .insert(request.server_id.clone(), (None, ServerStatus::Starting));
-                info!(
-                    "Updated status to Starting for server: {}",
-                    request.server_id
-                );
-            }
+            let _mcp_state = self.mcp_state.read().await;
 
             // Then restart the server
             let restart_result = {
@@ -354,39 +319,38 @@ impl McpCoreProxyExt for MCPCore {
             // After restart, attempt to discover tools only if restart was successful
             if restart_result.is_ok() {
                 let mcp_state = self.mcp_state.read().await;
-                let mut process_manager = mcp_state.process_manager.write().await;
 
-                if let Some((stdin, stdout)) =
-                    process_manager.process_ios.get_mut(&request.server_id)
-                {
-                    match discover_server_tools(&request.server_id, stdin, stdout).await {
-                        Ok(tools) => {
-                            // Update tools and status in separate scoped blocks to minimize lock duration
-                            {
-                                let mut server_tools = mcp_state.server_tools.write().await;
-                                server_tools.insert(request.server_id.clone(), tools);
-                            }
-
-                            // Update process status
-                            if let Some((child_opt, _)) =
-                                process_manager.processes.remove(&request.server_id)
-                            {
-                                process_manager.processes.insert(
-                                    request.server_id.clone(),
-                                    (child_opt, ServerStatus::Running),
-                                );
-                                info!(
-                                    "Updated status to Running for server: {}",
-                                    request.server_id
-                                );
-                            }
+                match mcp_state.discover_server_tools(&request.server_id).await {
+                    Ok(tools) => {
+                        // Update tools and status in separate scoped blocks to minimize lock duration
+                        {
+                            let mut server_tools = mcp_state.server_tools.write().await;
+                            // Convert Vec<Tool> to Vec<ServerToolInfo>
+                            let server_tool_infos: Vec<ServerToolInfo> = tools
+                                .into_iter()
+                                .map(|tool| ServerToolInfo {
+                                    id: tool.name.clone(),
+                                    name: tool.name.clone(),
+                                    description: tool.description.clone(),
+                                    server_id: request.server_id.clone(),
+                                    proxy_id: Some(request.server_id.clone()),
+                                    is_active: true,
+                                    input_schema: if tool.input_schema.is_object() {
+                                        let schema_clone = tool.input_schema.clone();
+                                        serde_json::from_value(schema_clone).ok()
+                                    } else {
+                                        None
+                                    },
+                                })
+                                .collect();
+                            server_tools.insert(request.server_id.clone(), server_tool_infos);
                         }
-                        Err(e) => {
-                            error!(
-                                "Failed to discover tools for server {}: {}",
-                                request.server_id, e
-                            );
-                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to discover tools for server {}: {}",
+                            request.server_id, e
+                        );
                     }
                 }
             }
@@ -394,32 +358,7 @@ impl McpCoreProxyExt for MCPCore {
         } else {
             // If disabling, shut down the server
             let mcp_state = self.mcp_state.read().await;
-
-            // First handle process shutdown
-            {
-                let mut process_manager = mcp_state.process_manager.write().await;
-                if let Some((Some(process), _status)) =
-                    process_manager.processes.get_mut(&request.server_id)
-                {
-                    // Kill the process
-                    if let Err(e) = kill_process(process).await {
-                        return Ok(ToolUpdateResponse {
-                            success: false,
-                            message: format!("Failed to kill process: {}", e),
-                        });
-                    }
-                    // Remove process and IOs from process manager
-                    process_manager.processes.remove(&request.server_id);
-                    process_manager.process_ios.remove(&request.server_id);
-                }
-            }
-
-            // Then clean up server tools in a separate lock scope
-            {
-                let mut server_tools = mcp_state.server_tools.write().await;
-                server_tools.remove(&request.server_id);
-            }
-
+            mcp_state.kill_process(&request.server_id).await;
             Ok(())
         };
 
@@ -550,26 +489,7 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         // Kill the process if it's running
-        let mut process_manager = mcp_state.process_manager.write().await;
-        if let Some((Some(process), _status)) =
-            process_manager.processes.get_mut(&request.server_id)
-        {
-            if let Err(e) = kill_process(process).await {
-                return Ok(ServerUninstallResponse {
-                    success: false,
-                    message: format!("Failed to kill process: {}", e),
-                });
-            }
-        }
-
-        // Remove the process and IOs from the process manager
-        process_manager.processes.remove(&request.server_id);
-        process_manager.process_ios.remove(&request.server_id);
-        drop(process_manager);
-
-        // Remove server tools
-        let mut server_tools = mcp_state.server_tools.write().await;
-        server_tools.remove(&request.server_id);
+        mcp_state.kill_process(&request.server_id).await;
 
         // Delete the tool using registry's delete_tool method
         if let Err(e) = registry.delete_server(&request.server_id) {
