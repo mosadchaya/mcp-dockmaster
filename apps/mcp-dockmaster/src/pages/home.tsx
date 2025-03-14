@@ -565,7 +565,6 @@ const Home: React.FC = () => {
           </CollapsibleContent>
         </Collapsible>
       </div>
-      </div>
 
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
         <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col">
