@@ -2,17 +2,27 @@ use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
 use log::{error, info};
-use mcp_client::transport::stdio::StdioTransport;
-use mcp_client::transport::stdio::StdioTransportHandle;
-use mcp_client::{
+use mcp_sdk_client::transport::stdio::StdioTransport;
+use mcp_sdk_client::transport::stdio::StdioTransportHandle;
+use mcp_sdk_client::{
     ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport,
 };
-use mcp_core::Tool;
+use mcp_sdk_core::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+
+/// Type alias for a transport that uses StdioTransportHandle
+pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
+
+/// Type alias for the transport manager
+pub type TransportManagerType = Arc<RwLock<HashMap<String, StdioTransportType>>>;
+
+/// Type alias for McpClient trait objects
+pub type McpClientType = Arc<dyn McpClientTrait + Send + Sync>;
+
 /// MCPState: the main service layer
 ///
 /// This module coordinates database operations, process management, and discovered tools.
@@ -22,22 +32,16 @@ use tokio::sync::RwLock;
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
-    pub clients: Arc<RwLock<HashMap<String, Arc<dyn McpClientTrait + Send + Sync>>>>,
-    pub transport_manager: Arc<
-        RwLock<HashMap<String, Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>>>,
-    >,
+    pub clients: Arc<RwLock<HashMap<String, McpClientType>>>,
+    pub transport_manager: TransportManagerType,
 }
 
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
         server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
-        clients: Arc<RwLock<HashMap<String, Arc<dyn McpClientTrait + Send + Sync>>>>,
-        transport_manager: Arc<
-            RwLock<
-                HashMap<String, Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>>,
-            >,
-        >,
+        clients: Arc<RwLock<HashMap<String, McpClientType>>>,
+        transport_manager: TransportManagerType,
     ) -> Self {
         Self {
             tool_registry,
@@ -113,7 +117,7 @@ impl MCPState {
         let client = self.clients.read().await.get(server_id).cloned();
         if let Some(_client) = client {
             info!("Successfully got client for server: {}", server_id);
-            return Ok(());
+            Ok(())
         } else {
             // Check if the tool is enabled
             if !server_data.enabled {
@@ -219,7 +223,7 @@ impl MCPState {
 
             info!("Successfully initialized client for server: {}", server_id);
 
-            return Ok(());
+            Ok(())
         }
     }
 
@@ -258,10 +262,10 @@ impl MCPState {
                 }
             }
 
-            return Ok(tools);
+            Ok(tools)
         } else {
             info!("No client found for server: {}", server_id);
-            return Err(format!("No client found for server: {}", server_id));
+            Err(format!("No client found for server: {}", server_id))
         }
     }
 }
