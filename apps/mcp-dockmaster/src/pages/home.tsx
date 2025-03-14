@@ -71,9 +71,7 @@ const Home: React.FC = () => {
 
   const [isChecking, setIsChecking] = useState(false);
 
-  const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
-  const [cursorConfig, setCursorConfig] = useState<string | null>(null);
-  const [genericConfig, setGenericConfig] = useState<string | null>(null);
+  // State variables for UI components
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
   const [isEnvDetailsOpen, setIsEnvDetailsOpen] = useState(true);
@@ -82,11 +80,6 @@ const Home: React.FC = () => {
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
-  } | null>(null);
-  const [showConfigDialog, setShowConfigDialog] = useState(false);
-  const [configDialogContent, setConfigDialogContent] = useState<{
-    title: string;
-    config: string;
   } | null>(null);
 
   const checkInstalled = async () => {
@@ -208,28 +201,18 @@ const Home: React.FC = () => {
   };
 
   useEffect(() => {
+    // Simplified config fetching since we're not using the configs in this view
     const fetchConfigs = async () => {
       try {
-        const [claudeResult, cursorResult, genericResult] = await Promise.allSettled([
+        // Check if configs can be fetched but don't store them
+        const results = await Promise.allSettled([
           invoke<string>("get_claude_config"),
           invoke<string>("get_cursor_config"),
           invoke<string>("get_generic_config")
         ]);
         
-        if (claudeResult.status === 'fulfilled' && claudeResult.value) {
-          setClaudeConfig(claudeResult.value);
-        }
-        if (cursorResult.status === 'fulfilled' && cursorResult.value) {
-          setCursorConfig(cursorResult.value);
-        }
-        if (genericResult.status === 'fulfilled' && genericResult.value) {
-          setGenericConfig(genericResult.value);
-        }
-
         // If all configs failed, show error
-        if (claudeResult.status === 'rejected' && 
-            cursorResult.status === 'rejected' && 
-            genericResult.status === 'rejected') {
+        if (results.every(result => result.status === 'rejected')) {
           toast.error("Failed to fetch all configurations");
         }
       } catch (error) {
@@ -653,34 +636,7 @@ const Home: React.FC = () => {
         </div>
       </div>
 
-      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {configDialogContent?.title} Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Use this configuration to connect {configDialogContent?.title} to
-              your MCP servers:
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto">
-            <pre className="rounded-md bg-black p-4 text-sm text-white">
-              <code className="break-words whitespace-pre-wrap">
-                {configDialogContent?.config}
-              </code>
-            </pre>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowConfigDialog(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Config dialog removed as it's not being used in this view */}
 
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
