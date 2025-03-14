@@ -13,6 +13,8 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "../components/ui/badge";
@@ -25,6 +27,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "../components/ui/collapsible";
 import { checkClaude, checkCursor, isProcessRunning } from "../lib/process";
 
 interface PrerequisiteStatus {
@@ -66,6 +73,9 @@ const Home: React.FC = () => {
   const [claudeConfig, setClaudeConfig] = useState<string | null>(null);
   const [cursorConfig, setCursorConfig] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isGettingStartedOpen, setIsGettingStartedOpen] = useState(true);
+  const [isIntegrationOpen, setIsIntegrationOpen] = useState(true);
+  const [isRunnerEnvOpen, setIsRunnerEnvOpen] = useState(true);
   const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
     title: string;
     onConfirm: () => Promise<void>;
@@ -254,9 +264,25 @@ const Home: React.FC = () => {
       </div>
       
       <div className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-lg font-medium">Getting Started</h2>
-          <div className="space-y-4">
+        <Collapsible
+          open={isGettingStartedOpen}
+          onOpenChange={setIsGettingStartedOpen}
+          className="space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Getting Started</h2>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-9 p-0">
+                {isGettingStartedOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <span className="sr-only">Toggle section</span>
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <span>1</span>
@@ -319,165 +345,69 @@ const Home: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
-          <p className="text-muted-foreground text-sm">
-            Using the proxy tool, you will be able to integrate with MCP clients
-            like Claude offering all the tools you configure in MCP Dockmaster.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            {mcpClients.map((client) => (
-              <div
-                key={client.name}
-                className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full",
-                      client.installed && "bg-green-500/10",
-                      !client.installed && "bg-red-500/10",
-                    )}
-                  >
-                    <img
-                      src={client.icon}
-                      alt={client.name}
-                      className="h-5 w-5"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{client.name}</p>
-                    <button
-                      onClick={() =>
-                        openInstallUrl(client.name as "Claude" | "Cursor")
-                      }
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-col items-center gap-2 mt-3">
-                  <span className="status-indicator">
-                    {client.installed ? (
-                      <Badge className="bg-green-500 text-white hover:bg-green-600">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="border-red-500 bg-red-500/10 text-red-500"
-                      >
-                        Inactive
-                      </Badge>
-                    )}
-                  </span>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const config =
-                          client.name === "Claude" ? claudeConfig : cursorConfig;
-                        if (config) {
-                          setConfigDialogContent({
-                            title: client.name,
-                            config: config,
-                          });
-                          setShowConfigDialog(true);
-                        }
-                      }}
-                    >
-                      Show Config
-                    </Button>
-                    {client.is_running && client.installed && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          const isRunning = await isProcessRunning(client.name);
-                          if (isRunning) {
-                            await restartProcess(client.name);
-                            toast.success(`${client.name} restarted successfully!`);
-                          }
-                        }}
-                      >
-                        Restart
-                      </Button>
-                    )}
-                    {!client.installed && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          handleInstallClick(client.name as "Claude" | "Cursor")
-                        }
-                      >
-                        Install
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-lg font-medium">Runner Environment Support</h2>
-          <p className="text-muted-foreground text-sm">
-            The following tools are required to run MCP Dockmaster.
-          </p>
-        </div>
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            {prerequisites.map((prerequisite) => (
-              <div
-                key={prerequisite.name}
-                className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full",
-                      prerequisite.installed && "bg-green-500/10",
-                      !prerequisite.installed && "bg-red-500/10",
-                    )}
-                  >
-                    <img
-                      src={prerequisite.icon}
-                      alt={prerequisite.name}
-                      className="h-5 w-5"
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium">{prerequisite.name}</p>
-                    <p className="text-muted-foreground text-sm">
-                      {prerequisite.installed
-                        ? "Installed and running"
-                        : "Not installed or not running"}
-                    </p>
-                  </div>
-                </div>
-                {prerequisite.loading ? (
-                  <div className="flex items-center gap-2 mt-3">
-                    <span className="loading-indicator">Checking...</span>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
+        <Collapsible
+          open={isIntegrationOpen}
+          onOpenChange={setIsIntegrationOpen}
+          className="space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Integrate with MCP Clients</h2>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-9 p-0">
+                {isIntegrationOpen ? (
+                  <ChevronDown className="h-4 w-4" />
                 ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <span className="sr-only">Toggle section</span>
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              Using the proxy tool, you will be able to integrate with MCP clients
+              like Claude offering all the tools you configure in MCP Dockmaster.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {mcpClients.map((client) => (
+                <div
+                  key={client.name}
+                  className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-full",
+                        client.installed && "bg-green-500/10",
+                        !client.installed && "bg-red-500/10",
+                      )}
+                    >
+                      <img
+                        src={client.icon}
+                        alt={client.name}
+                        className="h-5 w-5"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{client.name}</p>
+                      <button
+                        onClick={() =>
+                          openInstallUrl(client.name as "Claude" | "Cursor")
+                        }
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex flex-col items-center gap-2 mt-3">
                     <span className="status-indicator">
-                      {prerequisite.installed ? (
+                      {client.installed ? (
                         <Badge className="bg-green-500 text-white hover:bg-green-600">
                           Active
                         </Badge>
@@ -490,29 +420,156 @@ const Home: React.FC = () => {
                         </Badge>
                       )}
                     </span>
-                    {!prerequisite.installed && (
+                    <div className="flex items-center gap-2 mt-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="mt-2"
-                        onClick={() =>
-                          openInstallUrl(
-                            prerequisite.name as
-                              | "Node.js"
-                              | "UV (Python)"
-                              | "Docker",
-                          )
-                        }
+                        onClick={() => {
+                          const config =
+                            client.name === "Claude" ? claudeConfig : cursorConfig;
+                          if (config) {
+                            setConfigDialogContent({
+                              title: client.name,
+                              config: config,
+                            });
+                            setShowConfigDialog(true);
+                          }
+                        }}
                       >
-                        Install
+                        Show Config
                       </Button>
-                    )}
+                      {client.is_running && client.installed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            const isRunning = await isProcessRunning(client.name);
+                            if (isRunning) {
+                              await restartProcess(client.name);
+                              toast.success(`${client.name} restarted successfully!`);
+                            }
+                          }}
+                        >
+                          Restart
+                        </Button>
+                      )}
+                      {!client.installed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleInstallClick(client.name as "Claude" | "Cursor")
+                          }
+                        >
+                          Install
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+
+      <div className="space-y-4">
+        <Collapsible
+          open={isRunnerEnvOpen}
+          onOpenChange={setIsRunnerEnvOpen}
+          className="space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Runner Environment Support</h2>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-9 p-0">
+                {isRunnerEnvOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
                 )}
-              </div>
-            ))}
+                <span className="sr-only">Toggle section</span>
+              </Button>
+            </CollapsibleTrigger>
           </div>
-        </div>
+          <CollapsibleContent className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              The following tools are required to run MCP Dockmaster.
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              {prerequisites.map((prerequisite) => (
+                <div
+                  key={prerequisite.name}
+                  className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-full",
+                        prerequisite.installed && "bg-green-500/10",
+                        !prerequisite.installed && "bg-red-500/10",
+                      )}
+                    >
+                      <img
+                        src={prerequisite.icon}
+                        alt={prerequisite.name}
+                        className="h-5 w-5"
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className="font-medium">{prerequisite.name}</p>
+                      <p className="text-muted-foreground text-sm">
+                        {prerequisite.installed
+                          ? "Installed and running"
+                          : "Not installed or not running"}
+                      </p>
+                    </div>
+                  </div>
+                  {prerequisite.loading ? (
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className="loading-indicator">Checking...</span>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 mt-3">
+                      <span className="status-indicator">
+                        {prerequisite.installed ? (
+                          <Badge className="bg-green-500 text-white hover:bg-green-600">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-red-500 bg-red-500/10 text-red-500"
+                          >
+                            Inactive
+                          </Badge>
+                        )}
+                      </span>
+                      {!prerequisite.installed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() =>
+                            openInstallUrl(
+                              prerequisite.name as
+                                | "Node.js"
+                                | "UV (Python)"
+                                | "Docker",
+                            )
+                          }
+                        >
+                          Install
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
