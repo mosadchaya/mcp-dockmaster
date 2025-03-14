@@ -869,7 +869,7 @@ const InstalledServers: React.FC = () => {
                     <input
                       id={`env-${key}`}
                       type="text"
-                      value={envVarValues[key] || defaultValue || ""}
+                      value={envVarValues[key] ?? defaultValue ?? ""}
                       onChange={(e) => handleEnvVarChange(key, e.target.value)}
                       placeholder={description || key}
                     />
