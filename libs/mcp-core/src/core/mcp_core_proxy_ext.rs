@@ -195,28 +195,25 @@ impl McpCoreProxyExt for MCPCore {
             ));
         }
         let tools = tools.unwrap();
-        Ok(tools
+        let tools_info: Vec<ServerToolInfo> = tools
             .tools
             .iter()
-            .map(|t| {
-                let input_schema = if t.input_schema.is_object() {
-                    let schema_clone = t.input_schema.clone();
-                    serde_json::from_value(schema_clone).ok()
-                } else {
-                    None
-                };
-
-                ServerToolInfo {
-                    id: t.name.clone(),
-                    name: t.name.clone(),
-                    description: t.description.clone(),
-                    server_id: request.server_id.clone(),
-                    proxy_id: Some(request.server_id.clone()),
-                    is_active: true,
-                    input_schema,
-                }
+            .map(|t| ServerToolInfo {
+                id: t.name.clone(),
+                name: t.name.clone(),
+                description: t.description.clone(),
+                server_id: request.server_id.clone(),
+                proxy_id: Some(request.server_id.clone()),
+                is_active: true,
+                input_schema: serde_json::from_value(t.input_schema.clone()).unwrap_or_default(),
             })
-            .collect())
+            .collect();
+
+        let mut server_tools = mcp_state.server_tools.write().await;
+        server_tools.insert(request.server_id.clone(), tools_info.clone());
+        drop(server_tools);
+
+        Ok(tools_info)
     }
 
     /// Execute a tool from an MCP server
