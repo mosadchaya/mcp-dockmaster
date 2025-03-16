@@ -50,13 +50,11 @@ impl MCPCore {
         let tool_registry = ServerRegistry::with_db_manager(db_manager.clone());
         let tool_registry_arc = Arc::new(RwLock::new(tool_registry));
         let server_tools_arc = Arc::new(RwLock::new(HashMap::new()));
-        let clients_arc = Arc::new(RwLock::new(HashMap::new()));
-        let transport_manager_arc = Arc::new(RwLock::new(HashMap::new()));
+        let mcp_clients_arc = Arc::new(RwLock::new(HashMap::new()));
         let mcp_state_arc = Arc::new(RwLock::new(MCPState::new(
             tool_registry_arc.clone(),
             server_tools_arc.clone(),
-            clients_arc.clone(),
-            transport_manager_arc.clone(),
+            mcp_clients_arc.clone(),
         )));
         Self {
             proxy_server_binary_path,

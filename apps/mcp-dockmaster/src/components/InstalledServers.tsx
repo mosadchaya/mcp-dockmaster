@@ -328,6 +328,10 @@ const InstalledServers: React.FC = () => {
       if (response.success) {
         // Dispatch event that a server's status was changed
         dispatchServerStatusChanged(id);
+
+        // Refresh the list of all server tools
+        const allServerTools = await MCPClient.listAllServerTools();
+        setServerTools(allServerTools);
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to update server status:", response.message);
@@ -348,7 +352,7 @@ const InstalledServers: React.FC = () => {
       console.error("Error toggling server status:", error);
       // Refresh the list to ensure UI is in sync with backend
       loadData();
-      
+
       // Clear all transitioning servers on error
       setTransitioningServers(new Set());
     }
@@ -363,8 +367,10 @@ const InstalledServers: React.FC = () => {
     }
 
     try {
-      const tools = await MCPClient.discoverTools({ server_id: serverId });
-      console.log("Tools discovered:", tools);
+      const server = servers.find((s) => s.id === serverId);
+      if (server?.status === 'running') {
+        await MCPClient.discoverTools({ server_id: serverId });
+      }
       
       // Update only the server tools without reloading all servers
       // This prevents unnecessary reordering of servers
