@@ -162,22 +162,37 @@ impl MCPState {
                     server_id
                 );
                 mcp_client.server_status = ServerStatus::Running;
-                match self.discover_server_tools(server_id).await {
-                    Ok(tools) => {
-                        info!(
-                            "[restart server] Successfully discovered {} tools for {}",
-                            tools.len(),
-                            server_id
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            "[restart server] Failed to discover tools for server: {}",
-                            e
-                        );
-                    }
+            }
+
+            // Release the write lock before calling discover_server_tools
+            drop(mcp_clients);
+
+            // Add more detailed logging
+            info!(
+                "[restart server] About to call discover_server_tools for {}",
+                server_id
+            );
+
+            match self.discover_server_tools(server_id).await {
+                Ok(tools) => {
+                    info!(
+                        "[restart server] Successfully discovered {} tools for {}",
+                        tools.len(),
+                        server_id
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        "[restart server] Failed to discover tools for server: {}",
+                        e
+                    );
                 }
             }
+
+            info!(
+                "[restart server] Completed discover_server_tools call for {}",
+                server_id
+            );
             return Ok(());
         }
 
@@ -302,6 +317,11 @@ impl MCPState {
         &self,
         server_id: &str,
     ) -> Result<Vec<ServerToolInfo>, String> {
+        info!(
+            "[discover_tools] Starting discovery for server: {}",
+            server_id
+        );
+
         let mcp_client = self.mcp_clients.read().await.get(server_id).cloned();
         if let Some(mcp_client) = mcp_client {
             info!(
@@ -311,11 +331,19 @@ impl MCPState {
 
             match mcp_client.server_status {
                 ServerStatus::Running => {
-                    let list_tools = mcp_client
-                        .client
-                        .list_tools(None)
-                        .await
-                        .map_err(|e| e.to_string())?;
+                    info!("Server status is Running, about to call list_tools");
+
+                    let list_tools = match mcp_client.client.list_tools(None).await {
+                        Ok(result) => {
+                            info!("mcp_client: list_tools call succeeded");
+                            result
+                        }
+                        Err(e) => {
+                            error!("mcp_client: list_tools call failed: {}", e);
+                            return Err(e.to_string());
+                        }
+                    };
+
                     let tools = list_tools.tools;
                     info!(
                         "Successfully discovered {} tools for {}",

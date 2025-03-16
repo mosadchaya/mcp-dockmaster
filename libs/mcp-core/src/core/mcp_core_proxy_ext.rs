@@ -115,8 +115,11 @@ impl McpCoreProxyExt for MCPCore {
             let mcp_state = mcp_state_clone.write().await;
             let mut server_tools = mcp_state.server_tools.write().await;
             server_tools.insert(server_id.clone(), Vec::new());
-            let _ = mcp_state.restart_server(&server_id).await;
-        }
+        } // All locks are released at this point
+
+        // Now call restart_server after the locks have been released
+        let mcp_state = mcp_state_clone.read().await;
+        let _ = mcp_state.restart_server(&server_id).await;
 
         info!("Tool registration completed for: {}", request.server_name);
         Ok(ServerRegistrationResponse {
