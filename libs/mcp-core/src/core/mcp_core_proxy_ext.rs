@@ -207,6 +207,12 @@ impl McpCoreProxyExt for MCPCore {
             return Err(format!("Server with ID '{}' not found", server_id));
         }
         let mcp_client = mcp_client.unwrap();
+
+        // Check if server is stopped
+        // if matches!(mcp_client.server_status, ServerStatus::Stopped) {
+        //     return Err(format!("Server '{}' is stopped", server_id));
+        // }
+
         let result = match mcp_client
             .client
             .call_tool(tool_id, request.parameters.clone())

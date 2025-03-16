@@ -209,4 +209,133 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_server_lifecycle_management() -> Result<(), String> {
+        // Create a unique database path for this test
+        use tempfile::tempdir;
+
+        init_logging();
+        let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {}", e))?;
+        let db_path = temp_dir.path().join("test_server_lifecycle.db");
+
+        // Initialize MCP Core
+        let mcp_core = MCPCore::new(db_path, path::absolute("mcp-proxy-server").unwrap());
+        mcp_core.init().await.map_err(|e| {
+            let message = format!("error initializing mcp core: {:?}", e);
+            eprintln!("{}", message);
+            message
+        })?;
+
+        // Get the absolute path to the script
+        let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
+        let script_path = current_dir
+            .join("../../dist/apps/mcp-server-hello-world/index.js")
+            .to_string_lossy()
+            .into_owned();
+
+        // Register a new server
+        let registration_request = ServerRegistrationRequest {
+            server_id: "lifecycle_test".to_string(),
+            server_name: "Lifecycle Test Server".to_string(),
+            description: "A server for testing lifecycle management".to_string(),
+            tools_type: "node".to_string(),
+            configuration: Some(ServerConfiguration {
+                command: Some("node".to_string()),
+                args: Some(vec![
+                    "--experimental-modules".to_string(),
+                    "--no-warnings".to_string(),
+                    script_path.clone(),
+                ]),
+                env: None,
+            }),
+            distribution: None,
+        };
+
+        // Register the server
+        let response = mcp_core.register_server(registration_request).await?;
+        let server_id = response.tool_id.ok_or("No server ID returned")?;
+
+        // Verify server is running by executing a command
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", server_id, "hello_world"),
+            parameters: json!({}),
+        };
+        let result = mcp_core.execute_proxy_tool(request).await?;
+        assert!(result.success, "Initial server execution failed");
+
+        println!("Server is running");
+
+        // Stop the server
+        let stop_request = ServerUpdateRequest {
+            server_id: server_id.clone(),
+            enabled: false,
+        };
+        let stop_result = mcp_core.update_server_status(stop_request).await?;
+        assert!(stop_result.success, "Failed to stop server");
+        println!("Stop result: {:?}", stop_result);
+
+        // Poll for up to 5 seconds to verify the server has stopped
+        let start_time = std::time::Instant::now();
+        let timeout = std::time::Duration::from_secs(5);
+        let check_interval = std::time::Duration::from_millis(500);
+
+        loop {
+            let request = ToolExecutionRequest {
+                tool_id: format!("{}:{}", server_id, "hello_world"),
+                parameters: json!({}),
+            };
+
+            match mcp_core.execute_proxy_tool(request).await {
+                Ok(_) => {
+                    // Server is still running
+                    if start_time.elapsed() >= timeout {
+                        return Err("Server did not stop within 5 seconds timeout".to_string());
+                    }
+                    tokio::time::sleep(check_interval).await;
+                    continue;
+                }
+                Err(_) => {
+                    // Server has stopped
+                    println!(
+                        "Server successfully stopped after {:?}",
+                        start_time.elapsed()
+                    );
+                    break;
+                }
+            }
+        }
+
+        // Verify server is stopped by attempting to execute a command (one final check)
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", server_id, "hello_world"),
+            parameters: json!({}),
+        };
+        let result = mcp_core.execute_proxy_tool(request).await;
+        assert!(
+            result.is_err(),
+            "Server should be stopped but is still responding"
+        );
+
+        // Restart the server
+        let start_request = ServerUpdateRequest {
+            server_id: server_id.clone(),
+            enabled: true,
+        };
+        let start_result = mcp_core.update_server_status(start_request).await?;
+        assert!(start_result.success, "Failed to restart server");
+
+        // Verify server is running again
+        let request = ToolExecutionRequest {
+            tool_id: format!("{}:{}", server_id, "hello_world"),
+            parameters: json!({}),
+        };
+        let result = mcp_core.execute_proxy_tool(request).await?;
+        assert!(result.success, "Server did not restart successfully");
+
+        // Cleanup
+        let _ = mcp_core.kill_all_processes().await;
+
+        Ok(())
+    }
 }
