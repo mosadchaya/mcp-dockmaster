@@ -9,13 +9,13 @@ use crate::core::mcp_core::MCPCore;
 
 use super::handlers::{handle_mcp_request, health_check};
 
-pub async fn start_http_server(mcp_core: MCPCore) -> Result<(), String> {
+pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
     let app = Router::new()
         .route("/mcp-proxy", post(handle_mcp_request))
         .route("/health", get(health_check))
         .layer(Extension(mcp_core));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     info!("MCP HTTP server starting on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr)

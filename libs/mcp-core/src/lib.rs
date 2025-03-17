@@ -26,12 +26,18 @@ pub use mcp_server::{
 
 // Re-export Tool from external mcp-core
 pub use mcp_core::{Tool, ToolCall};
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+pub use mcp_sdk_core::{Tool, ToolCall};
 
 // Initialize logging
 pub fn init_logging() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+            .format_timestamp_secs()
+            .init();
 
-    log::info!("MCP Dockmaster Core library initialized");
+        log::info!("MCP Core library initialized");
+    });
 }

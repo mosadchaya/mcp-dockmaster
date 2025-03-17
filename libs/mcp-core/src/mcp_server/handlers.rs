@@ -1,16 +1,17 @@
 use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::{Value};
-use log::{error};
 use std::future::Future;
 use std::pin::Pin;
-use tokio::runtime::Handle;
+use log::info;
 
-// Re-export types from mcp-server and mcp-core
-pub use mcp_server::{
-    RouterError
-};
-pub use mcp_core::{Tool, ToolCall};
+// Import SDK modules
+use mcp_sdk_core::{Tool, Content, Resource};
+use mcp_sdk_core::protocol;
+use mcp_sdk_core::handler::{ToolError, ResourceError, PromptError};
+use mcp_sdk_core::prompt;
+use mcp_sdk_server::{Router, Server, ByteTransport};
+use mcp_sdk_server::router::{RouterService, CapabilitiesBuilder};
 
 /// Trait for client managers to implement
 #[async_trait]
@@ -20,6 +21,12 @@ pub trait ClientManagerTrait: Send + Sync {
     
     /// List available tools
     async fn list_tools(&self) -> Result<Vec<Tool>, String>;
+    
+    /// Synchronous version of list_tools for use in non-async contexts
+    fn list_tools_sync(&self) -> Vec<Tool>;
+    
+    /// Update the tool cache
+    async fn update_tools_cache(&self);
 }
 
 /// Default implementation of ClientManager
@@ -36,6 +43,15 @@ impl ClientManagerTrait for ClientManager {
         // Default implementation returns an empty list
         Ok(vec![])
     }
+    
+    fn list_tools_sync(&self) -> Vec<Tool> {
+        // Default implementation returns an empty list
+        vec![]
+    }
+    
+    async fn update_tools_cache(&self) {
+        // Default implementation does nothing
+    }
 }
 
 /// MCP Router implementation that uses a ClientManager
@@ -43,13 +59,13 @@ impl ClientManagerTrait for ClientManager {
 struct MCPRouter {
     name: String,
     client_manager: Arc<dyn ClientManagerTrait>,
-    capabilities: mcp_core::protocol::ServerCapabilities,
+    capabilities: protocol::ServerCapabilities,
 }
 
 impl MCPRouter {
     fn new(name: String, client_manager: Arc<dyn ClientManagerTrait>) -> Self {
         // Create capabilities
-        let mut builder = mcp_server::router::CapabilitiesBuilder::new();
+        let mut builder = CapabilitiesBuilder::new();
         builder = builder.with_tools(true);
         
         Self {
@@ -60,7 +76,7 @@ impl MCPRouter {
     }
 }
 
-impl mcp_server::Router for MCPRouter {
+impl Router for MCPRouter {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -69,38 +85,20 @@ impl mcp_server::Router for MCPRouter {
         "MCP Dockmaster Server".to_string()
     }
     
-    fn capabilities(&self) -> mcp_core::protocol::ServerCapabilities {
+    fn capabilities(&self) -> protocol::ServerCapabilities {
         self.capabilities.clone()
     }
     
     fn list_tools(&self) -> Vec<Tool> {
-        // Since list_tools is async but this method is sync, we need to block on the future
-        // This is not ideal but necessary for the Router trait implementation
-        let tools_future = self.client_manager.list_tools();
-        
-        // Get the current runtime handle and block on the future
-        match Handle::try_current() {
-            Ok(handle) => {
-                match handle.block_on(tools_future) {
-                    Ok(tools) => tools,
-                    Err(err) => {
-                        error!("Error listing tools: {}", err);
-                        vec![]
-                    }
-                }
-            },
-            Err(_) => {
-                error!("No tokio runtime available for listing tools");
-                vec![]
-            }
-        }
+        // Use the synchronous version of list_tools to avoid runtime panic
+        self.client_manager.list_tools_sync()
     }
     
     fn call_tool(
         &self,
         tool_name: &str,
         arguments: Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<mcp_core::Content>, mcp_core::handler::ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let client_manager = self.client_manager.clone();
         let tool_name = tool_name.to_string();
         
@@ -109,56 +107,60 @@ impl mcp_server::Router for MCPRouter {
                 Ok(result) => {
                     // Convert the result to Content using the text method
                     let result_str = serde_json::to_string(&result).unwrap_or_default();
-                    let content = mcp_core::Content::text(result_str);
+                    let content = Content::text(result_str);
                     Ok(vec![content])
                 },
-                Err(err) => Err(mcp_core::handler::ToolError::ExecutionError(err)),
+                Err(err) => Err(ToolError::ExecutionError(err)),
             }
         })
     }
     
-    fn list_resources(&self) -> Vec<mcp_core::Resource> {
+    fn list_resources(&self) -> Vec<Resource> {
         vec![]
     }
     
     fn read_resource(
         &self,
         _uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, mcp_core::handler::ResourceError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
         Box::pin(async {
-            Err(mcp_core::handler::ResourceError::NotFound("Resource not found".to_string()))
+            Err(ResourceError::NotFound("Resource not found".to_string()))
         })
     }
     
-    fn list_prompts(&self) -> Vec<mcp_core::prompt::Prompt> {
+    fn list_prompts(&self) -> Vec<prompt::Prompt> {
         vec![]
     }
     
     fn get_prompt(
         &self,
         _prompt_name: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, mcp_core::handler::PromptError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
         Box::pin(async {
-            Err(mcp_core::handler::PromptError::NotFound("Prompt not found".to_string()))
+            Err(PromptError::NotFound("Prompt not found".to_string()))
         })
     }
 }
 
 /// Start the MCP server with the provided client manager
 pub async fn start_mcp_server(client_manager: Arc<dyn ClientManagerTrait>) -> Result<(), Box<dyn std::error::Error>> {
+    // Update the tool cache before starting the server
+    info!("Updating tool cache before starting server...");
+    client_manager.update_tools_cache().await;
+    
     // Create our router implementation
     let router = MCPRouter::new("MCP Dockmaster Server".to_string(), client_manager);
     
     // Wrap it in a RouterService
-    let router_service = mcp_server::router::RouterService(router);
+    let router_service = RouterService(router);
     
     // Create the server
-    let server = mcp_server::Server::new(router_service);
+    let server = Server::new(router_service);
     
     // Create stdin/stdout transport for the MCP server
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
-    let transport = mcp_server::ByteTransport::new(stdin, stdout);
+    let transport = ByteTransport::new(stdin, stdout);
     
     // Run the server
     server.run(transport).await?;

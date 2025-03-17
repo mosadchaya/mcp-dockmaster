@@ -32,6 +32,8 @@ pub struct MCPCore {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
     /// Central state management for the MCP server
     pub mcp_state: Arc<RwLock<MCPState>>,
+    /// HTTP server port
+    pub port: u16,
 }
 
 impl MCPCore {
@@ -43,6 +45,23 @@ impl MCPCore {
     /// # Returns
     /// A new MCPCore instance with initialized components
     pub fn new(database_path: PathBuf, proxy_server_binary_path: PathBuf) -> Self {
+        Self::new_with_port(database_path, proxy_server_binary_path, 3000)
+    }
+
+    /// Creates a new MCPCore instance with the given database path and port
+    ///
+    /// # Arguments
+    /// * `database_path` - Path to the SQLite database file
+    /// * `proxy_server_binary_path` - Path to the proxy server binary
+    /// * `port` - HTTP server port
+    ///
+    /// # Returns
+    /// A new MCPCore instance with initialized components
+    pub fn new_with_port(
+        database_path: PathBuf,
+        proxy_server_binary_path: PathBuf,
+        port: u16,
+    ) -> Self {
         info!("Creating new MCPCore instance");
         let db_manager = DBManager::with_path(database_path).unwrap();
         let database_manager = Arc::new(RwLock::new(db_manager.clone()));
@@ -50,19 +69,18 @@ impl MCPCore {
         let tool_registry = ServerRegistry::with_db_manager(db_manager.clone());
         let tool_registry_arc = Arc::new(RwLock::new(tool_registry));
         let server_tools_arc = Arc::new(RwLock::new(HashMap::new()));
-        let clients_arc = Arc::new(RwLock::new(HashMap::new()));
-        let transport_manager_arc = Arc::new(RwLock::new(HashMap::new()));
+        let mcp_clients_arc = Arc::new(RwLock::new(HashMap::new()));
         let mcp_state_arc = Arc::new(RwLock::new(MCPState::new(
             tool_registry_arc.clone(),
             server_tools_arc.clone(),
-            clients_arc.clone(),
-            transport_manager_arc.clone(),
+            mcp_clients_arc.clone(),
         )));
         Self {
             proxy_server_binary_path,
             database_manager,
             mcp_state: mcp_state_arc,
             tool_registry: tool_registry_arc,
+            port,
         }
     }
 
@@ -79,7 +97,7 @@ impl MCPCore {
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
         info!("Starting HTTP server");
-        if let Err(e) = crate::http_server::start_http_server(self.clone()).await {
+        if let Err(e) = crate::http_server::start_http_server(self.clone(), self.port).await {
             error!("Failed to start HTTP server: {}", e);
             return Err(InitError::StartHttpServer(e.to_string()));
         }
