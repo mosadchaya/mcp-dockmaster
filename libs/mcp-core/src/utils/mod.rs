@@ -5,6 +5,7 @@ use log::info;
 
 pub mod command;
 pub mod github;
+pub mod process;
 
 /// Get the default storage path
 pub fn default_storage_path() -> Result<PathBuf, String> {

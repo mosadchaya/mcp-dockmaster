@@ -26,6 +26,13 @@
         }
       }
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mcp-dockmaster-cli",
+        "command": "cargo clippy -- -D warnings"
+      }
+    },
     "serve": {
       "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",

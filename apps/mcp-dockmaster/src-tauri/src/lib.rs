@@ -4,24 +4,32 @@ use crate::features::mcp_proxy::{
     register_server, restart_server_command, set_tools_hidden, uninstall_server, 
     update_server_config, update_server_status,
 };
+use commands::get_mcp_proxy_server_binary_path;
 use features::mcp_proxy::{
     check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
     get_generic_config, install_claude, install_cursor, is_process_running, restart_process,
 };
 use log::{error, info};
-use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
-use tauri::{utils::platform, Emitter, Manager, RunEvent};
+use mcp_core::core::mcp_core::MCPCore;
+use mcp_core_utils::{init_mcp_core, uninit_mcp_core};
+use tauri::{Emitter, Manager, RunEvent};
 use tray::create_tray;
 use updater::{check_for_updates, check_for_updates_command};
+use windows::{recreate_window, Window};
 
 mod features;
+mod mcp_core_utils;
 mod tray;
 mod updater;
+mod windows;
 
 mod commands {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use mcp_core::core::{mcp_core::MCPCore, mcp_core_runtimes_ext::McpCoreRuntimesExt};
+    use tauri::State;
+
+    use crate::mcp_core_utils::MCPCoreOptions;
 
     // Global flag to track initialization status
     pub static INITIALIZATION_COMPLETE: AtomicBool = AtomicBool::new(false);
@@ -45,17 +53,15 @@ mod commands {
     pub async fn check_initialization_complete() -> Result<bool, String> {
         Ok(INITIALIZATION_COMPLETE.load(Ordering::Relaxed))
     }
-}
-fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
-    let mcp_core = app_handle.state::<MCPCore>();
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        let mcp_core = mcp_core.inner().clone();
-        handle.spawn(async move {
-            let result = mcp_core.kill_all_processes().await;
-            if let Err(e) = result {
-                error!("Failed to kill all MCP processes: {}", e);
-            }
-        });
+
+    #[tauri::command]
+    pub async fn get_mcp_proxy_server_binary_path(
+        mcp_core_options: State<'_, MCPCoreOptions>,
+    ) -> Result<String, String> {
+        Ok(mcp_core_options
+            .proxy_server_sidecar_path
+            .to_string_lossy()
+            .to_string())
     }
 }
 
@@ -79,46 +85,6 @@ fn init_services(app_handle: tauri::AppHandle) {
             info!("Emitted initialization complete event");
         }
     });
-}
-
-fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> {
-    let proxy_server_sidecar_name = "mcp-proxy-server";
-    let proxy_server_sidecar_path = match platform::current_exe()
-        .map_err(|_| "failed to get current exe")?
-        .parent()
-    {
-        #[cfg(windows)]
-        Some(exe_dir) => Ok(exe_dir
-            .join(proxy_server_sidecar_name)
-            .with_extension("exe")),
-        #[cfg(not(windows))]
-        Some(exe_dir) => Ok(exe_dir.join(proxy_server_sidecar_name)),
-        None => Err("failed to get proxy server sidecar path".to_string()),
-    }?;
-
-    if !proxy_server_sidecar_path.exists() {
-        let error_message = format!(
-            "proxy server sidecar binary not found in path {}",
-            proxy_server_sidecar_path.display()
-        );
-        return Err(error_message);
-    }
-    info!(
-        "Proxy server sidecar path: {}",
-        proxy_server_sidecar_path.display()
-    );
-
-    let database_path = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|_| "failed to get app data dir")?
-        .join("mcp_dockmaster.db");
-
-    info!("database path: {}", database_path.display());
-
-    let mcp_core = MCPCore::new(database_path, proxy_server_sidecar_path.to_path_buf());
-    app_handle.manage(mcp_core.clone());
-    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -151,30 +117,47 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
     }
 }
 
+pub async fn app_init(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    create_tray(app_handle).map_err(|e| e.to_string())?;
+
+    // Check for updates
+    let _ = check_for_updates(app_handle, false).await;
+
+    // Initialize the MCP core
+    init_mcp_core(app_handle).await?;
+
+    let app_handle_clone = app_handle.clone();
+    recreate_window(app_handle_clone, Window::Main, true).map_err(|e| e.to_string())?;
+
+    // Start background initialization after the UI has started
+    let app_handle = app_handle.clone();
+    init_services(app_handle);
+    Ok(())
+}
+
+pub async fn app_uninit(app_handle: &tauri::AppHandle) {
+    uninit_mcp_core(app_handle).await;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            create_tray(app.handle())?;
-
             // Check for updates in the background when the app is opened
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let _ = check_for_updates(&app_handle_clone, false).await;
+                app_init(&app_handle_clone).await.unwrap_or_else(|e| {
+                    error!("Failed to initialize app: {}", e);
+                    app_handle_clone.exit(1);
+                });
             });
-
-            init_mcp_core(app.handle())?;
-
-            // Start background initialization after the UI has started
-            let app_handle = app.handle().clone();
-            init_services(app_handle);
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -205,22 +188,29 @@ pub async fn run() {
             is_process_running,
             check_for_updates_command,
             set_tools_hidden,
-            get_tools_visibility_state
+            get_tools_visibility_state,
+            get_mcp_proxy_server_binary_path
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")
         .run(move |app_handle, event| match event {
             RunEvent::ExitRequested { api, .. } => {
-                // First, prevent exit to handle cleanup
+                /*
+                    First, prevent exit to handle cleanup
+                    This is ignored when using AppHandle#method.restart.
+                */
+                info!("[RunEvent:ExitRequested] preventing exit to handle cleanup");
                 api.prevent_exit();
-
-                // Cleanup processes
-                cleanup_mcp_processes(app_handle);
             }
             RunEvent::Exit { .. } => {
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
-                std::process::exit(0);
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    info!("[RunEvent:Exit] uninit app");
+                    app_uninit(&app_handle).await;
+                    info!("[RunEvent::Exit] exiting app");
+                    std::process::exit(0);
+                });
             }
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => handle_window_reopen(app_handle),
