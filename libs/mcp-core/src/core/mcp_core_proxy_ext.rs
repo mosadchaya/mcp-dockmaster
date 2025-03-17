@@ -166,6 +166,13 @@ impl McpCoreProxyExt for MCPCore {
     /// List all available tools from all running MCP servers
     async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
+        
+        // Check if tools are hidden
+        if mcp_state.are_tools_hidden().await {
+            // Return empty list when tools are hidden
+            return Ok(Vec::new());
+        }
+        
         let server_tools = mcp_state.server_tools.read().await;
         let mut all_tools = Vec::new();
 
@@ -493,6 +500,11 @@ impl McpCoreProxyExt for MCPCore {
     /// Initialize the MCP server and start background services
     async fn init_mcp_server(&self) -> Result<()> {
         info!("Starting background initialization of MCP services");
+
+        // Initialize the state from the database
+        if let Err(e) = self.mcp_state.read().await.init_state().await {
+            error!("Failed to initialize state from database: {}", e);
+        }
 
         // Get all tools from database
         let tools = match self.tool_registry.read().await.get_all_servers() {

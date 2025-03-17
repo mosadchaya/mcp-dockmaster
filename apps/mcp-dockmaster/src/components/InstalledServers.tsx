@@ -979,9 +979,21 @@ const InstalledServers: React.FC = () => {
         ))}
       </div>
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Servers Installed
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Servers Installed
+          </h1>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {areToolsPaused ? "Tools Hidden" : "Tools Visible"}
+            </span>
+            <Switch
+              checked={areToolsPaused}
+              onCheckedChange={handleToolsVisibilityChange}
+              className="data-[state=checked]:bg-emerald-500"
+            />
+          </div>
+        </div>
         <p className="text-muted-foreground text-sm">
           Manage your installed AI applications and MCP tools.
         </p>
