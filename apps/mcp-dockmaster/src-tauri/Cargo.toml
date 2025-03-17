@@ -23,18 +23,18 @@ tauri-plugin-opener = "2.2.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.140"
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.12.12", features = ["json"] }
+reqwest = { version = "0.12.14", features = ["json"] }
 axum = { version = "0.8.1", features = ["macros"] }
 tower = "0.5.2"
 tower-http = { version = "0.6.2", features = ["cors"] }
-hyper = "1.0"
+hyper = "1.6.0"
 log = "0.4.26"
 thiserror = "2.0.12"
 env_logger = "0.11.6"
 directories = "6.0.0"
 mcp_core = { path = "../../../libs/mcp-core" }
-tauri-plugin-log = "2.3.0"
+tauri-plugin-log = "2.3.1"
 tauri-plugin-single-instance = "2.2.2"
 tauri-plugin-shell = "2.2.0"
-tauri-plugin-updater = "2.6.0"
+tauri-plugin-updater = "2.6.1"
 tauri-plugin-dialog = "2.2.0"

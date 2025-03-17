@@ -424,14 +424,11 @@ impl McpCoreProxyExt for MCPCore {
         }
 
         // Kill the process if it's running
-        match mcp_state.kill_process(&request.server_id).await {
-            Ok(_) => (),
-            Err(e) => {
-                return Ok(ServerUninstallResponse {
-                    success: false,
-                    message: format!("Failed to kill process: {}", e),
-                });
-            }
+        if let Err(e) = mcp_state.kill_process(&request.server_id).await {
+            error!(
+                "Failed to kill process for server {}: {}",
+                request.server_id, e
+            );
         }
 
         // Delete the tool using registry's delete_tool method
