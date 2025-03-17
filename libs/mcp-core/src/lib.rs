@@ -16,11 +16,17 @@ pub mod utils;
 
 // pub use registry::ToolRegistry;
 
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
 // Initialize logging
 pub fn init_logging() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+            .format_timestamp_secs()
+            .init();
 
-    log::info!("MCP Core library initialized");
+        log::info!("MCP Core library initialized");
+    });
 }

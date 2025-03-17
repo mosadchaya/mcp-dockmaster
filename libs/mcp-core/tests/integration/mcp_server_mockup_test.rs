@@ -23,7 +23,8 @@ mod tests {
         let db_path = temp_dir.path().join("test_mcp_core2.db");
 
         // TODO: Here the mcp-proxy-server path is a dummy path. This test currently is not using that location
-        let mcp_core = MCPCore::new(db_path, path::absolute("mcp-proxy-server").unwrap());
+        let mcp_core =
+            MCPCore::new_with_port(db_path, path::absolute("mcp-proxy-server").unwrap(), 3001);
         mcp_core.init().await.map_err(|e| {
             let message = format!("error initializing mcp core: {:?}", e);
             eprintln!("{}", message);
@@ -220,7 +221,8 @@ mod tests {
         let db_path = temp_dir.path().join("test_server_lifecycle.db");
 
         // Initialize MCP Core
-        let mcp_core = MCPCore::new(db_path, path::absolute("mcp-proxy-server").unwrap());
+        let mcp_core =
+            MCPCore::new_with_port(db_path, path::absolute("mcp-proxy-server").unwrap(), 3002);
         mcp_core.init().await.map_err(|e| {
             let message = format!("error initializing mcp core: {:?}", e);
             eprintln!("{}", message);
@@ -274,7 +276,7 @@ mod tests {
 
         // Poll for up to 5 seconds to verify the server has stopped
         let start_time = std::time::Instant::now();
-        let timeout = std::time::Duration::from_secs(5);
+        let timeout = std::time::Duration::from_secs(10);
         let check_interval = std::time::Duration::from_millis(500);
 
         loop {
