@@ -3,6 +3,7 @@ use crate::features::mcp_proxy::{
     import_server_from_url, list_all_server_tools, list_servers, register_server,
     restart_server_command, uninstall_server, update_server_config, update_server_status,
 };
+use commands::get_mcp_proxy_server_binary_path;
 use features::mcp_proxy::{
     check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
     get_generic_config, install_claude, install_cursor, is_process_running, restart_process,
@@ -13,16 +14,21 @@ use mcp_core_utils::{init_mcp_core, uninit_mcp_core};
 use tauri::{Emitter, Manager, RunEvent};
 use tray::create_tray;
 use updater::{check_for_updates, check_for_updates_command};
+use windows::{recreate_window, Window};
 
 mod features;
 mod mcp_core_utils;
 mod tray;
 mod updater;
+mod windows;
 
 mod commands {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use mcp_core::core::{mcp_core::MCPCore, mcp_core_runtimes_ext::McpCoreRuntimesExt};
+    use tauri::State;
+
+    use crate::mcp_core_utils::MCPCoreOptions;
 
     // Global flag to track initialization status
     pub static INITIALIZATION_COMPLETE: AtomicBool = AtomicBool::new(false);
@@ -45,6 +51,16 @@ mod commands {
     #[tauri::command]
     pub async fn check_initialization_complete() -> Result<bool, String> {
         Ok(INITIALIZATION_COMPLETE.load(Ordering::Relaxed))
+    }
+
+    #[tauri::command]
+    pub async fn get_mcp_proxy_server_binary_path(
+        mcp_core_options: State<'_, MCPCoreOptions>,
+    ) -> Result<String, String> {
+        Ok(mcp_core_options
+            .proxy_server_sidecar_path
+            .to_string_lossy()
+            .to_string())
     }
 }
 
@@ -109,6 +125,9 @@ pub async fn app_init(app_handle: &tauri::AppHandle) -> Result<(), String> {
     // Initialize the MCP core
     init_mcp_core(app_handle).await?;
 
+    let app_handle_clone = app_handle.clone();
+    recreate_window(app_handle_clone, Window::Main, true).map_err(|e| e.to_string())?;
+
     // Start background initialization after the UI has started
     let app_handle = app_handle.clone();
     init_services(app_handle);
@@ -125,6 +144,7 @@ pub async fn run() {
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -135,7 +155,7 @@ pub async fn run() {
                 app_init(&app_handle_clone).await.unwrap_or_else(|e| {
                     error!("Failed to initialize app: {}", e);
                     app_handle_clone.exit(1);
-                })
+                });
             });
             Ok(())
         })
@@ -165,7 +185,8 @@ pub async fn run() {
             import_server_from_url,
             restart_process,
             is_process_running,
-            check_for_updates_command
+            check_for_updates_command,
+            get_mcp_proxy_server_binary_path
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")

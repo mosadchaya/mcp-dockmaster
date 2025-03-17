@@ -26,3 +26,12 @@ export const isProcessRunning = async (process_name: 'Claude' | 'Cursor' | 'Gene
     return false;
   }
 };
+
+export const getMCPProxyServerBinaryPath = async (): Promise<string> => {
+  try {
+    return await invoke<string>('get_mcp_proxy_server_binary_path');
+  } catch (error) {
+    console.error(`failed to get mcp proxy server binary path:`, error);
+    return '';
+  }
+};
