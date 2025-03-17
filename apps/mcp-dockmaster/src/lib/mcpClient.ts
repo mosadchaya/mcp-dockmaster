@@ -253,6 +253,20 @@ export class MCPClient {
   static async getClaudeConfig(): Promise<any> {
     return await invoke<any>('get_claude_config');
   }
+
+  /**
+   * Get the tool visibility state
+   */
+  static async getToolsVisibilityState(): Promise<boolean> {
+    return await invoke<boolean>('get_tools_visibility_state');
+  }
+
+  /**
+   * Set the tool visibility state
+   */
+  static async setToolsHidden(hidden: boolean): Promise<void> {
+    return await invoke<void>('set_tools_hidden', { hidden });
+  }
 }
 
-export default MCPClient;                
+export default MCPClient;                                

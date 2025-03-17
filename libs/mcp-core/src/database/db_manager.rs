@@ -8,13 +8,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{
-    DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, NewServerTool, UpdateServer,
-    UpdateServerTool,
+    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv, 
+    NewServerTool, UpdateServer, UpdateServerTool,
 };
 use crate::models::types::{
     Distribution, InputSchema, ServerConfiguration, ServerDefinition, ServerEnvironment,
     ServerToolInfo,
 };
+use crate::schema::app_settings::dsl as settings_dsl;
 use crate::schema::server_env::dsl as env_dsl;
 use crate::schema::server_tools::dsl as server_tools_dsl;
 use crate::schema::servers::dsl as tools_dsl;
@@ -602,6 +603,41 @@ impl DBManager {
         )
         .execute(&mut conn)
         .map_err(|e| format!("Failed to delete server tool: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Get a setting by key
+    pub fn get_setting(&self, key: &str) -> Result<String, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        let setting: DBAppSetting = settings_dsl::app_settings
+            .filter(settings_dsl::key.eq(key))
+            .first(&mut conn)
+            .map_err(|e| format!("Failed to get setting {}: {}", key, e))?;
+
+        Ok(setting.value)
+    }
+
+    /// Save or update a setting
+    pub fn save_setting(&self, key: &str, value: &str) -> Result<(), String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+
+        let new_setting = NewAppSetting { key, value };
+
+        diesel::insert_into(settings_dsl::app_settings)
+            .values(&new_setting)
+            .on_conflict(settings_dsl::key)
+            .do_update()
+            .set(settings_dsl::value.eq(value))
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to save setting: {}", e))?;
 
         Ok(())
     }

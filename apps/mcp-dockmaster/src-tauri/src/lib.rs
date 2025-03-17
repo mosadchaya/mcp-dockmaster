@@ -1,7 +1,8 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    import_server_from_url, list_all_server_tools, list_servers, register_server,
-    restart_server_command, uninstall_server, update_server_config, update_server_status,
+    get_tools_visibility_state, import_server_from_url, list_all_server_tools, list_servers, 
+    register_server, restart_server_command, set_tools_hidden, uninstall_server, 
+    update_server_config, update_server_status,
 };
 use commands::get_mcp_proxy_server_binary_path;
 use features::mcp_proxy::{
@@ -186,6 +187,8 @@ pub async fn run() {
             restart_process,
             is_process_running,
             check_for_updates_command,
+            set_tools_hidden,
+            get_tools_visibility_state,
             get_mcp_proxy_server_binary_path
         ])
         .build(tauri::generate_context!())

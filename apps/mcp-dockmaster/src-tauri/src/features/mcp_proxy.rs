@@ -168,3 +168,22 @@ pub async fn is_process_running(
 ) -> Result<bool, String> {
     mcp_core.is_process_running(process.process_name.as_str())
 }
+
+/// Set the tool visibility state
+#[tauri::command]
+pub async fn set_tools_hidden(
+    mcp_core: State<'_, MCPCore>,
+    hidden: bool,
+) -> Result<(), String> {
+    let mcp_state = mcp_core.mcp_state.read().await;
+    mcp_state.set_tools_hidden(hidden).await
+}
+
+/// Get the tool visibility state
+#[tauri::command]
+pub async fn get_tools_visibility_state(
+    mcp_core: State<'_, MCPCore>,
+) -> Result<bool, String> {
+    let mcp_state = mcp_core.mcp_state.read().await;
+    Ok(mcp_state.are_tools_hidden().await)
+}

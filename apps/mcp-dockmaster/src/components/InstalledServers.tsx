@@ -68,9 +68,26 @@ const InstalledServers: React.FC = () => {
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
   const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
   const [envOperationInProgress, setEnvOperationInProgress] = useState(false);
+  const [areToolsActive, setAreToolsActive] = useState(true);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
+
+  // Load initial tool visibility state from backend
+  useEffect(() => {
+    const loadToolVisibilityState = async () => {
+      try {
+        const isHidden = await MCPClient.getToolsVisibilityState();
+        setAreToolsActive(!isHidden);
+        console.log("Tool visibility state loaded from backend:", !isHidden);
+      } catch (error) {
+        console.error("Failed to load tool visibility state:", error);
+      }
+    };
+    
+    loadToolVisibilityState();
+  }, []);
+
 
   useEffect(() => {
     loadData();
@@ -423,6 +440,20 @@ const InstalledServers: React.FC = () => {
     setNotifications((prev) =>
       prev.filter((notification) => notification.id !== id),
     );
+  };
+  
+  // Handle tool visibility toggle
+  const handleToolsVisibilityChange = async (active: boolean) => {
+    try {
+      await MCPClient.setToolsHidden(!active);
+      setAreToolsActive(active);
+      console.log("Tool visibility state updated:", active);
+      
+      // Reload data to reflect the change
+      loadData();
+    } catch (error) {
+      console.error("Failed to update tool visibility state:", error);
+    }
   };
 
   const saveEnvVars = async (serverId: string, e: React.MouseEvent) => {
@@ -979,9 +1010,21 @@ const InstalledServers: React.FC = () => {
         ))}
       </div>
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Servers Installed
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Servers Installed
+          </h1>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {areToolsActive ? "MCP Servers Active" : "MCP Servers Paused"}
+            </span>
+            <Switch
+              checked={areToolsActive}
+              onCheckedChange={handleToolsVisibilityChange}
+              className={areToolsActive ? "data-[state=checked]:bg-emerald-500" : "data-[state=checked]:bg-red-500"}
+            />
+          </div>
+        </div>
         <p className="text-muted-foreground text-sm">
           Manage your installed AI applications and MCP tools.
         </p>
