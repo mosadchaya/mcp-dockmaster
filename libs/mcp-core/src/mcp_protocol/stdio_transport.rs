@@ -105,9 +105,9 @@ pub async fn execute_server_tool(
 
     // Read the response with a timeout
     // The tokio::time::timeout function will return as soon as a response is received,
-    // or after the specified timeout duration if no response is received
+    // or after the specified timeout duration (5 minutes) if no response is received
     let read_result =
-        tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line)).await;
+        tokio::time::timeout(Duration::from_secs(300), reader.read_line(&mut response_line)).await;
 
     match read_result {
         Ok(Ok(0)) => return Err(MCPError::ServerClosedConnection),

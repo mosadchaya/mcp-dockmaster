@@ -67,6 +67,7 @@ const InstalledServers: React.FC = () => {
     useState<RuntimeServer | null>(null);
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
   const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
+  const [envOperationInProgress, setEnvOperationInProgress] = useState(false);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -74,18 +75,30 @@ const InstalledServers: React.FC = () => {
   useEffect(() => {
     loadData();
 
-    // Reload when the window regains focus
-    window.addEventListener("focus", loadData);
+    // Create a named function for the event listener so we can remove it properly
+    const handleFocus = () => {
+      if (!envOperationInProgress) {
+        loadData();
+      }
+    };
+
+    // Reload when the window regains focus, but skip if ENV operation is in progress
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      window.removeEventListener("focus", loadData);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [envOperationInProgress]);
 
   // Add auto-refresh feature that runs every 2 seconds but only when server status and enabled state don't match
   useEffect(() => {
     // Helper function to check if any server needs refresh based on status/enabled mismatch
     const checkServersNeedRefresh = () => {
+      // Skip refresh if ENV operation is in progress
+      if (envOperationInProgress) {
+        return;
+      }
+      
       // Check if any server has a mismatch between status and enabled state
       const serversNeedingRefresh = servers.filter(server => 
         (server.status !== 'running' && server.enabled) || // Not running but should be running
@@ -409,6 +422,7 @@ const InstalledServers: React.FC = () => {
   const saveEnvVars = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setSavingConfig(true);
+    setEnvOperationInProgress(true); // Set flag to prevent auto-refresh
 
     try {
       // Find the server to update
@@ -514,6 +528,7 @@ const InstalledServers: React.FC = () => {
       addNotification("Error updating configuration", "error");
     } finally {
       setSavingConfig(false);
+      setEnvOperationInProgress(false); // Reset flag to allow auto-refresh again
     }
   };
 
@@ -522,12 +537,20 @@ const InstalledServers: React.FC = () => {
     setConfigPopupVisible(false);
     setCurrentConfigTool(null);
     setEnvVarValues({});
+    
+    // Force a data reload when closing the ENV popup to ensure we have the latest server states
+    loadData();
   };
   
   const openInfoPopup = (server: RuntimeServer, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the click from toggling the expanded state
     setCurrentInfoServer(server);
     setInfoPopupVisible(true);
+    
+    // If the server is running, discover tools for it
+    if (server.status === 'running') {
+      discoverToolsForServer(server.id);
+    }
   };
   
   const closeInfoPopup = () => {
@@ -647,6 +670,9 @@ const InstalledServers: React.FC = () => {
   const renderInfoPopup = () => {
     if (!infoPopupVisible || !currentInfoServer) return null;
     
+    // Filter tools for this server
+    const toolsForServer = serverTools.filter((t) => t.server_id === currentInfoServer.id);
+    
     return (
       <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>
         <DialogContent className="sm:max-w-[600px]">
@@ -718,6 +744,26 @@ const InstalledServers: React.FC = () => {
                 )}
               </div>
             </div>
+            
+            {/* Tools Section */}
+            {toolsForServer.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Tools</h3>
+                <div className="rounded-md border p-3 space-y-2">
+                  {toolsForServer.map((tool) => (
+                    <div key={tool.id}>
+                      <div className="text-sm font-medium">{tool.name}</div>
+                      <div className="text-sm font-small">{tool.description}</div>
+                      {tool.inputSchema && (
+                        <div className="text-xs font-mono">
+                          {JSON.stringify(tool.inputSchema, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Configuration */}
             {currentInfoServer.configuration && (
@@ -851,7 +897,7 @@ const InstalledServers: React.FC = () => {
                     <input
                       id={`env-${key}`}
                       type="text"
-                      value={envVarValues[key] || defaultValue || ""}
+                      value={envVarValues[key] ?? defaultValue ?? ""}
                       onChange={(e) => handleEnvVarChange(key, e.target.value)}
                       placeholder={description || key}
                     />

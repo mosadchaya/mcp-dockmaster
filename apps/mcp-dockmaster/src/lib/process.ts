@@ -18,7 +18,7 @@ export const checkCursor = async () => {
   }
 };
 
-export const isProcessRunning = async (process_name: 'Claude' | 'Cursor'): Promise<boolean> => {
+export const isProcessRunning = async (process_name: 'Claude' | 'Cursor' | 'Generic'): Promise<boolean> => {
   try {
     return await invoke<boolean>('is_process_running', { process: { process_name } });
   } catch (error) {

@@ -229,9 +229,11 @@ pub fn get_cursor_config(binary_path: &str) -> Result<String, CursorError> {
         "
 Cursor Settings -> MCP Servers -> Add new MCP server
 
+```
 name:         mcp-dockmaster
 type:         command
 command_path: {binary_path}
+```
     "
     ))
 }

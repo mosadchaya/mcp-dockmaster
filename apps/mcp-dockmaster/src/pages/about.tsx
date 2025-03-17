@@ -10,47 +10,34 @@ const About = () => {
           Overview
         </h2>
         <p>
-          MCP Dockmaster is a powerful application management platform designed
-          to simplify the deployment, management, and monitoring of AI
-          applications and services. Our platform provides a seamless experience
-          for developers and users alike.
+          MCP Dockmaster is a straightforward tool designed to help you easily install, manage, and monitor AI applications using MCP (Managed Capabilities Protocol). MCP is an open-source standard created by Anthropic that allows AI apps like Claude Desktop or Cursor to seamlessly access data from platforms such as Slack or Google Drive, interact with other applications, and connect to APIs.
         </p>
       </section>
       <section className="about-section">
         <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
-          Mission
+          Our Purpose
         </h2>
         <p>
-          Our mission is to democratize access to advanced AI tools and
-          applications by providing an intuitive interface for managing complex
-          software ecosystems. We believe in making technology accessible to
-          everyone, regardless of their technical expertise.
+          MCP Dockmaster simplifies the management of MCP-compatible applications, providing a user-friendly interface that removes complexity. We believe everyone should have easy access to powerful AI tools, regardless of their technical experience.
         </p>
       </section>
       <section className="about-section">
         <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
-          Features
+          What You Can Do
         </h2>
         <ul className="ml-6 list-disc">
-          <li className="mb-2">Easy application installation and management</li>
-          <li className="mb-2">
-            Centralized control panel for all your AI applications
-          </li>
-          <li className="mb-2">Access to a curated store of AI applications</li>
-          <li className="mb-2">Simplified configuration and deployment</li>
-          <li className="mb-2">Real-time monitoring and logging</li>
+          <li className="mb-2">Quickly install and manage MCP-compatible apps</li>
+          <li className="mb-2">View and control your apps from one central spot</li>
+          <li className="mb-2">Discover new AI tools through our curated app selection</li>
+          <li className="mb-2">Simplify integrations and streamline your workflow</li>
         </ul>
       </section>
       <section className="about-section">
         <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
-          Contact
+          GitHub Repository
         </h2>
         <p>
-          For more information about MCP Dockmaster, please visit our website or
-          contact our support team.
-        </p>
-        <p className="mt-2">
-          GitHub: <a href="http://github.com/dcSpark/mcp-dockmaster/" className="text-blue-500 hover:underline">http://github.com/dcSpark/mcp-dockmaster/</a>
+          Visit our <a href="https://github.com/dcSpark/mcp-dockmaster/" className="text-blue-500 hover:underline">GitHub repository</a> to learn more, contribute, or report issues.
         </p>
       </section>
     </div>

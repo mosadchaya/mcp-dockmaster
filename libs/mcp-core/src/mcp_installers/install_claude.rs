@@ -108,12 +108,18 @@ pub fn get_claude_config(binary_path: &str) -> Result<String, ClaudeError> {
             }
         }
     });
+    
+    // Format the JSON with proper indentation
+    let pretty_json = serde_json::to_string_pretty(&config)?;
+    
     Ok(format!(
         "
 Open {config_path}
 
 Add configuration:
-{config}
+```json
+{pretty_json}
+```
     "
     ))
 }

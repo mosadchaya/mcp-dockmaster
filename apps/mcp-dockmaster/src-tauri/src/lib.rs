@@ -5,7 +5,7 @@ use crate::features::mcp_proxy::{
 };
 use features::mcp_proxy::{
     check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
-    install_claude, install_cursor, is_process_running, restart_process,
+    get_generic_config, install_claude, install_cursor, is_process_running, restart_process,
 };
 use log::{error, info};
 use mcp_core::core::mcp_core::MCPCore;
@@ -161,6 +161,7 @@ pub async fn run() {
             install_cursor,
             get_claude_config,
             get_cursor_config,
+            get_generic_config,
             import_server_from_url,
             restart_process,
             is_process_running,
