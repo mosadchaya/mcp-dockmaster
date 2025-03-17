@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use log::info;
 use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 
 use crate::models::types::ServerToolInfo;
 use crate::MCPError;
@@ -207,7 +207,6 @@ pub async fn discover_server_tools(
     // or after the specified timeout duration if no response is received
     let mut reader = tokio::io::BufReader::new(&mut *stdout);
     let mut response_line = String::new();
-
     let read_result =
         tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut response_line)).await;
 

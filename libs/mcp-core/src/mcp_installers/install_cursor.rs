@@ -1,7 +1,7 @@
 use super::install_paths::get_cursor_db_path;
-use super::process_manager::kill_process_by_name;
 use crate::mcp_installers::install_errors::CursorError;
 use crate::mcp_installers::install_paths;
+use crate::utils::process::kill_process_by_name;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::sqlite::SqliteConnection;

@@ -9,11 +9,13 @@ use features::mcp_proxy::{
 };
 use log::{error, info};
 use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
-use tauri::{utils::platform, Emitter, Manager, RunEvent};
+use mcp_core_utils::init_mcp_core;
+use tauri::{Emitter, Manager, RunEvent};
 use tray::create_tray;
 use updater::{check_for_updates, check_for_updates_command};
 
 mod features;
+mod mcp_core_utils;
 mod tray;
 mod updater;
 
@@ -80,79 +82,6 @@ fn init_services(app_handle: tauri::AppHandle) {
     });
 }
 
-fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> {
-    let proxy_server_sidecar_name = "mcp-proxy-server";
-    let proxy_server_sidecar_path = match platform::current_exe()
-        .map_err(|_| "failed to get current exe")?
-        .parent()
-    {
-        #[cfg(windows)]
-        Some(exe_dir) => Ok(exe_dir
-            .join(proxy_server_sidecar_name)
-            .with_extension("exe")),
-        #[cfg(not(windows))]
-        Some(exe_dir) => Ok(exe_dir.join(proxy_server_sidecar_name)),
-        None => Err("failed to get proxy server sidecar path".to_string()),
-    }?;
-
-    #[cfg(linux)]
-    {
-        let app_data_dir = app_handle
-            .path()
-            .app_data_dir()
-            .map_err(|_| "failed to get app data dir")?;
-
-        use std::fs;
-        if !app_data_dir.exists() {
-            fs::create_dir_all(&app_data_dir).map_err(|e| {
-                format!(
-                    "failed to create app data directory {}: {}",
-                    app_data_dir.display(),
-                    e
-                )
-            })?;
-        }
-
-        let source_path = proxy_server_sidecar_path.clone();
-        let destination_path = app_data_dir.join(proxy_server_sidecar_name);
-
-        if let Err(e) = fs::copy(&source_path, &destination_path) {
-            let error_message = format!(
-                "failed to copy proxy server sidecar binary from {} to {}: {}",
-                proxy_server_sidecar_path.display(),
-                destination_path.display(),
-                e
-            );
-            return Err(error_message);
-        }
-        proxy_server_sidecar_path = destination_path;
-    }
-
-    if !proxy_server_sidecar_path.exists() {
-        let error_message = format!(
-            "proxy server sidecar binary not found in path {}",
-            proxy_server_sidecar_path.display()
-        );
-        return Err(error_message);
-    }
-    info!(
-        "Proxy server sidecar path: {}",
-        proxy_server_sidecar_path.display()
-    );
-
-    let database_path = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|_| "failed to get app data dir")?
-        .join("mcp_dockmaster.db");
-
-    info!("database path: {}", database_path.display());
-
-    let mcp_core = MCPCore::new(database_path, proxy_server_sidecar_path.to_path_buf());
-    app_handle.manage(mcp_core.clone());
-    Ok(())
-}
-
 #[cfg(target_os = "macos")]
 fn handle_window_reopen(app_handle: &tauri::AppHandle) {
     let main_window_label = "main";
@@ -183,6 +112,18 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
     }
 }
 
+pub async fn app_init(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    // Check for updates
+    let _ = check_for_updates(app_handle, false).await;
+
+    // Initialize the MCP core
+    init_mcp_core(app_handle).await?;
+
+    // Start background initialization after the UI has started
+    let app_handle = app_handle.clone();
+    init_services(app_handle);
+    Ok(())
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
     tauri::Builder::default()
@@ -198,15 +139,8 @@ pub async fn run() {
             // Check for updates in the background when the app is opened
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let _ = check_for_updates(&app_handle_clone, false).await;
+                app_init(&app_handle_clone).await;
             });
-
-            init_mcp_core(app.handle())?;
-
-            // Start background initialization after the UI has started
-            let app_handle = app.handle().clone();
-            init_services(app_handle);
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

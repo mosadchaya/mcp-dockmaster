@@ -32,6 +32,18 @@ pub fn get_cursor_db_path() -> Result<String, CursorError> {
                 home
             ))
         }
+        "linux" => {
+            let home = env::var("HOME").map_err(|_| {
+                CursorError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "HOME environment variable not found",
+                ))
+            })?;
+            Ok(format!(
+                "{}/.config/Cursor/User/globalStorage/state.vscdb",
+                home
+            ))
+        }
         os => Err(CursorError::IoError(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             format!("Unsupported operating system: {}", os),

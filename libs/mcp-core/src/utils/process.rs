@@ -1,5 +1,8 @@
 use std::process::Command;
+
 use sysinfo::System;
+
+use super::command::CommandWrappedInShellBuilder;
 
 fn adapted_process_name(process_name: &str) -> String {
     let name = if cfg!(target_os = "windows") {
@@ -89,4 +92,63 @@ pub fn kill_process_by_name(process_name: &str) {
             log::error!("failed to execute command to terminate process: {}", e);
         }
     }
+}
+
+pub async fn kill_process_by_pid(process_id: &str) -> Result<(), String> {
+    let mut command = if cfg!(target_os = "windows") {
+        CommandWrappedInShellBuilder::new("taskkill")
+            .args(["/F", "/T", "/PID", process_id])
+            .clone()
+            .build()
+    } else {
+        CommandWrappedInShellBuilder::new("kill")
+            .args(["-15", process_id])
+            .clone()
+            .build()
+    };
+    if let Ok(output) = command.output().await {
+        if output.status.success() {
+            log::info!("process with PID '{}' has been terminated.", process_id);
+        } else {
+            log::warn!(
+                "failed to terminate process with PID '{}'. error: {}",
+                process_id,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        }
+    } else {
+        log::error!("failed to execute command to terminate process");
+        return Err("failed to execute command to terminate process".to_string());
+    }
+    Ok(())
+}
+
+pub async fn kill_all_processes_by_name(process_name: &str) {
+    let adapted_process_name = adapted_process_name(process_name);
+    let mut system = System::new_all();
+    system.refresh_all();
+
+    let process_name_as_os_str = std::ffi::OsStr::new(adapted_process_name.as_str());
+    let adapted_process_name_clone = adapted_process_name.clone();
+
+    let futures = system
+        .processes_by_name(process_name_as_os_str)
+        .map(|process| {
+            let pid = process.pid();
+            let adapted_process_name_clone = adapted_process_name_clone.clone();
+            async move {
+                if let Err(e) = kill_process_by_pid(&pid.to_string()).await {
+                    log::error!(
+                        "failed to kill process with PID '{}' and name: '{}': {}",
+                        pid,
+                        adapted_process_name_clone,
+                        e
+                    );
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+
+    futures::future::join_all(futures).await;
 }
