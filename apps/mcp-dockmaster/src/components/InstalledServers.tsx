@@ -73,6 +73,22 @@ const InstalledServers: React.FC = () => {
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
 
+  // Load initial tool visibility state from backend
+  useEffect(() => {
+    const loadToolVisibilityState = async () => {
+      try {
+        const isHidden = await MCPClient.getToolsVisibilityState();
+        setAreToolsPaused(isHidden);
+        console.log("Tool visibility state loaded from backend:", isHidden);
+      } catch (error) {
+        console.error("Failed to load tool visibility state:", error);
+      }
+    };
+    
+    loadToolVisibilityState();
+  }, []);
+
+
   useEffect(() => {
     loadData();
 
