@@ -152,49 +152,17 @@ impl MCPState {
         };
 
         if client_exists {
-            // Update the server status to Running
-            let mut mcp_clients = self.mcp_clients.write().await;
-            if let Some(mcp_client) = mcp_clients.get_mut(server_id) {
-                info!(
-                    "[restart server] Successfully got client for server: {}",
-                    server_id
-                );
-                mcp_client.server_status = ServerStatus::Running;
+            // First kill the existing process
+            if let Err(e) = self.kill_process(server_id).await {
+                error!("Failed to kill existing process during restart: {}", e);
+                return Err(format!("Failed to kill existing process: {}", e));
             }
-
-            // Release the write lock before calling discover_server_tools
-            drop(mcp_clients);
-
-            // Add more detailed logging
             info!(
-                "[restart server] About to call discover_server_tools for {}",
+                "Successfully killed existing process for server: {}",
                 server_id
             );
-
-            match self.discover_server_tools(server_id).await {
-                Ok(tools) => {
-                    info!(
-                        "[restart server] Successfully discovered {} tools for {}",
-                        tools.len(),
-                        server_id
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        "[restart server] Failed to discover tools for server: {}",
-                        e
-                    );
-                }
-            }
-
-            info!(
-                "[restart server] Completed discover_server_tools call for {}",
-                server_id
-            );
-            return Ok(());
         }
 
-        // If we get here, the client doesn't exist yet
         // Check if the tool is enabled
         if !server_data.enabled {
             info!("Server {} is disabled, not restarting", server_id);

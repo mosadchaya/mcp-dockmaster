@@ -328,8 +328,28 @@ mod tests {
             parameters: json!({}),
         };
         let result = mcp_core.execute_proxy_tool(request).await?;
-        println!("Server restart result: {:?}", result);
         assert!(result.success, "Server did not restart successfully");
+
+        // Verify the content of the response
+        let result_value = result.result.ok_or("No result found")?;
+        let content = result_value
+            .get("content")
+            .and_then(|c| c.as_array())
+            .ok_or("Content is not an array")?;
+
+        if content.len() != 1 {
+            return Err(format!("Expected 1 content item, got {}", content.len()));
+        }
+
+        let first_content = &content[0];
+        let text = first_content
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or("Content text not found or not a string")?;
+
+        if text != "hello world" {
+            return Err(format!("Expected content 'hello world', got '{}'", text));
+        }
 
         // Cleanup
         let _ = mcp_core.kill_all_processes().await;
