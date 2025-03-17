@@ -1000,12 +1000,12 @@ const InstalledServers: React.FC = () => {
           </h1>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {areToolsPaused ? "Tools Hidden" : "Tools Visible"}
+              {areToolsPaused ? "MCP Servers Paused" : "MCP Servers Active"}
             </span>
             <Switch
               checked={areToolsPaused}
               onCheckedChange={handleToolsVisibilityChange}
-              className="data-[state=checked]:bg-emerald-500"
+              className={areToolsPaused ? "data-[state=checked]:bg-red-500" : "data-[state=checked]:bg-emerald-500"}
             />
           </div>
         </div>
