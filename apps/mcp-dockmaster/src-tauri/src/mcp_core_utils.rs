@@ -1,8 +1,16 @@
 use std::{fs, path::PathBuf};
 
-use log::info;
-use mcp_core::{core::mcp_core::MCPCore, utils::process::kill_all_processes_by_name};
+use log::{error, info};
+use mcp_core::{
+    core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
+    utils::process::kill_all_processes_by_name,
+};
 use tauri::{utils::platform, Manager};
+
+pub struct MCPCoreOptions {
+    pub database_path: PathBuf,
+    pub proxy_server_sidecar_path: PathBuf,
+}
 
 /// Get the proxy server sidecar path
 /// For linux, as we are distributing an AppImage file, we need to copy the binary to the app data directory
@@ -47,9 +55,9 @@ async fn get_proxy_server_sidecar_path(app_data_path: PathBuf) -> Result<PathBuf
                 Err(_) => "failed reading mcp proxy server version".to_string(),
             };
 
-            // if destination_path.exists() && mcp_proxy_server_version == env!("CARGO_PKG_VERSION") {
-            //     return Ok(destination_path);
-            // }
+            if destination_path.exists() && mcp_proxy_server_version == env!("CARGO_PKG_VERSION") {
+                return Ok(destination_path);
+            }
 
             kill_all_processes_by_name(destination_path.file_name().unwrap().to_str().unwrap())
                 .await;
@@ -100,6 +108,8 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
     )
     .await?;
 
+    app_handle.manage(proxy_server_sidecar_path.clone());
+
     info!(
         "proxy server sidecar path: {}",
         proxy_server_sidecar_path.display()
@@ -113,7 +123,48 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
 
     info!("database path: {}", database_path.display());
 
-    let mcp_core = MCPCore::new(database_path, proxy_server_sidecar_path.to_path_buf());
+    let mcp_core = MCPCore::new(
+        database_path.clone(),
+        proxy_server_sidecar_path.to_path_buf(),
+    );
+    app_handle.manage(MCPCoreOptions {
+        database_path,
+        proxy_server_sidecar_path,
+    });
     app_handle.manage(mcp_core.clone());
     Ok(())
+}
+
+pub async fn uninit_mcp_core(app_handle: &tauri::AppHandle) {
+    info!("uninit_mcp_core, getting handle");
+    let app_handle_clone = app_handle.clone();
+    let mcp_core = app_handle_clone.try_state::<MCPCore>();
+    let mcp_core_options = app_handle_clone.try_state::<MCPCoreOptions>();
+
+    // Kill all MCP Server processes
+    if let Some(mcp_core) = mcp_core {
+        info!("killing all MCP processes");
+        let result = mcp_core.kill_all_processes().await;
+        if let Err(e) = result {
+            error!("failed to kill all MCP processes: {}", e);
+        } else {
+            info!("killing all MCP processes done");
+        }
+    }
+
+    /*
+        Kill the mcp proxy server process
+        These processes are created by mcp clientes like cursor or claude
+    */
+    if let Some(mcp_core_options) = mcp_core_options {
+        info!("killing mcp proxy server processes");
+        let mcp_proxy_server_binary_path = mcp_core_options
+            .proxy_server_sidecar_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let _ = kill_all_processes_by_name(mcp_proxy_server_binary_path).await;
+        info!("killing mcp proxy server processes done");
+    }
 }

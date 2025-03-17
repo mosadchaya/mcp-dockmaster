@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use log::info;
 use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 use crate::models::types::ServerToolInfo;
 use crate::MCPError;

@@ -4,7 +4,7 @@ use tauri::{
     AppHandle, Manager, WebviewWindow, WebviewWindowBuilder,
 };
 
-use crate::updater::check_for_updates;
+use crate::{app_uninit, updater::check_for_updates};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Window {
@@ -56,7 +56,9 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 let _ = recreate_window(tray.app_handle().clone(), Window::Main, true);
             }
             "quit" => {
+                let app_handle = tray.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
+                    app_uninit(&app_handle).await;
                     std::process::exit(0);
                 });
             }

@@ -8,8 +8,8 @@ use features::mcp_proxy::{
     install_claude, install_cursor, is_process_running, restart_process,
 };
 use log::{error, info};
-use mcp_core::core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt};
-use mcp_core_utils::init_mcp_core;
+use mcp_core::core::mcp_core::MCPCore;
+use mcp_core_utils::{init_mcp_core, uninit_mcp_core};
 use tauri::{Emitter, Manager, RunEvent};
 use tray::create_tray;
 use updater::{check_for_updates, check_for_updates_command};
@@ -45,18 +45,6 @@ mod commands {
     #[tauri::command]
     pub async fn check_initialization_complete() -> Result<bool, String> {
         Ok(INITIALIZATION_COMPLETE.load(Ordering::Relaxed))
-    }
-}
-fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
-    let mcp_core = app_handle.state::<MCPCore>();
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        let mcp_core = mcp_core.inner().clone();
-        handle.spawn(async move {
-            let result = mcp_core.kill_all_processes().await;
-            if let Err(e) = result {
-                error!("Failed to kill all MCP processes: {}", e);
-            }
-        });
     }
 }
 
@@ -113,6 +101,8 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 }
 
 pub async fn app_init(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    create_tray(app_handle).map_err(|e| e.to_string())?;
+
     // Check for updates
     let _ = check_for_updates(app_handle, false).await;
 
@@ -124,6 +114,11 @@ pub async fn app_init(app_handle: &tauri::AppHandle) -> Result<(), String> {
     init_services(app_handle);
     Ok(())
 }
+
+pub async fn app_uninit(app_handle: &tauri::AppHandle) {
+    uninit_mcp_core(app_handle).await;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
     tauri::Builder::default()
@@ -134,12 +129,13 @@ pub async fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            create_tray(app.handle())?;
-
             // Check for updates in the background when the app is opened
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                app_init(&app_handle_clone).await;
+                app_init(&app_handle_clone).await.unwrap_or_else(|e| {
+                    error!("Failed to initialize app: {}", e);
+                    app_handle_clone.exit(1);
+                })
             });
             Ok(())
         })
@@ -174,16 +170,22 @@ pub async fn run() {
         .expect("Error while running Tauri application")
         .run(move |app_handle, event| match event {
             RunEvent::ExitRequested { api, .. } => {
-                // First, prevent exit to handle cleanup
+                /*
+                    First, prevent exit to handle cleanup
+                    This is ignored when using AppHandle#method.restart.
+                */
+                info!("[RunEvent:ExitRequested] preventing exit to handle cleanup");
                 api.prevent_exit();
-
-                // Cleanup processes
-                cleanup_mcp_processes(app_handle);
             }
             RunEvent::Exit { .. } => {
                 // Cleanup processes
-                cleanup_mcp_processes(app_handle);
-                std::process::exit(0);
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    info!("[RunEvent:Exit] uninit app");
+                    app_uninit(&app_handle).await;
+                    info!("[RunEvent::Exit] exiting app");
+                    std::process::exit(0);
+                });
             }
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => handle_window_reopen(app_handle),

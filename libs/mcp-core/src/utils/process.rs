@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use log::info;
 use sysinfo::System;
 
 use super::command::CommandWrappedInShellBuilder;
@@ -125,28 +126,50 @@ pub async fn kill_process_by_pid(process_id: &str) -> Result<(), String> {
 }
 
 pub async fn kill_all_processes_by_name(process_name: &str) {
+    info!("kill_all_processes_by_name name:{} ", process_name);
     let adapted_process_name = adapted_process_name(process_name);
     let mut system = System::new_all();
     system.refresh_all();
 
     let process_name_as_os_str = std::ffi::OsStr::new(adapted_process_name.as_str());
-    let adapted_process_name_clone = adapted_process_name.clone();
 
-    let futures = system
-        .processes_by_name(process_name_as_os_str)
-        .map(|process| {
+    let processes: Vec<_> = system.processes_by_name(process_name_as_os_str).collect();
+
+    if processes.is_empty() {
+        info!("no process found with name:{}", process_name);
+        return;
+    }
+
+    let futures = processes
+        .into_iter()
+        .map(|process| async move {
             let pid = process.pid();
-            let adapted_process_name_clone = adapted_process_name_clone.clone();
-            async move {
-                if let Err(e) = kill_process_by_pid(&pid.to_string()).await {
-                    log::error!(
-                        "failed to kill process with PID '{}' and name: '{}': {}",
-                        pid,
-                        adapted_process_name_clone,
-                        e
-                    );
-                }
-            }
+            let name = process.name();
+            info!(
+                "found process id:{} name:{}",
+                pid.as_u32(),
+                name.to_string_lossy()
+            );
+
+            info!(
+                "sending kill signal to process id:{} name:{}",
+                pid.as_u32(),
+                name.to_string_lossy()
+            );
+            process.kill();
+
+            info!(
+                "waiting for exit process id:{} name:{}",
+                pid.as_u32(),
+                name.to_string_lossy()
+            );
+            process.wait();
+
+            info!(
+                "process id:{} name:{} has been terminated",
+                pid.as_u32(),
+                name.to_string_lossy()
+            );
         })
         .collect::<Vec<_>>();
 
