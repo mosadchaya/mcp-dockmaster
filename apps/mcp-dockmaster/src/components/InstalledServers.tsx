@@ -68,6 +68,7 @@ const InstalledServers: React.FC = () => {
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
   const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
   const [envOperationInProgress, setEnvOperationInProgress] = useState(false);
+  const [areToolsPaused, setAreToolsPaused] = useState(false);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -423,6 +424,20 @@ const InstalledServers: React.FC = () => {
     setNotifications((prev) =>
       prev.filter((notification) => notification.id !== id),
     );
+  };
+  
+  // Handle tool visibility toggle
+  const handleToolsVisibilityChange = async (hidden: boolean) => {
+    try {
+      await MCPClient.setToolsHidden(hidden);
+      setAreToolsPaused(hidden);
+      console.log("Tool visibility state updated:", hidden);
+      
+      // Reload data to reflect the change
+      loadData();
+    } catch (error) {
+      console.error("Failed to update tool visibility state:", error);
+    }
   };
 
   const saveEnvVars = async (serverId: string, e: React.MouseEvent) => {
