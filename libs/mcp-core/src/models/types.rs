@@ -63,7 +63,10 @@ pub enum ServerStatus {
     Running,
     Stopped,
     Starting,
-    #[serde(serialize_with = "serialize_error", deserialize_with = "deserialize_error")]
+    #[serde(
+        serialize_with = "serialize_error",
+        deserialize_with = "deserialize_error"
+    )]
     Error(String),
 }
 
@@ -152,7 +155,7 @@ pub struct ToolExecutionRequest {
 }
 
 /// MCP tool execution response
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ToolExecutionResponse {
     pub success: bool,
     pub result: Option<Value>,
@@ -167,7 +170,7 @@ pub struct ServerUpdateRequest {
 }
 
 /// MCP tool update response
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ToolUpdateResponse {
     pub success: bool,
     pub message: String,

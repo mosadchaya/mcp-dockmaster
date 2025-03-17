@@ -2,6 +2,7 @@ mod install_claude;
 mod install_cursor;
 mod install_errors;
 mod install_paths;
+
 pub use self::install_claude::get_claude_config;
 pub use self::install_claude::install_claude;
 pub use self::install_claude::is_claude_installed;
