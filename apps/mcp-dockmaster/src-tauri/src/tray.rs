@@ -1,23 +1,14 @@
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewWindow, WebviewWindowBuilder,
+    Manager,
 };
 
-use crate::updater::check_for_updates;
-
-#[derive(Debug, Clone, Copy)]
-pub enum Window {
-    Main,
-}
-
-impl Window {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Window::Main => "main",
-        }
-    }
-}
+use crate::{
+    app_uninit,
+    updater::check_for_updates,
+    windows::{recreate_window, Window},
+};
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let quit_menu_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
@@ -56,7 +47,9 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 let _ = recreate_window(tray.app_handle().clone(), Window::Main, true);
             }
             "quit" => {
+                let app_handle = tray.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
+                    app_uninit(&app_handle).await;
                     std::process::exit(0);
                 });
             }
@@ -70,39 +63,4 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         })
         .build(app)?;
     Ok(())
-}
-
-pub fn recreate_window(
-    app_handle: AppHandle,
-    window_name: Window,
-    focus: bool,
-) -> tauri::Result<WebviewWindow> {
-    let label = window_name.as_str();
-    if let Some(window) = app_handle.get_webview_window(label) {
-        if focus {
-            if window.is_minimized().unwrap_or_default() {
-                let _ = window.unminimize();
-            }
-            window.show().unwrap();
-            let _ = window.set_focus();
-        }
-        Ok(window)
-    } else {
-        let window_config = app_handle
-            .config()
-            .app
-            .windows
-            .iter()
-            .find(|w| w.label == label)
-            .unwrap()
-            .clone();
-
-        match WebviewWindowBuilder::from_config(&app_handle, &window_config) {
-            Ok(builder) => match builder.build() {
-                Ok(window) => Ok(window),
-                Err(e) => Err(e),
-            },
-            Err(e) => Err(e),
-        }
-    }
 }

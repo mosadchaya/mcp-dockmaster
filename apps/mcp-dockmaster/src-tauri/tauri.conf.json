@@ -18,7 +18,8 @@
         "resizable": true,
         "titleBarStyle": "Visible",
         "decorations": true,
-        "center": true
+        "center": true,
+        "create": false
       }
     ],
     "security": {
