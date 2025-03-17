@@ -52,13 +52,22 @@ impl MCPState {
         }
     }
 
-    /// Kill all running processes
+    /// Kill all running processes, attempting to kill each process even if some fail
     pub async fn kill_all_processes(&self) -> Result<(), String> {
         let server_ids: Vec<String> = self.mcp_clients.read().await.keys().cloned().collect();
+        let mut errors = Vec::new();
+
         for server_id in server_ids {
-            self.kill_process(&server_id).await?;
+            if let Err(e) = self.kill_process(&server_id).await {
+                errors.push(format!("Failed to kill process {}: {}", server_id, e));
+            }
         }
-        Ok(())
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("\n"))
+        }
     }
 
     /// Kill a process by its ID
