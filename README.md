@@ -1,3 +1,8 @@
+# MCP Dockmaster
+
+MCP Dockmaster is a straightforward tool designed to help you easily install, manage, and monitor AI applications using MCP (Managed Capabilities Protocol). MCP is an open-source standard created by Anthropic that allows AI apps like Claude Desktop or Cursor to seamlessly access data from platforms such as Slack or Google Drive, interact with other applications, and connect to APIs.
+
+
 # MCP Dockmaster Monorepo
 
 This is a monorepo for the MCP Dockmaster project, managed with NX. A monorepo is a single repository that holds multiple projects, which can be related or independent. NX is a set of extensible dev tools for monorepos, which helps in managing and scaling the projects efficiently.
