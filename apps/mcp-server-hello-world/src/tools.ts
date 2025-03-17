@@ -6,7 +6,9 @@ export const tools = [
     description: "Returns hello world",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        format: { type: "string", enum: ["current", "legacy"] }
+      },
       required: []
     }
   },
@@ -16,7 +18,8 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        message: { type: "string" }
+        message: { type: "string" },
+        format: { type: "string", enum: ["current", "legacy"] }
       },
       required: []
     }
@@ -27,7 +30,8 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        config: { type: "string" }
+        config: { type: "string" },
+        format: { type: "string", enum: ["current", "legacy"] }
       },
       required: ["config"]
     }
