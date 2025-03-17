@@ -160,7 +160,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 // Handler for calling tools
 server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
-  debugLog('CallToolRequestSchema handler called', request);
+  debugLog('CallToolRequestSchema handler called', JSON.stringify(request, null, 2));
   const params: { name: string, arguments: Record<string, any> } = request.params;
   const result = await runInternalTool(params);
 
@@ -170,8 +170,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
 
   try {
     const callResult = await proxyRequest('tools/call', request.params);
+    debugLog('CallToolRequestSchema handler called 456', JSON.stringify(callResult, null, 2));
     return callResult as any;
   } catch (error) {
+    debugLog('Error calling tool:', error);
     console.error('Error calling tool:', error);
     return { error: 'Tool call failed' } as any;
   }
