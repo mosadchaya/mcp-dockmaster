@@ -8,7 +8,7 @@ mod tests {
         core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
         init_logging,
         models::types::ToolExecutionRequest,
-        types::{ServerConfiguration, ServerRegistrationRequest},
+        types::{ServerConfiguration, ServerRegistrationRequest, ServerUpdateRequest},
     };
 
     use super::*;
@@ -264,8 +264,6 @@ mod tests {
         let result = mcp_core.execute_proxy_tool(request).await?;
         assert!(result.success, "Initial server execution failed");
 
-        println!("Server is running");
-
         // Stop the server
         let stop_request = ServerUpdateRequest {
             server_id: server_id.clone(),
@@ -273,7 +271,6 @@ mod tests {
         };
         let stop_result = mcp_core.update_server_status(stop_request).await?;
         assert!(stop_result.success, "Failed to stop server");
-        println!("Stop result: {:?}", stop_result);
 
         // Poll for up to 5 seconds to verify the server has stopped
         let start_time = std::time::Instant::now();
@@ -331,6 +328,7 @@ mod tests {
             parameters: json!({}),
         };
         let result = mcp_core.execute_proxy_tool(request).await?;
+        println!("Server restart result: {:?}", result);
         assert!(result.success, "Server did not restart successfully");
 
         // Cleanup

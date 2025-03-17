@@ -83,12 +83,10 @@ impl MCPState {
             // Close the transport
             let _ = mcp_client.transport.close().await;
 
-            // Update the server status to Stopped in the map
+            // Update the server status to Stopped in the map and remove the client
             let mut mcp_clients = self.mcp_clients.write().await;
-            if let Some(client) = mcp_clients.get_mut(server_id) {
-                client.server_status = ServerStatus::Stopped;
-                info!("Updated server status to Stopped for {}", server_id);
-            }
+            mcp_clients.remove(server_id);
+            info!("Removed client for {}", server_id);
 
             // Remove the server tools
             let _ = self.server_tools.write().await.remove(server_id);
