@@ -68,7 +68,7 @@ const InstalledServers: React.FC = () => {
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
   const [currentInfoServer, setCurrentInfoServer] = useState<RuntimeServer | null>(null);
   const [envOperationInProgress, setEnvOperationInProgress] = useState(false);
-  const [areToolsPaused, setAreToolsPaused] = useState(false);
+  const [areToolsActive, setAreToolsActive] = useState(true);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -78,8 +78,8 @@ const InstalledServers: React.FC = () => {
     const loadToolVisibilityState = async () => {
       try {
         const isHidden = await MCPClient.getToolsVisibilityState();
-        setAreToolsPaused(isHidden);
-        console.log("Tool visibility state loaded from backend:", isHidden);
+        setAreToolsActive(!isHidden);
+        console.log("Tool visibility state loaded from backend:", !isHidden);
       } catch (error) {
         console.error("Failed to load tool visibility state:", error);
       }
@@ -443,11 +443,11 @@ const InstalledServers: React.FC = () => {
   };
   
   // Handle tool visibility toggle
-  const handleToolsVisibilityChange = async (hidden: boolean) => {
+  const handleToolsVisibilityChange = async (active: boolean) => {
     try {
-      await MCPClient.setToolsHidden(hidden);
-      setAreToolsPaused(hidden);
-      console.log("Tool visibility state updated:", hidden);
+      await MCPClient.setToolsHidden(!active);
+      setAreToolsActive(active);
+      console.log("Tool visibility state updated:", active);
       
       // Reload data to reflect the change
       loadData();
@@ -1016,12 +1016,12 @@ const InstalledServers: React.FC = () => {
           </h1>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {areToolsPaused ? "MCP Servers Paused" : "MCP Servers Active"}
+              {areToolsActive ? "MCP Servers Active" : "MCP Servers Paused"}
             </span>
             <Switch
-              checked={areToolsPaused}
+              checked={areToolsActive}
               onCheckedChange={handleToolsVisibilityChange}
-              className={areToolsPaused ? "data-[state=checked]:bg-red-500" : "data-[state=checked]:bg-emerald-500"}
+              className={areToolsActive ? "data-[state=checked]:bg-emerald-500" : "data-[state=checked]:bg-red-500"}
             />
           </div>
         </div>
