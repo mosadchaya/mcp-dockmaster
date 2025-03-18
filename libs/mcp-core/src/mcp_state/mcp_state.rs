@@ -257,7 +257,8 @@ impl MCPState {
         for v in config_value["args"].as_array().unwrap_or(&vec![]) {
             let args_key = v.as_str().unwrap();
             let adapted_args_key = args_key.replace("$", "");
-            let args_value = if envs.contains_key(&adapted_args_key) {
+
+            let args_value = if args_key.starts_with("$") && envs.contains_key(&adapted_args_key) {
                 let args_value_from_env = envs.get(&adapted_args_key).unwrap().clone();
                 envs.remove(&adapted_args_key);
                 args_value_from_env
