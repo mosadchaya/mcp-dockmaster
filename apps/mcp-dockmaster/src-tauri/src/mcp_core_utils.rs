@@ -8,6 +8,7 @@ use mcp_core::{
 use tauri::{utils::platform, Manager};
 
 pub struct MCPCoreOptions {
+    #[allow(dead_code)]
     pub database_path: PathBuf,
     pub proxy_server_sidecar_path: PathBuf,
 }
