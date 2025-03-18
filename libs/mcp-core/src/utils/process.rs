@@ -43,7 +43,7 @@ pub fn find_process_by_name(process_name: &str) -> Result<String, String> {
     // Iterate through all processes and find matches by name
     for (pid, process) in system.processes() {
         let n = process.name().to_str().unwrap().to_string();
-        if n == target_name {
+        if n.to_lowercase().eq(&target_name.to_lowercase()) {
             println!(
                 "Found process '{:?}' (PID: {}) -- terminating...",
                 process, pid
