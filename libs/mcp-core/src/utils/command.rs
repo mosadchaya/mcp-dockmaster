@@ -191,6 +191,55 @@ impl CommandWrappedInShellBuilder {
         command
     }
 
+    pub fn wrap_in_shell_as_values<Program, Args, Envs, EnvKey, EnvValue>(
+        program: Program,
+        args: Option<Args>,
+        envs: Option<Envs>,
+    ) -> (String, Vec<String>, HashMap<String, String>)
+    where
+        Program: AsRef<OsStr>,
+        Args: IntoIterator<Item = Program>,
+        EnvKey: AsRef<OsStr>,
+        EnvValue: AsRef<OsStr>,
+        Envs: IntoIterator<Item = (EnvKey, EnvValue)>,
+    {
+        let adapted_program: String = DEFAULT_SHELL.clone();
+        let mut adapted_args: Vec<String> = Vec::new();
+        let mut adapted_envs: HashMap<String, String> = HashMap::new();
+
+        adapted_args.push("-c".to_string());
+
+        #[cfg(not(windows))]
+        if let Some(path) = ENVS.get("PATH") {
+            adapted_envs.insert("PATH".to_string(), path.to_string());
+        }
+
+        if let Some(envs) = envs {
+            for (key, value) in envs {
+                adapted_envs.insert(
+                    key.as_ref().to_string_lossy().to_string(),
+                    value.as_ref().to_string_lossy().to_string(),
+                );
+            }
+        }
+
+        let command_with_args = if let Some(args) = args {
+            program.as_ref().to_string_lossy().to_string()
+                + " "
+                + &args
+                    .into_iter()
+                    .map(|s| s.as_ref().to_string_lossy().to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+        } else {
+            program.as_ref().to_string_lossy().to_string()
+        };
+
+        adapted_args.push(command_with_args);
+
+        (adapted_program, adapted_args, adapted_envs)
+    }
+
     pub fn build(self) -> Command {
         let command_with_args = if let Some(args) = self.args {
             self.program.clone() + " " + &args.join(" ")
