@@ -7,7 +7,7 @@ import {
   SERVER_UNINSTALLED 
 } from "../lib/events";
 import "./InstalledServers.css";
-import { ChevronDown, ChevronRight, Info, Settings } from "lucide-react";
+import { Info, Settings } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
@@ -58,7 +58,6 @@ const InstalledServers: React.FC = () => {
   const [servers, setServers] = useState<RuntimeServer[]>([]);
   const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
@@ -159,24 +158,6 @@ const InstalledServers: React.FC = () => {
       clearInterval(intervalId);
     };
   }, [servers]);
-
-  // Effect to handle expanded tool changes
-  useEffect(() => {
-    if (expandedServerId) {
-      console.log("Tool expanded:", expandedServerId);
-      // Find the tool that was expanded
-      const tool = serverTools.find((t) => t.server_id === expandedServerId);
-      if (tool?.server_id) {
-        console.log("Expanded tool has server_id:", tool.server_id);
-        // Instead of calling loadData which would trigger another render,
-        // just ensure we have the server tools for this server
-        const server = servers.find((s) => s.id === tool.server_id);
-        if (server && server.status === 'running') {
-          discoverToolsForServer(tool.server_id);
-        }
-      }
-    }
-  }, [expandedServerId]);
 
   // Add event listeners for tool status changes
   useEffect(() => {
@@ -372,29 +353,6 @@ const InstalledServers: React.FC = () => {
 
       // Clear all transitioning servers on error
       setTransitioningServers(new Set());
-    }
-  };
-
-  const discoverToolsForServer = async (
-    serverId: string,
-    e?: React.MouseEvent,
-  ) => {
-    if (e) {
-      e.stopPropagation(); // Prevent the click from toggling the expanded state
-    }
-
-    try {
-      const server = servers.find((s) => s.id === serverId);
-      if (server?.status === 'running') {
-        await MCPClient.discoverTools({ server_id: serverId });
-      }
-      
-      // Update only the server tools without reloading all servers
-      // This prevents unnecessary reordering of servers
-      const allServerTools = await MCPClient.listAllServerTools();
-      setServerTools(allServerTools);
-    } catch (error) {
-      console.error(`Failed to discover tools for server ${serverId}:`, error);
     }
   };
 
@@ -595,112 +553,27 @@ const InstalledServers: React.FC = () => {
     setCurrentInfoServer(null);
   };
 
-  const toggleExpandTool = (serverId: string, e: React.MouseEvent) => {
-    // Don't toggle if clicking on status toggle
-    const target = e.target as HTMLElement;
-    if (target.closest(".app-status-indicator")) {
-      return;
+  const discoverToolsForServer = async (
+    serverId: string,
+    e?: React.MouseEvent,
+  ) => {
+    if (e) {
+      e.stopPropagation(); // Prevent the click from toggling the expanded state
     }
 
-    console.log("Toggling tool expansion for:", serverId);
-
-    // If the tool is already expanded, collapse it
-    if (expandedServerId === serverId) {
-      console.log("Collapsing tool");
-      setExpandedServerId(null);
-    } else {
-      console.log("Expanding tool");
-      setExpandedServerId(serverId);
-
-      // If the tool has a server_id and the server is running, refresh the tools
+    try {
       const server = servers.find((s) => s.id === serverId);
-      console.log("Server found:", server);
-
       if (server?.status === 'running') {
-        console.log("Server is running, discovering tools");
-        discoverToolsForServer(server.id);
-      } else {
-        console.log("Server is not running, no tools to discover");
+        await MCPClient.discoverTools({ server_id: serverId });
       }
+      
+      // Update only the server tools without reloading all servers
+      // This prevents unnecessary reordering of servers
+      const allServerTools = await MCPClient.listAllServerTools();
+      setServerTools(allServerTools);
+    } catch (error) {
+      console.error(`Failed to discover tools for server ${serverId}:`, error);
     }
-  };
-
-  const renderServerInfo = (server: RuntimeServer) => {
-    // Only show server info when the tool is expanded
-    if (expandedServerId !== server.id) {
-      return null;
-    }
-
-    // Find tools for this server
-    const toolsForServer = serverTools.filter((t) => t.server_id === server.id);
-
-    return (
-      <div className="server-info-container">
-        <div className="server-header">
-          <h4 className="!text-sm font-medium">Server Information</h4>
-          <div className="server-status-badge">
-            <Badge
-              variant="outline"
-              className={
-                server.status === 'running'
-                  ? "bg-emerald-500 text-white"
-                  : server.status === 'starting'
-                  ? "bg-yellow-500 text-white"
-                  : server.status.startsWith("Error:")
-                  ? "bg-red-500 text-white"
-                  : "bg-red-500 text-white"
-              }
-            >
-              {server.status === 'running' 
-                ? "Running" 
-                : server.status === 'stopped' 
-                ? "Stopped" 
-                : server.status === 'starting' 
-                ? "Starting" 
-                : server.status.startsWith("Error:") 
-                ? server.status 
-                : "Stopped"}
-            </Badge>
-          </div>
-          <button
-            className="discover-button"
-            onClick={(e) => {
-              e.stopPropagation();
-              discoverToolsForServer(server.id, e);
-            }}
-          >
-            Refresh Tools
-          </button>
-        </div>
-        {toolsForServer.length > 0 ? (
-          <div className="server-tools">
-            <h5 className="!text-sm font-medium">Available Tools</h5>
-            <div className="server-tools-grid">
-              {toolsForServer.map((tool) => (
-                <div key={tool.proxy_id} className="server-tool-card gap-1">
-                  <h6 className="!mb-0 !text-sm font-medium">{tool.name}</h6>
-                  <p className="!text-xs">{tool.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="empty-tools-message">
-            <p>
-              {server.status === 'running'
-                ? hasUnsetRequiredEnvVars(server)
-                  ? <span className="warning-text">This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear.</span>
-                  : 'No tools discovered from this server yet. Click "Refresh Tools" to discover available tools.'
-                : server.status === 'starting'
-                ? "Server is starting. Please wait..."
-                : server.status.startsWith("Error:")
-                ? <span className="error-text">Server error: {server.status.substring(7)}</span>
-                : "Server is not running. Start the server to discover available tools."}
-            </p>
-          </div>
-        )}
-      </div>
-    );
   };
 
   // Configuration popup component
@@ -1108,7 +981,7 @@ const InstalledServers: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-3 pb-0">
+              <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <CardDescription className="mt-1 line-clamp-2">
                     {server.description}
@@ -1130,10 +1003,7 @@ const InstalledServers: React.FC = () => {
                   )}
                 </div>
 
-                <div
-                  className="server-status-indicator"
-                  onClick={(e) => toggleExpandTool(server.id, e)}
-                >
+                <div className="server-status-indicator">
                   <div className="flex items-center gap-1">
                     <span
                       className={`server-status-dot ${
@@ -1162,19 +1032,7 @@ const InstalledServers: React.FC = () => {
                                 : "Stopped"}
                     </span>
                   </div>
-                  <span className="flex items-center gap-1">
-                    {expandedServerId === server.id ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    {expandedServerId === server.id
-                      ? "Hide details"
-                      : "Show details"}
-                  </span>
                 </div>
-
-                {renderServerInfo(server)}
               </CardContent>
             </Card>
           ))}
