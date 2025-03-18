@@ -1168,9 +1168,6 @@ const InstalledServers: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                    {expandedServerId === server.id
-                      ? "Hide details"
-                      : "Show details"}
                   </span>
                 </div>
 
