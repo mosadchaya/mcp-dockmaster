@@ -1366,7 +1366,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcp_dockmaster_core"
+name = "mcp_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
