@@ -799,6 +799,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1019,7 +1028,7 @@ version = "0.99.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3da29a38df43d6f156149c9b43ded5e018ddff2a855cf2cfd62e8cd7d079c69f"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -2782,6 +2791,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-macros"
+version = "1.0.7"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
+dependencies = [
+ "async-trait",
+ "convert_case 0.6.0",
+ "mcp-core",
+ "proc-macro2",
+ "quote",
+ "schemars",
+ "serde",
+ "serde_json",
+ "syn 2.0.99",
+]
+
+[[package]]
+name = "mcp-server"
+version = "1.0.7"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "mcp-core",
+ "mcp-macros",
+ "pin-project",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tower 0.4.13",
+ "tower-service",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mcp_core"
 version = "0.1.0"
 dependencies = [
@@ -2800,6 +2848,7 @@ dependencies = [
  "log",
  "mcp-client",
  "mcp-core",
+ "mcp-server",
  "once_cell",
  "regex",
  "reqwest 0.12.14",
@@ -5917,6 +5966,18 @@ dependencies = [
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-appender"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
+dependencies = [
+ "crossbeam-channel",
+ "thiserror 1.0.69",
+ "time",
+ "tracing-subscriber",
 ]
 
 [[package]]

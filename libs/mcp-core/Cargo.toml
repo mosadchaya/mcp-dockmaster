@@ -1,8 +1,8 @@
 [package]
-name = "mcp_dockmaster_core"
+name = "mcp_core"
 version = "0.1.0"
 edition = "2021"
-description = "Core functionality for MCP Dockmaster"
+description = "Core functionality for MCP"
 authors = ["MCP Team"]
 
 [dependencies]
@@ -36,7 +36,7 @@ mcp_sdk_client = { package = "mcp-client", git = "https://github.com/dcSpark/rus
 mcp_sdk_server = { package = "mcp-server", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 
 [lib]
-name = "mcp_dockmaster_core"
+name = "mcp_core"
 path = "src/lib.rs"
 
 [dev-dependencies]
