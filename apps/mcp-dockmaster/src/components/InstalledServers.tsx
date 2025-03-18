@@ -302,46 +302,66 @@ const InstalledServers: React.FC = () => {
   };
 
   const toggleToolStatus = async (id: string) => {
+    console.log("Toggling tool status for:", id);
     try {
       // Find the current server to get its current enabled state
       const server = servers.find(server => server.id === id);
       if (!server) return;
 
-      // Mark this server as transitioning
-      setTransitioningServers(prev => new Set([...prev, id]));
-
-      // Update the UI optimistically
-      setServers(prev =>
-        prev.map(server =>
-          server.id === id ? { ...server, enabled: !server.enabled } : server,
-        ),
-      );
-
-      // Call the backend API to update the server status
-      const response = await MCPClient.updateServerStatus({
-        server_id: id,
-        enabled: !server.enabled,
+      // Mark this server as transitioning using a callback to ensure we have latest state
+      setTransitioningServers(prev => {
+        const newSet = new Set(prev);
+        newSet.add(id);
+        return newSet;
       });
 
-      if (response.success) {
-        // Dispatch event that a server's status was changed
-        dispatchServerStatusChanged(id);
-
-        // Refresh the list of all server tools
-        const allServerTools = await MCPClient.listAllServerTools();
-        setServerTools(allServerTools);
-      } else {
-        // If the API call fails, revert the UI change
-        console.error("Failed to update server status:", response.message);
-        setServers(prev =>
-          prev.map(server =>
-            server.id === id ? { ...server, enabled: server.enabled } : server,
-          ),
-        );
+      // Update the UI optimistically using a callback to ensure we have latest state
+      setServers(prev => {
+        const serverIndex = prev.findIndex(s => s.id === id);
+        if (serverIndex === -1) return prev;
         
-        // Remove from transitioning servers
+        const newServers = [...prev];
+        newServers[serverIndex] = { ...prev[serverIndex], enabled: !prev[serverIndex].enabled };
+        return newServers;
+      });
+
+      try {
+        // Call the backend API to update the server status
+        const response = await MCPClient.updateServerStatus({
+          server_id: id,
+          enabled: !server.enabled,
+        });
+
+        if (response.success) {
+          // Dispatch event that a server's status was changed
+          dispatchServerStatusChanged(id);
+
+          // Only refresh tools for this specific server if it's enabled
+          if (!server.enabled) { // If we're enabling the server
+            const serverTools = await MCPClient.listAllServerTools();
+            // Only update tools for this specific server
+            setServerTools(prev => {
+              const otherTools = prev.filter(tool => tool.server_id !== id);
+              const newTools = serverTools.filter(tool => tool.server_id === id);
+              return [...otherTools, ...newTools];
+            });
+          }
+        } else {
+          // If the API call fails, revert the UI change
+          console.error("Failed to update server status:", response.message);
+          setServers(prev => {
+            const serverIndex = prev.findIndex(s => s.id === id);
+            if (serverIndex === -1) return prev;
+            
+            const newServers = [...prev];
+            newServers[serverIndex] = { ...prev[serverIndex], enabled: server.enabled };
+            return newServers;
+          });
+        }
+      } finally {
+        // Always clean up transitioning state
         setTransitioningServers(prev => {
-          const newSet = new Set([...prev]);
+          const newSet = new Set(prev);
           newSet.delete(id);
           return newSet;
         });
@@ -350,7 +370,6 @@ const InstalledServers: React.FC = () => {
       console.error("Error toggling server status:", error);
       // Refresh the list to ensure UI is in sync with backend
       loadData();
-
       // Clear all transitioning servers on error
       setTransitioningServers(new Set());
     }
