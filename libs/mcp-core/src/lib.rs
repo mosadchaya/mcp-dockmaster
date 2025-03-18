@@ -25,11 +25,10 @@ pub use mcp_server::{
 };
 
 // Re-export Tool from external mcp-core
-pub use mcp_core::{Tool, ToolCall};
+pub use mcp_sdk_core::{Tool, ToolCall};
 use std::sync::Once;
 
 static INIT: Once = Once::new();
-pub use mcp_sdk_core::{Tool, ToolCall};
 
 // Initialize logging
 pub fn init_logging() {

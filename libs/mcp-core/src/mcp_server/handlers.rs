@@ -13,6 +13,9 @@ use mcp_sdk_core::prompt;
 use mcp_sdk_server::{Router, Server, ByteTransport};
 use mcp_sdk_server::router::{RouterService, CapabilitiesBuilder};
 
+// Import our registry cache
+use crate::registry::registry_cache::RegistryCache;
+
 /// Trait for client managers to implement
 #[async_trait]
 pub trait ClientManagerTrait: Send + Sync {
@@ -147,6 +150,14 @@ pub async fn start_mcp_server(client_manager: Arc<dyn ClientManagerTrait>) -> Re
     // Update the tool cache before starting the server
     info!("Updating tool cache before starting server...");
     client_manager.update_tools_cache().await;
+    
+    // Pre-fetch and warm up the registry cache
+    info!("Pre-fetching registry data for cache initialization...");
+    if let Err(e) = RegistryCache::instance().update_registry_cache().await {
+        info!("Warning: Failed to pre-fetch registry data: {}", e.message);
+    } else {
+        info!("Registry cache successfully initialized");
+    }
     
     // Create our router implementation
     let router = MCPRouter::new("MCP Dockmaster Server".to_string(), client_manager);

@@ -1,0 +1,185 @@
+use std::sync::Arc;
+use async_trait::async_trait;
+use log::{error, info};
+use serde_json::Value;
+use tokio::sync::RwLock;
+
+use mcp_sdk_core::Tool;
+
+use crate::core::mcp_core::MCPCore;
+use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
+use crate::models::types::{ServerRegistrationRequest, ServerToolInfo};
+use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
+use crate::registry::registry_service::RegistryService;
+
+use super::handlers::{ClientManagerTrait, start_mcp_server};
+
+/// Client manager implementation that uses MCPCore
+pub struct MCPClientManager {
+    mcp_core: Arc<MCPCore>,
+    // Store the last fetched tools for synchronous access
+    tools_cache: RwLock<Vec<Tool>>,
+}
+
+impl MCPClientManager {
+    /// Create a new MCPClientManager with the given MCPCore instance
+    pub fn new(mcp_core: Arc<MCPCore>) -> Self {
+        Self {
+            mcp_core,
+            tools_cache: RwLock::new(Vec::new()),
+        }
+    }
+
+    /// Convert ServerToolInfo to Tool
+    fn convert_to_tool(server_tool: &ServerToolInfo) -> Tool {
+        Tool {
+            name: server_tool.id.clone(),
+            description: server_tool.description.clone(),
+            input_schema: serde_json::to_value(server_tool.input_schema.clone()).unwrap_or(serde_json::json!({})),
+        }
+    }
+    
+    /// Start the MCP server with this client manager
+    pub async fn start_server(self) -> Result<(), Box<dyn std::error::Error>> {
+        // First update the tools cache
+        info!("Initializing tool cache before starting server...");
+        self.update_tools_cache().await;
+        
+        // Then start the server
+        let client_manager = Arc::new(self);
+        start_mcp_server(client_manager).await
+    }
+
+    /// Handle register_server tool call
+    async fn handle_register_server(&self, arguments: Value) -> Result<Value, String> {
+        // Extract just the tool_id from the arguments
+        let tool_id = arguments.get("tool_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Missing or invalid tool_id parameter".to_string())?;
+        
+        info!("Fetching tool '{}' from registry", tool_id);
+        
+        // Fetch the tool details from the registry
+        let registry_tool = RegistryService::get_tool_by_id(tool_id).await
+            .map_err(|e| format!("Failed to find tool in registry: {}", e.message))?;
+        
+        info!("Found tool '{}' in registry", registry_tool.name);
+        
+        // Create the ServerRegistrationRequest from the registry data
+        let request = ServerRegistrationRequest {
+            server_id: tool_id.to_string(),
+            server_name: registry_tool.name.clone(),
+            description: registry_tool.description.clone(),
+            tools_type: registry_tool.runtime.clone(),
+            configuration: Some(registry_tool.config.clone()),
+            distribution: Some(registry_tool.distribution.clone()),
+        };
+        
+        // Call the register_server method from McpCoreProxyExt
+        match self.mcp_core.register_server(request).await {
+            Ok(response) => {
+                info!("Successfully registered server '{}'", tool_id);
+                // Convert the response to a JSON value
+                serde_json::to_value(response)
+                    .map_err(|e| format!("Failed to serialize response: {}", e))
+            },
+            Err(e) => {
+                error!("Failed to register server '{}': {}", tool_id, e);
+                Err(format!("Failed to register server: {}", e))
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl ClientManagerTrait for MCPClientManager {
+    async fn handle_tool_call(&self, tool_name: String, arguments: Value) -> Result<Value, String> {
+        // Check if this is the register_server tool
+        if tool_name == TOOL_REGISTER_SERVER {
+            info!("Handling register_server tool call");
+            return self.handle_register_server(arguments).await;
+        }
+        
+        // Otherwise, handle as a proxy tool call
+        // Parse the tool_name to extract server_id and tool_id
+        let parts: Vec<&str> = tool_name.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid tool_id format. Expected 'server_id:tool_id'".to_string());
+        }
+
+        let server_id = parts[0];
+        let tool_id = parts[1];
+
+        // Create a tool execution request
+        let request = crate::models::types::ToolExecutionRequest {
+            tool_id: format!("{}:{}", server_id, tool_id),
+            parameters: arguments,
+        };
+
+        // Execute the tool
+        match self.mcp_core.execute_proxy_tool(request).await {
+            Ok(response) => {
+                if let Some(result) = response.result {
+                    Ok(result)
+                } else if let Some(error) = response.error {
+                    Err(error)
+                } else {
+                    Err("No result or error returned from tool execution".to_string())
+                }
+            },
+            Err(e) => Err(format!("Tool execution error: {}", e)),
+        }
+    }
+
+    async fn list_tools(&self) -> Result<Vec<Tool>, String> {
+        // Update the cache first
+        self.update_tools_cache().await;
+        
+        // Then return the cached tools
+        let cache = self.tools_cache.read().await;
+        
+        // Create a clone of the cache
+        let mut tools = cache.clone();
+        
+        // Add the register_server tool
+        tools.push(get_register_server_tool());
+        
+        Ok(tools)
+    }
+
+    fn list_tools_sync(&self) -> Vec<Tool> {
+        // For the synchronous version, we just return whatever is in the cache
+        // This avoids any async operations that could cause runtime panics
+        let mut tools = match self.tools_cache.try_read() {
+            Ok(cache) => cache.clone(),
+            Err(_) => {
+                // If we can't get the read lock, return empty vec
+                Vec::new()
+            }
+        };
+        
+        // Add the register_server tool
+        tools.push(get_register_server_tool());
+        
+        tools
+    }
+    
+    async fn update_tools_cache(&self) {
+        info!("Updating tool cache...");
+        match self.mcp_core.list_all_server_tools().await {
+            Ok(server_tools) => {
+                let tools: Vec<Tool> = server_tools
+                    .iter()
+                    .map(|t| Self::convert_to_tool(t))
+                    .collect();
+                
+                let mut cache = self.tools_cache.write().await;
+                *cache = tools;
+                info!("Updated tools cache with {} tools", cache.len());
+            },
+            Err(err) => {
+                error!("Error fetching tools: {}", err);
+            }
+        }
+    }
+} 
