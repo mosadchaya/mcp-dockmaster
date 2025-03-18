@@ -33,6 +33,7 @@ home = "0.5"
 strip-ansi-escapes = "0.2"
 mcp_sdk_core = { package = "mcp-core", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 mcp_sdk_client = { package = "mcp-client", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
+mcp_sdk_server = { package = "mcp-server", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 
 [lib]
 name = "mcp_dockmaster_core"

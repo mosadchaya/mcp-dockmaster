@@ -147,10 +147,6 @@ impl Router for MCPRouter {
 
 /// Start the MCP server with the provided client manager
 pub async fn start_mcp_server(client_manager: Arc<dyn ClientManagerTrait>) -> Result<(), Box<dyn std::error::Error>> {
-    // Update the tool cache before starting the server
-    info!("Updating tool cache before starting server...");
-    client_manager.update_tools_cache().await;
-    
     // Pre-fetch and warm up the registry cache
     info!("Pre-fetching registry data for cache initialization...");
     if let Err(e) = RegistryCache::instance().update_registry_cache().await {
@@ -158,6 +154,10 @@ pub async fn start_mcp_server(client_manager: Arc<dyn ClientManagerTrait>) -> Re
     } else {
         info!("Registry cache successfully initialized");
     }
+    // Update the tool cache before starting the server
+    info!("Updating tool cache before starting server...");
+    client_manager.update_tools_cache().await;
+    
     
     // Create our router implementation
     let router = MCPRouter::new("MCP Dockmaster Server".to_string(), client_manager);

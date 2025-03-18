@@ -79,6 +79,11 @@ impl MCPClientManager {
         match self.mcp_core.register_server(request).await {
             Ok(response) => {
                 info!("Successfully registered server '{}'", tool_id);
+                
+                // Update the tools cache to include newly registered tools
+                info!("Updating tools cache after new server registration");
+                self.update_tools_cache().await;
+                
                 // Convert the response to a JSON value
                 serde_json::to_value(response)
                     .map_err(|e| format!("Failed to serialize response: {}", e))
@@ -135,50 +140,69 @@ impl ClientManagerTrait for MCPClientManager {
         // Update the cache first
         self.update_tools_cache().await;
         
-        // Then return the cached tools
+        // Create a vector for built-in tools that should always appear first
+        let mut built_in_tools = Vec::new();
+        
+        // Add the register_server tool (and any other built-in tools)
+        built_in_tools.push(get_register_server_tool());
+        // Add other built-in tools here as needed
+        // Example: built_in_tools.push(get_some_other_built_in_tool());
+        
+        // Get the cached tools (user-installed tools)
         let cache = self.tools_cache.read().await;
         
-        // Create a clone of the cache
-        let mut tools = cache.clone();
+        // Combine built-in tools with cached tools
+        // Built-in tools first, followed by cached tools
+        let mut all_tools = built_in_tools;
+        all_tools.extend(cache.clone());
         
-        // Add the register_server tool
-        tools.push(get_register_server_tool());
-        
-        Ok(tools)
+        Ok(all_tools)
     }
 
     fn list_tools_sync(&self) -> Vec<Tool> {
-        // For the synchronous version, we just return whatever is in the cache
-        // This avoids any async operations that could cause runtime panics
-        let mut tools = match self.tools_cache.try_read() {
+        // Create a vector for built-in tools that should always appear first
+        let mut built_in_tools = Vec::new();
+        
+        // Add the register_server tool (and any other built-in tools)
+        built_in_tools.push(get_register_server_tool());
+        // Add other built-in tools here as needed
+        // Example: built_in_tools.push(get_some_other_built_in_tool());
+        
+        // For the synchronous version, we just return whatever installed tools are in the cache
+        let installed_tools = match self.tools_cache.try_read() {
             Ok(cache) => cache.clone(),
             Err(_) => {
-                // If we can't get the read lock, return empty vec
+                // If we can't get the read lock, return empty vec for installed tools
                 Vec::new()
             }
         };
         
-        // Add the register_server tool
-        tools.push(get_register_server_tool());
+        // Combine built-in tools with installed tools
+        let mut all_tools = built_in_tools;
+        all_tools.extend(installed_tools);
         
-        tools
+        all_tools
     }
     
     async fn update_tools_cache(&self) {
+        let servers = self.mcp_core.list_servers().await;
+        info!("Servers: {:?}", servers);
         info!("Updating tool cache...");
         match self.mcp_core.list_all_server_tools().await {
             Ok(server_tools) => {
-                let tools: Vec<Tool> = server_tools
+                // The server_tools here are only the installed tools from MCPCore
+                // Convert ServerToolInfo to Tool for each installed tool
+                let installed_tools: Vec<Tool> = server_tools
                     .iter()
                     .map(|t| Self::convert_to_tool(t))
                     .collect();
                 
                 let mut cache = self.tools_cache.write().await;
-                *cache = tools;
-                info!("Updated tools cache with {} tools", cache.len());
+                *cache = installed_tools;
+                info!("Updated tools cache with {} installed tools", cache.len());
             },
             Err(err) => {
-                error!("Error fetching tools: {}", err);
+                error!("Error fetching installed tools: {}", err);
             }
         }
     }
