@@ -327,6 +327,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -349,6 +358,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -1361,6 +1379,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-macros"
+version = "1.0.7"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
+dependencies = [
+ "async-trait",
+ "convert_case",
+ "mcp-core",
+ "proc-macro2",
+ "quote",
+ "schemars",
+ "serde",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
+name = "mcp-server"
+version = "1.0.7"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "mcp-core",
+ "mcp-macros",
+ "pin-project",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tower 0.4.13",
+ "tower-service",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mcp_core"
 version = "0.1.0"
 dependencies = [
@@ -1379,6 +1436,7 @@ dependencies = [
  "log",
  "mcp-client",
  "mcp-core",
+ "mcp-server",
  "once_cell",
  "regex",
  "reqwest 0.12.14",
@@ -2640,6 +2698,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-appender"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
+dependencies = [
+ "crossbeam-channel",
+ "thiserror 1.0.69",
+ "time",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tracing-attributes"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2700,6 +2770,12 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 
 [[package]]
 name = "untrusted"
