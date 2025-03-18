@@ -32,7 +32,11 @@ import {
   CollapsibleContent,
 } from "../components/ui/collapsible";
 import MCPClient from "../lib/mcpClient";
-import { McpClientApp, McpClientAppId, SUPPORTED_MCP_CLIENT_APPS } from "@/constants/mcp-client-apps";
+import {
+  McpClientApp,
+  McpClientAppId,
+  SUPPORTED_MCP_CLIENT_APPS,
+} from "@/constants/mcp-client-apps";
 import { getMCPProxyServerBinaryPath } from "@/lib/process";
 
 interface PrerequisiteStatus {
@@ -47,7 +51,7 @@ interface MCPClientStatus {
   status: {
     isRunning: boolean;
     installed: boolean;
-  }
+  };
 }
 
 const Home: React.FC = () => {
@@ -65,22 +69,27 @@ const Home: React.FC = () => {
     { name: "Docker", installed: false, loading: true, icon: dockerIcon },
   ]);
 
-  const [mcpClientApps, setMCPClientApps] = useState<{ [key in McpClientAppId]: MCPClientStatus }>(SUPPORTED_MCP_CLIENT_APPS.reduce((obj, mcpClientApp) => {
-    obj[
-      mcpClientApp.id] =
-    {
-      app: mcpClientApp,
-      status: {
-        isRunning: false,
-        installed: false,
-      }
-    };
-    return obj;
-  }, {} as { [key in McpClientAppId]: MCPClientStatus }));
+  const [mcpClientApps, setMCPClientApps] = useState<{
+    [key in McpClientAppId]: MCPClientStatus;
+  }>(
+    SUPPORTED_MCP_CLIENT_APPS.reduce(
+      (obj, mcpClientApp) => {
+        obj[mcpClientApp.id] = {
+          app: mcpClientApp,
+          status: {
+            isRunning: false,
+            installed: false,
+          },
+        };
+        return obj;
+      },
+      {} as { [key in McpClientAppId]: MCPClientStatus },
+    ),
+  );
 
   const [isChecking, setIsChecking] = useState(false);
   const [mcpServers, setMCPServers] = useState<boolean>(false);
-  const [mcpProxyServerBinaryPath, setMCPProxyServerBinaryPath] = useState('');
+  const [mcpProxyServerBinaryPath, setMCPProxyServerBinaryPath] = useState("");
 
   // State variables for UI components
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -94,21 +103,22 @@ const Home: React.FC = () => {
   } | null>(null);
 
   const checkInstalled = async () => {
+    let newValue = mcpClientApps;
     for (const mcpClientApp of SUPPORTED_MCP_CLIENT_APPS) {
       const isInstalled = await mcpClientApp.isInstalled();
       const isRunning = await mcpClientApp.isRunning();
-
-      setMCPClientApps({
-        ...mcpClientApps,
+      newValue = {
+        ...newValue,
         [mcpClientApp.id]: {
-          ...mcpClientApps[mcpClientApp.id],
+          ...newValue[mcpClientApp.id],
           status: {
             isRunning: isRunning,
             installed: isInstalled,
-          }
+          },
         },
-      });
+      };
     }
+    setMCPClientApps(newValue);
   };
 
   const checkPrerequisites = async () => {
@@ -185,7 +195,13 @@ const Home: React.FC = () => {
   };
 
   const openInstallUrl = async (
-    toolName: "Node.js" | "UV (Python)" | "Docker" | "Claude" | "Cursor" | "Generic",
+    toolName:
+      | "Node.js"
+      | "UV (Python)"
+      | "Docker"
+      | "Claude"
+      | "Cursor"
+      | "Generic",
   ) => {
     try {
       // Skip for Generic as it doesn't have an install URL
@@ -210,7 +226,7 @@ const Home: React.FC = () => {
   // Update collapsible sections based on prerequisites status
   useEffect(() => {
     // If all prerequisites are installed, collapse the environment details section
-    if (prerequisites.every(p => p.installed) && !isChecking) {
+    if (prerequisites.every((p) => p.installed) && !isChecking) {
       setIsEnvDetailsOpen(false);
     }
   }, [prerequisites, isChecking]);
@@ -218,7 +234,7 @@ const Home: React.FC = () => {
   // Update collapsible sections based on MCP clients status
   useEffect(() => {
     // If any MCP client is installed, collapse the integration details section
-    if (Object.values(mcpClientApps).some(c => c.status.installed)) {
+    if (Object.values(mcpClientApps).some((c) => c.status.installed)) {
       setIsIntegrationOpen(false);
     }
   }, [mcpClientApps]);
@@ -227,7 +243,7 @@ const Home: React.FC = () => {
     getMCPProxyServerBinaryPath().then((path) => {
       setMCPProxyServerBinaryPath(path);
     });
-  }, [])
+  }, []);
   const checkMCPServers = async () => {
     try {
       const servers = await MCPClient.listServers();
@@ -239,8 +255,8 @@ const Home: React.FC = () => {
   };
 
   const restartProcess = async (process_name: string) => {
-    await invoke('restart_process', { process: { process_name } });
-  }
+    await invoke("restart_process", { process: { process_name } });
+  };
 
   const reload = () => {
     checkPrerequisites();
@@ -256,11 +272,11 @@ const Home: React.FC = () => {
         const results = await Promise.allSettled([
           invoke<string>("get_claude_config"),
           invoke<string>("get_cursor_config"),
-          invoke<string>("get_generic_config")
+          invoke<string>("get_generic_config"),
         ]);
 
         // If all configs failed, show error
-        if (results.every(result => result.status === 'rejected')) {
+        if (results.every((result) => result.status === "rejected")) {
           toast.error("Failed to fetch all configurations");
         }
       } catch (error) {
@@ -317,7 +333,12 @@ const Home: React.FC = () => {
       </div>
       <div className="space-y-4">
         <div className="space-y-2">
-          <p className="text-muted-foreground text-sm"><strong>What is MCP?</strong> MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs.</p>
+          <p className="text-muted-foreground text-sm">
+            <strong>What is MCP?</strong> MCP is an open-source standard from
+            Anthropic that helps AI apps like Claude Desktop or Cursor easily
+            access data from platforms such as Slack and Google Drive, interact
+            with other applications, and connect to APIs.
+          </p>
         </div>
       </div>
 
@@ -328,18 +349,24 @@ const Home: React.FC = () => {
           </div>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-full">
                 <span>1</span>
               </div>
-              <div className="flex flex-col gap-2 flex-1">
+              <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <p className="text-muted-foreground text-sm">Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.</p>
-                  {prerequisites.every(p => p.installed) ? (
-                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                  <p className="text-muted-foreground text-sm">
+                    Make sure that you have Node.js, Python, and Docker
+                    installed so you can run MCPs.
+                  </p>
+                  {prerequisites.every((p) => p.installed) ? (
+                    <Badge className="ml-2 bg-green-500 text-white hover:bg-green-600">
                       ✓
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-red-500 bg-red-500/10 text-red-500"
+                    >
                       ✗
                     </Badge>
                   )}
@@ -348,10 +375,14 @@ const Home: React.FC = () => {
                 <Collapsible
                   open={isEnvDetailsOpen}
                   onOpenChange={setIsEnvDetailsOpen}
-                  className="ml-2 border-l-2 pl-4 border-muted"
+                  className="border-muted ml-2 border-l-2 pl-4"
                 >
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex h-7 items-center gap-1 px-2"
+                    >
                       <span className="text-xs">Environment Details</span>
                       {isEnvDetailsOpen ? (
                         <ChevronDown className="h-3 w-3" />
@@ -360,7 +391,7 @@ const Home: React.FC = () => {
                       )}
                     </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mt-2">
+                  <CollapsibleContent className="mt-2 space-y-2">
                     <div className="grid grid-cols-3 gap-4">
                       {prerequisites.map((prerequisite) => (
                         <div
@@ -391,12 +422,14 @@ const Home: React.FC = () => {
                             </div>
                           </div>
                           {prerequisite.loading ? (
-                            <div className="flex items-center gap-2 mt-3">
-                              <span className="loading-indicator">Checking...</span>
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="loading-indicator">
+                                Checking...
+                              </span>
                               <Loader2 className="h-4 w-4 animate-spin" />
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center gap-2 mt-3">
+                            <div className="mt-3 flex flex-col items-center gap-2">
                               <span className="status-indicator">
                                 {prerequisite.installed ? (
                                   <Badge className="bg-green-500 text-white hover:bg-green-600">
@@ -419,9 +452,9 @@ const Home: React.FC = () => {
                                   onClick={() =>
                                     openInstallUrl(
                                       prerequisite.name as
-                                      | "Node.js"
-                                      | "UV (Python)"
-                                      | "Docker",
+                                        | "Node.js"
+                                        | "UV (Python)"
+                                        | "Docker",
                                     )
                                   }
                                 >
@@ -438,18 +471,26 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-full">
                 <span>2</span>
               </div>
-              <div className="flex flex-col gap-2 flex-1">
+              <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <p className="text-muted-foreground text-sm">Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.</p>
-                  {Object.values(mcpClientApps).some(c => c.status.installed) ? (
-                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                  <p className="text-muted-foreground text-sm">
+                    Add Dockmaster to Cursor, Claude Desktop, or any other MCP
+                    client.
+                  </p>
+                  {Object.values(mcpClientApps).some(
+                    (c) => c.status.installed,
+                  ) ? (
+                    <Badge className="ml-2 bg-green-500 text-white hover:bg-green-600">
                       ✓
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-red-500 bg-red-500/10 text-red-500"
+                    >
                       ✗
                     </Badge>
                   )}
@@ -458,10 +499,14 @@ const Home: React.FC = () => {
                 <Collapsible
                   open={isIntegrationOpen}
                   onOpenChange={setIsIntegrationOpen}
-                  className="ml-2 border-l-2 pl-4 border-muted"
+                  className="border-muted ml-2 border-l-2 pl-4"
                 >
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex h-7 items-center gap-1 px-2"
+                    >
                       <span className="text-xs">Integration Details</span>
                       {isIntegrationOpen ? (
                         <ChevronDown className="h-3 w-3" />
@@ -470,7 +515,7 @@ const Home: React.FC = () => {
                       )}
                     </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mt-2">
+                  <CollapsibleContent className="mt-2 space-y-2">
                     <div className="grid grid-cols-3 gap-4">
                       {Object.values(mcpClientApps).map((client) => (
                         <div
@@ -495,7 +540,9 @@ const Home: React.FC = () => {
                               <p className="font-medium">{client.app.name}</p>
                               <button
                                 onClick={() =>
-                                  openInstallUrl(client.app.name as "Claude" | "Cursor")
+                                  openInstallUrl(
+                                    client.app.name as "Claude" | "Cursor",
+                                  )
                                 }
                                 className="text-muted-foreground hover:text-foreground transition-colors"
                               >
@@ -503,7 +550,7 @@ const Home: React.FC = () => {
                               </button>
                             </div>
                           </div>
-                          <div className="flex flex-col items-center gap-2 mt-3">
+                          <div className="mt-3 flex flex-col items-center gap-2">
                             <span className="status-indicator">
                               {client.status.installed ? (
                                 <Badge className="bg-green-500 text-white hover:bg-green-600">
@@ -518,11 +565,13 @@ const Home: React.FC = () => {
                                 </Badge>
                               )}
                             </span>
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="mt-2 flex items-center gap-2">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleInstallClick(client.app.id)}
+                                onClick={() =>
+                                  handleInstallClick(client.app.id)
+                                }
                               >
                                 Install
                               </Button>
@@ -531,60 +580,63 @@ const Home: React.FC = () => {
                         </div>
                       ))}
                       <div
-                        key={'other'}
+                        key={"separator"}
                         className="flex flex-col items-center justify-center rounded-lg transition-colors"
                       >
                         ...
                       </div>
-                        <div
-                        key={'other'}
+                      <div
+                        key={"other"}
                         className="hover:bg-muted/10 flex flex-col items-center rounded-lg border p-4 transition-colors"
-                        >
+                      >
                         <div className="flex flex-col items-center gap-3">
                           <div
-                          className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-full border",
-                          )}
+                            className={cn(
+                              "flex h-10 w-10 items-center justify-center rounded-full border",
+                            )}
                           >
-                          <AppWindowIcon
-                            className="h-5 w-5"
-                          />
+                            <AppWindowIcon className="h-5 w-5" />
                           </div>
                           <div className="flex items-center gap-2">
-                          <p className="font-medium">Other Apps</p>
+                            <p className="font-medium">Other Apps</p>
                           </div>
                         </div>
-                        <div className="flex flex-col items-center gap-2 mt-3 text-center">
+                        <div className="mt-3 flex flex-col items-center gap-2 text-center">
                           <p className="text-muted-foreground text-sm">
-                          Add MCP Dockmaster to any other app that supports MCP Servers of type command:
+                            Add MCP Dockmaster to any other app that supports
+                            MCP Servers of type command:
                           </p>
-                          <div className="bg-gray-100 p-2 rounded-lg text-xs w-full">
-                          
-                          <code className="break-all">
-                            {mcpProxyServerBinaryPath}
-                          </code>
+                          <div className="w-full rounded-lg bg-gray-100 p-2 text-xs">
+                            <code className="break-all">
+                              {mcpProxyServerBinaryPath}
+                            </code>
                           </div>
                         </div>
-                        </div>
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-full">
                 <span>3</span>
               </div>
-              <div className="flex flex-col gap-2 flex-1">
+              <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <p className="text-muted-foreground text-sm">Install MCPs from the registry or a GitHub URL.</p>
+                  <p className="text-muted-foreground text-sm">
+                    Install MCPs from the registry or a GitHub URL.
+                  </p>
                   {/* Check if at least one MCP server is installed */}
                   {mcpServers ? (
-                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                    <Badge className="ml-2 bg-green-500 text-white hover:bg-green-600">
                       ✓
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-gray-500 bg-gray-500/10 text-gray-500 ml-2">
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-gray-500 bg-gray-500/10 text-gray-500"
+                    >
                       ?
                     </Badge>
                   )}
@@ -593,10 +645,14 @@ const Home: React.FC = () => {
                 <Collapsible
                   open={isRegistryDetailsOpen}
                   onOpenChange={setIsRegistryDetailsOpen}
-                  className="ml-2 border-l-2 pl-4 border-muted"
+                  className="border-muted ml-2 border-l-2 pl-4"
                 >
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex h-7 items-center gap-1 px-2"
+                    >
                       <span className="text-xs">Registry Details</span>
                       {isRegistryDetailsOpen ? (
                         <ChevronDown className="h-3 w-3" />
@@ -605,9 +661,10 @@ const Home: React.FC = () => {
                       )}
                     </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mt-2">
+                  <CollapsibleContent className="mt-2 space-y-2">
                     <p className="text-muted-foreground text-sm">
-                      Browse available MCPs from the registry to extend your AI applications with various capabilities.
+                      Browse available MCPs from the registry to extend your AI
+                      applications with various capabilities.
                     </p>
                     <Button
                       size="sm"
@@ -625,18 +682,25 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-full">
                 <span>4</span>
               </div>
-              <div className="flex flex-col gap-2 flex-1">
+              <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <p className="text-muted-foreground text-sm">Restart Claude Desktop and Cursor and you are good to go!</p>
-                  {Object.values(mcpClientApps).every(c => c.status.installed) ? (
-                    <Badge className="bg-green-500 text-white hover:bg-green-600 ml-2">
+                  <p className="text-muted-foreground text-sm">
+                    Restart Claude Desktop and Cursor and you are good to go!
+                  </p>
+                  {Object.values(mcpClientApps).every(
+                    (c) => c.status.installed,
+                  ) ? (
+                    <Badge className="ml-2 bg-green-500 text-white hover:bg-green-600">
                       ✓
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-500 ml-2">
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-red-500 bg-red-500/10 text-red-500"
+                    >
                       ✗
                     </Badge>
                   )}
@@ -645,10 +709,14 @@ const Home: React.FC = () => {
                 <Collapsible
                   open={isRestartOptionsOpen}
                   onOpenChange={setIsRestartOptionsOpen}
-                  className="ml-2 border-l-2 pl-4 border-muted"
+                  className="border-muted ml-2 border-l-2 pl-4"
                 >
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 h-7 px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex h-7 items-center gap-1 px-2"
+                    >
                       <span className="text-xs">Restart Options</span>
                       {isRestartOptionsOpen ? (
                         <ChevronDown className="h-3 w-3" />
@@ -657,11 +725,12 @@ const Home: React.FC = () => {
                       )}
                     </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mt-2">
+                  <CollapsibleContent className="mt-2 space-y-2">
                     <p className="text-muted-foreground text-sm">
-                      Restart your MCP clients to apply the changes and start using your MCPs.
+                      Restart your MCP clients to apply the changes and start
+                      using your MCPs.
                     </p>
-                    <div className="grid grid-cols-3 gap-4 mt-2">
+                    <div className="mt-2 grid grid-cols-3 gap-4">
                       {Object.values(mcpClientApps).map((client) => (
                         <div
                           key={client.app.name}
@@ -671,7 +740,9 @@ const Home: React.FC = () => {
                             <div
                               className={cn(
                                 "flex h-10 w-10 items-center justify-center rounded-full",
-                                client.status.isRunning ? "bg-green-500/10" : client.status.isRunning && "bg-red-500/10",
+                                client.status.isRunning
+                                  ? "bg-green-500/10"
+                                  : client.status.isRunning && "bg-red-500/10",
                               )}
                             >
                               <img
@@ -682,7 +753,7 @@ const Home: React.FC = () => {
                             </div>
                             <p className="font-medium">{client.app.name}</p>
                           </div>
-                          <div className="flex flex-col items-center gap-2 mt-3">
+                          <div className="mt-3 flex flex-col items-center gap-2">
                             <span className="status-indicator">
                               {client.status.isRunning ? (
                                 <Badge className="bg-green-500 text-white hover:bg-green-600">
@@ -704,11 +775,18 @@ const Home: React.FC = () => {
                               onClick={async () => {
                                 try {
                                   await restartProcess(client.app.name);
-                                  toast.success(`${client.app.name} restarted successfully!`);
+                                  toast.success(
+                                    `${client.app.name} restarted successfully!`,
+                                  );
                                   await checkInstalled();
                                 } catch (error) {
-                                  console.error(`Failed to restart ${client.app.name}:`, error);
-                                  toast.error(`Failed to restart ${client.app.name}`);
+                                  console.error(
+                                    `Failed to restart ${client.app.name}:`,
+                                    error,
+                                  );
+                                  toast.error(
+                                    `Failed to restart ${client.app.name}`,
+                                  );
                                 }
                               }}
                             >
