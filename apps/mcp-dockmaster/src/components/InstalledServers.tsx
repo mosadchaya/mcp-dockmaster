@@ -678,7 +678,7 @@ const InstalledServers: React.FC = () => {
             {toolsForServer.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Tools</h3>
-                <div className="rounded-md border p-3 space-y-6 max-h-[300px] overflow-y-auto">
+                <div className="rounded-md border p-3 space-y-6">
                   {toolsForServer.map((tool) => (
                     <div key={tool.id} className="pb-4 border-b border-slate-200 last:border-0 last:pb-0">
                       {/* Command Name - Bold and prominent */}
