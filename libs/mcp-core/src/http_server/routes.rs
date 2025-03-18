@@ -1,19 +1,26 @@
 use axum::{
     routing::{get, post},
-    Extension, Router,
+    Router,
 };
 use log::{error, info};
 use std::net::SocketAddr;
 
 use crate::core::mcp_core::MCPCore;
-
-use super::handlers::{handle_mcp_request, health_check};
+use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, message_handler};
 
 pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
     let app = Router::new()
-        .route("/mcp-proxy", post(handle_mcp_request))
+        .route("/", get(health_check))
         .route("/health", get(health_check))
-        .layer(Extension(mcp_core));
+        .route("/mcp/sse", get(sse_handler))
+        .route("/mcp/message/{session_id}", post(
+            |path, body| async {
+                // Call the existing handler function directly
+                message_handler(path, body).await
+            }
+        ))
+        .route("/mcp", post(handle_mcp_request))
+        .with_state(mcp_core);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     info!("MCP HTTP server starting on {}", addr);
@@ -21,11 +28,17 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .map_err(|e| format!("Failed to bind to address: {}", e))?;
+    
+    // Start the server in a separate task
     tokio::spawn(async move {
-        match axum::serve(listener, app).await {
-            Ok(_) => info!("MCP HTTP server terminated normally"),
-            Err(e) => error!("MCP HTTP server error: {}", e),
+        // With axum 0.8.1, we need to create a service
+        let service = app.into_make_service();
+        if let Err(e) = axum::serve(listener, service).await {
+            error!("MCP HTTP server error: {}", e);
+        } else {
+            info!("MCP HTTP server terminated normally");
         }
     });
+    
     Ok(())
 }

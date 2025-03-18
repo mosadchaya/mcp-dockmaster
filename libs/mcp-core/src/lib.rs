@@ -19,10 +19,16 @@ pub mod utils;
 
 // Re-export key items for convenience
 pub use mcp_server::{
-    start_mcp_server,
     ClientManagerTrait,
     ClientManager,
+    handlers::{
+        SessionManager,
+        process_message
+    }
 };
+
+// Re-export ByteTransport from mcp-sdk-server
+pub use mcp_sdk_server::ByteTransport;
 
 // Re-export Tool from external mcp-core
 pub use mcp_sdk_core::{Tool, ToolCall};

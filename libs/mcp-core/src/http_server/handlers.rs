@@ -18,6 +18,22 @@ use crate::models::types::{
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
+use axum::{
+    extract::Path,
+    response::sse::{Event, Sse},
+};
+use futures::stream::{self, Stream};
+use std::convert::Infallible;
+use tokio::sync::mpsc;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use futures::StreamExt;
+use uuid::Uuid;
+
+use crate::mcp_server::handlers::SessionManager;
+use mcp_sdk_server::Server;
+use mcp_sdk_server::router::RouterService;
+use crate::mcp_server::handlers::MCPRouter;
+
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
     #[allow(dead_code)]
@@ -626,4 +642,134 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
 async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
     let hidden = mcp_core.are_tools_hidden().await;
     Ok(json!({ "hidden": hidden }))
+}
+
+/// Global session manager
+static SESSION_MANAGER: once_cell::sync::Lazy<SessionManager> = once_cell::sync::Lazy::new(|| {
+    SessionManager::new()
+});
+
+/// Global server instance
+static MCP_SERVER: once_cell::sync::Lazy<std::sync::Mutex<Option<Server<RouterService<MCPRouter>>>>> = 
+    once_cell::sync::Lazy::new(|| {
+        std::sync::Mutex::new(None)
+    });
+
+/// Set the MCP server instance
+pub fn set_mcp_server(server: Server<RouterService<MCPRouter>>) {
+    let mut server_guard = MCP_SERVER.lock().unwrap();
+    *server_guard = Some(server);
+}
+
+/// SSE endpoint handler with bidirectional communication
+pub async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    // Create a unique session ID
+    let session_id = Uuid::new_v4().to_string();
+    
+    // Log the connection
+    info!("New SSE connection established: {}", session_id);
+    
+    // Create a channel for sending SSE events to the client
+    let (tx, rx) = mpsc::channel::<Vec<u8>>(32);
+    
+    // Register the session with the standard channel
+    SESSION_MANAGER.register_session(session_id.clone(), tx).await;
+    
+    // Create an initial event with the session ID
+    let initial_event = futures::stream::once(futures::future::ok(
+        Event::default()
+            .event("endpoint")
+            .data(format!("?sessionId={session_id}"))
+    ));
+    
+    // Create a stream from the receiver that handles messages
+    let message_stream = stream::unfold(rx, |mut rx| async move {
+        if let Some(data) = rx.recv().await {
+            let event = Event::default()
+                .event("message")
+                .data(String::from_utf8_lossy(&data).to_string());
+            Some((Ok(event), rx))
+        } else {
+            None
+        }
+    });
+    
+    // Chain the initial event with the message stream
+    let combined_stream = initial_event.chain(message_stream);
+    
+    // Return the SSE stream
+    Sse::new(combined_stream)
+}
+
+/// Handler for receiving messages from the client
+pub async fn message_handler(
+    Path(session_id): Path<String>,
+    Json(message): Json<Vec<u8>>,
+) -> Json<serde_json::Value> {
+    info!("Processing message for session {}: {} bytes", session_id, message.len());
+    
+    // Process the message using the MCP_SERVER and SESSION_MANAGER
+    let result = process_client_message(&session_id, message).await;
+    
+    match result {
+        Ok(_) => Json(json!({ "success": true })),
+        Err(e) => {
+            log::error!("Failed to process message for session {}: {}", session_id, e);
+            Json(json!({
+                "success": false,
+                "error": e
+            }))
+        }
+    }
+}
+
+/// Process a client message using the MCP server
+async fn process_client_message(session_id: &str, message: Vec<u8>) -> Result<(), String> {
+    // Create a buffer for the response
+    const BUFFER_SIZE: usize = 1 << 12; // 4KB
+    
+    // Create bidirectional channels using simplex
+    let (c2s_read, mut c2s_write) = io::simplex(BUFFER_SIZE);
+    let (mut s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
+    
+    // Write the message to the client-to-server channel
+    c2s_write.write_all(&message).await
+        .map_err(|e| format!("Failed to write to c2s channel: {}", e))?;
+    c2s_write.flush().await
+        .map_err(|e| format!("Failed to flush c2s channel: {}", e))?;
+    
+    // Create a ByteTransport from the simplex channels
+    let _bytes_transport = crate::ByteTransport::new(c2s_read, s2c_write);
+    
+    // Process the message with the server if available
+    {
+        let server_guard = MCP_SERVER.lock().unwrap();
+        
+        if let Some(_server) = &*server_guard {
+            // We can't clone the server or hold the MutexGuard across an await point
+            // Instead, we'll just process a single message and then drop the guard
+            
+            // TODO: Implement actual message processing with the server
+            // This would be where we'd normally use server.process_message or similar
+            // For now, we'll just log that we got the server
+            log::info!("Got server for session {}, would process message here", session_id);
+        } else {
+            return Err(format!("No server instance available for session {}", session_id));
+        }
+        
+        // MutexGuard is dropped here, before any await points
+    }
+    
+    // Read the response from the server-to-client channel
+    let mut response_buffer = vec![0u8; BUFFER_SIZE];
+    let bytes_read = s2c_read.read(&mut response_buffer).await
+        .map_err(|e| format!("Failed to read from s2c channel: {}", e))?;
+    
+    // If we got a response, forward it to the session
+    if bytes_read > 0 {
+        response_buffer.truncate(bytes_read);
+        SESSION_MANAGER.send_to_session(session_id, response_buffer).await?;
+    }
+    
+    Ok(())
 }
