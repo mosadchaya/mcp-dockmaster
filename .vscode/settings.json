@@ -2,7 +2,8 @@
   "rust-analyzer.linkedProjects": [
     "./apps/mcp-dockmaster/src-tauri/Cargo.toml",
     "./apps/mcp-dockmaster-cli/Cargo.toml",
-    "./libs/mcp-core/Cargo.toml"
+    "./libs/mcp-core/Cargo.toml",
+    "./apps/mcp-proxy-server-rust/Cargo.toml"
   ],
   "rust-analyzer.checkOnSave.command": "clippy",
   "rust-analyzer.cargo.features": "all",
