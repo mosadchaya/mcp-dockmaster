@@ -312,7 +312,6 @@ impl MCPState {
         Ok(())
     }
 
-    /// Discover tools from a server
     /// Get the current tool visibility state
     pub async fn are_tools_hidden(&self) -> bool {
         let are_tools_hidden = self.are_tools_hidden.read().await;
@@ -324,7 +323,10 @@ impl MCPState {
         // Update the in-memory state
         let mut are_tools_hidden = self.are_tools_hidden.write().await;
         *are_tools_hidden = hidden;
-        info!("Tools visibility set to: {}", if hidden { "hidden" } else { "visible" });
+        info!(
+            "Tools visibility set to: {}",
+            if hidden { "hidden" } else { "visible" }
+        );
 
         // Persist the state to the database
         let registry = self.tool_registry.read().await;

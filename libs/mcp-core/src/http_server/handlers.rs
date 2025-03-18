@@ -74,6 +74,7 @@ pub async fn handle_mcp_request(
             Ok(response) => Ok(serde_json::to_value(response).unwrap()),
             Err(error) => Err(serde_json::to_value(error).unwrap()),
         },
+        "tools/hidden" => handle_tools_hidden(mcp_core).await,
         "tools/call" => {
             if let Some(params) = request.params {
                 handle_invoke_tool(mcp_core, params).await
@@ -620,4 +621,9 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             "message": format!("Failed to update configuration: {}", e)
         })),
     }
+}
+
+async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
+    let hidden = mcp_core.are_tools_hidden().await;
+    Ok(json!({ "hidden": hidden }))
 }

@@ -108,4 +108,10 @@ impl MCPCore {
         }
         Ok(())
     }
+
+    /// Get the current tool visibility state
+    pub async fn are_tools_hidden(&self) -> bool {
+        let mcp_state = self.mcp_state.read().await;
+        mcp_state.are_tools_hidden().await
+    }
 }

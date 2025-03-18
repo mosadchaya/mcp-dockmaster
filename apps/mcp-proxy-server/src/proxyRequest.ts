@@ -55,3 +55,17 @@ export async function proxyRequest<T>(method: string, params: any): Promise<T> {
       throw error;
     }
   }
+
+/**
+ * Check if tools are hidden
+ * @returns True if tools are hidden, false otherwise
+ */
+export async function areToolsHidden(): Promise<boolean> {
+  try {
+    const result = await proxyRequest<{ hidden: boolean }>('tools/hidden', {});
+    return result.hidden;
+  } catch (error) {
+    console.error('Error checking if tools are hidden:', error);
+    return false;
+  }
+}
