@@ -1,18 +1,18 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use log::{error, info};
 use serde_json::Value;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use mcp_sdk_core::Tool;
 
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
+use crate::mcp_server::tools::{get_register_server_tool, TOOL_REGISTER_SERVER};
 use crate::models::types::{ServerRegistrationRequest, ServerToolInfo};
-use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
 use crate::registry::registry_service::RegistryService;
 
-use super::handlers::{ClientManagerTrait, start_mcp_server};
+use super::handlers::{start_mcp_server, ClientManagerTrait};
 
 /// Client manager implementation that uses MCPCore
 pub struct MCPClientManager {
@@ -35,16 +35,17 @@ impl MCPClientManager {
         Tool {
             name: server_tool.id.clone(),
             description: server_tool.description.clone(),
-            input_schema: serde_json::to_value(server_tool.input_schema.clone()).unwrap_or(serde_json::json!({})),
+            input_schema: serde_json::to_value(server_tool.input_schema.clone())
+                .unwrap_or(serde_json::json!({})),
         }
     }
-    
+
     /// Start the MCP server with this client manager
     pub async fn start_server(self) -> Result<(), Box<dyn std::error::Error>> {
         // First update the tools cache
         info!("Initializing tool cache before starting server...");
         self.update_tools_cache().await;
-        
+
         // Then start the server
         let client_manager = Arc::new(self);
         start_mcp_server(client_manager).await
@@ -53,18 +54,20 @@ impl MCPClientManager {
     /// Handle register_server tool call
     async fn handle_register_server(&self, arguments: Value) -> Result<Value, String> {
         // Extract just the tool_id from the arguments
-        let tool_id = arguments.get("tool_id")
+        let tool_id = arguments
+            .get("tool_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| "Missing or invalid tool_id parameter".to_string())?;
-        
+
         info!("Fetching tool '{}' from registry", tool_id);
-        
+
         // Fetch the tool details from the registry
-        let registry_tool = RegistryService::get_tool_by_id(tool_id).await
+        let registry_tool = RegistryService::get_tool_by_id(tool_id)
+            .await
             .map_err(|e| format!("Failed to find tool in registry: {}", e.message))?;
-        
+
         info!("Found tool '{}' in registry", registry_tool.name);
-        
+
         // Create the ServerRegistrationRequest from the registry data
         let request = ServerRegistrationRequest {
             server_id: tool_id.to_string(),
@@ -74,24 +77,24 @@ impl MCPClientManager {
             configuration: Some(registry_tool.config.clone()),
             distribution: Some(registry_tool.distribution.clone()),
         };
-        
+
         // Call the register_server method from McpCoreProxyExt
         match self.mcp_core.register_server(request).await {
             Ok(response) => {
                 info!("Successfully registered server '{}'", tool_id);
-                
+
                 // Update the tools cache to include newly registered tools
                 info!("Updating tools cache after new server registration");
                 self.update_tools_cache().await;
-                
+
                 // Convert the response to a JSON value
                 serde_json::to_value(response)
                     .map_err(|e| format!("Failed to serialize response: {}", e))
-            },
+            }
             Err(e) => {
                 error!("Failed to register server '{}': {}", tool_id, e);
                 Err(format!("Failed to register server: {}", e))
-            },
+            }
         }
     }
 }
@@ -104,7 +107,7 @@ impl ClientManagerTrait for MCPClientManager {
             info!("Handling register_server tool call");
             return self.handle_register_server(arguments).await;
         }
-        
+
         // Otherwise, handle as a proxy tool call
         // Parse the tool_name to extract server_id and tool_id
         let parts: Vec<&str> = tool_name.split(':').collect();
@@ -131,7 +134,7 @@ impl ClientManagerTrait for MCPClientManager {
                 } else {
                     Err("No result or error returned from tool execution".to_string())
                 }
-            },
+            }
             Err(e) => Err(format!("Tool execution error: {}", e)),
         }
     }
@@ -139,35 +142,31 @@ impl ClientManagerTrait for MCPClientManager {
     async fn list_tools(&self) -> Result<Vec<Tool>, String> {
         // Update the cache first
         self.update_tools_cache().await;
-        
-        // Create a vector for built-in tools that should always appear first
-        let mut built_in_tools = Vec::new();
-        
-        // Add the register_server tool (and any other built-in tools)
-        built_in_tools.push(get_register_server_tool());
+
+        // Create vector of built-in tools that should always appear first
+        let built_in_tools = vec![get_register_server_tool()];
+
         // Add other built-in tools here as needed
         // Example: built_in_tools.push(get_some_other_built_in_tool());
-        
+
         // Get the cached tools (user-installed tools)
         let cache = self.tools_cache.read().await;
-        
+
         // Combine built-in tools with cached tools
         // Built-in tools first, followed by cached tools
         let mut all_tools = built_in_tools;
         all_tools.extend(cache.clone());
-        
+
         Ok(all_tools)
     }
 
     fn list_tools_sync(&self) -> Vec<Tool> {
-        // Create a vector for built-in tools that should always appear first
-        let mut built_in_tools = Vec::new();
-        
-        // Add the register_server tool (and any other built-in tools)
-        built_in_tools.push(get_register_server_tool());
+        // Create vector of built-in tools that should always appear first
+        let built_in_tools = vec![get_register_server_tool()];
+
         // Add other built-in tools here as needed
         // Example: built_in_tools.push(get_some_other_built_in_tool());
-        
+
         // For the synchronous version, we just return whatever installed tools are in the cache
         let installed_tools = match self.tools_cache.try_read() {
             Ok(cache) => cache.clone(),
@@ -176,14 +175,14 @@ impl ClientManagerTrait for MCPClientManager {
                 Vec::new()
             }
         };
-        
+
         // Combine built-in tools with installed tools
         let mut all_tools = built_in_tools;
         all_tools.extend(installed_tools);
-        
+
         all_tools
     }
-    
+
     async fn update_tools_cache(&self) {
         let servers = self.mcp_core.list_servers().await;
         info!("Servers: {:?}", servers);
@@ -192,18 +191,16 @@ impl ClientManagerTrait for MCPClientManager {
             Ok(server_tools) => {
                 // The server_tools here are only the installed tools from MCPCore
                 // Convert ServerToolInfo to Tool for each installed tool
-                let installed_tools: Vec<Tool> = server_tools
-                    .iter()
-                    .map(|t| Self::convert_to_tool(t))
-                    .collect();
-                
+                let installed_tools: Vec<Tool> =
+                    server_tools.iter().map(Self::convert_to_tool).collect();
+
                 let mut cache = self.tools_cache.write().await;
                 *cache = installed_tools;
                 info!("Updated tools cache with {} installed tools", cache.len());
-            },
+            }
             Err(err) => {
                 error!("Error fetching installed tools: {}", err);
             }
         }
     }
-} 
+}
