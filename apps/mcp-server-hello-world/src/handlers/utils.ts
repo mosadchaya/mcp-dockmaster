@@ -1,31 +1,33 @@
-import { ToolResultSchema } from "../types";
+import { ToolResultSchema, ToolResultSchemaLegacy } from "../types";
 
 /**
- * Utility function to create an error response
- * @param message The error message
- * @returns A ToolResultSchema with the error message
+ * Utility function to create a response
+ * @param message The response message
+ * @param isError Whether the response is an error
+ * @returns A ToolResultSchema with the response message
  */
-export const createErrorResponse = <T>(message: string): ToolResultSchema<T> => {
+export const createResponse = <T>(message: T, isError: boolean = false): ToolResultSchema<T> => {
   return {
     content: [{
       type: "text",
-      text: message
+      text: typeof message === "string" ? message : JSON.stringify(message, null, 2)
     }],
-    isError: true
+    isError
   };
 };
 
 /**
- * Utility function to create a success response
- * @param message The success message
- * @returns A ToolResultSchema with the success message
+ * Utility function to create a legacy response
+ * @param message The response message
+ * @param isError Whether the response is an error
+ * @returns A ToolResultSchemaLegacy with the response message
  */
-export const createSuccessResponse = <T>(message: string): ToolResultSchema<T> => {
+export const createResponseLegacy = <T>(message: T, isError: boolean = false): ToolResultSchemaLegacy => {
   return {
-    content: [{
+    toolResult: { content: [{
       type: "text",
-      text: message
-    }],
-    isError: false
+      text: typeof message === "string" ? message : JSON.stringify(message, null, 2)
+    }]},
+    isError
   };
 };

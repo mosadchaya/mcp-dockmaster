@@ -1,3 +1,4 @@
+import { debugLog } from "../logger.ts";
 import { Tools } from "../types.ts";
 import { MCPConfig } from "./MCPConfig.ts";
 import { MCPInstall } from "./MCPInstall.ts";
@@ -5,6 +6,7 @@ import { MCPSearch } from "./MCPSearch.ts";
 
 
 export async function runInternalTool(params: { name: string, arguments: Record<string, any> }): Promise<{ isInternalTool: boolean, result: any }> {
+  debugLog("Running internal tool:", params.name);
   if (params.name === MCPInstall.name) {
     const response = { 
         isInternalTool: true, 
@@ -36,12 +38,14 @@ export async function runInternalTool(params: { name: string, arguments: Record<
 }
 
 export async function initInternalTools() {
+  debugLog("Initializing internal tools");
   await MCPInstall.init();
   await MCPSearch.init();
   await MCPConfig.init();
 }
 
 export async function injectInternalTools(tools: Tools) {
+  debugLog("Injecting internal tools");
   tools.tools.push(MCPInstall.tool);
   tools.tools.push(MCPSearch.tool);
   tools.tools.push(MCPConfig.tool);

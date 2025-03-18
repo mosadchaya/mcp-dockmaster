@@ -30,6 +30,7 @@ pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
     pub mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
+    pub are_tools_hidden: Arc<RwLock<bool>>,
 }
 
 #[derive(Clone)]
@@ -45,11 +46,35 @@ impl MCPState {
         server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
         mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
     ) -> Self {
+        // Initialize with default value
+        let are_tools_hidden = Arc::new(RwLock::new(false));
+
         Self {
             tool_registry,
             server_tools,
             mcp_clients,
+            are_tools_hidden,
         }
+    }
+
+    /// Initialize the state from the database
+    pub async fn init_state(&self) -> Result<(), String> {
+        // Load the tool visibility state from the database
+        let registry = self.tool_registry.read().await;
+        match registry.get_setting("tools_hidden") {
+            Ok(value) => {
+                let hidden = value == "true";
+                let mut are_tools_hidden = self.are_tools_hidden.write().await;
+                *are_tools_hidden = hidden;
+                info!("Loaded tools visibility state from database: {}", hidden);
+            }
+            Err(_) => {
+                // Setting doesn't exist yet, use the default value (false)
+                info!("No tools visibility state found in database, using default (visible)");
+            }
+        }
+
+        Ok(())
     }
 
     /// Kill all running processes, attempting to kill each process even if some fail
@@ -287,7 +312,27 @@ impl MCPState {
         Ok(())
     }
 
-    /// Discover tools from a server
+    /// Get the current tool visibility state
+    pub async fn are_tools_hidden(&self) -> bool {
+        let are_tools_hidden = self.are_tools_hidden.read().await;
+        *are_tools_hidden
+    }
+
+    /// Set the tool visibility state
+    pub async fn set_tools_hidden(&self, hidden: bool) -> Result<(), String> {
+        // Update the in-memory state
+        let mut are_tools_hidden = self.are_tools_hidden.write().await;
+        *are_tools_hidden = hidden;
+        info!(
+            "Tools visibility set to: {}",
+            if hidden { "hidden" } else { "visible" }
+        );
+
+        // Persist the state to the database
+        let registry = self.tool_registry.read().await;
+        registry.save_setting("tools_hidden", if hidden { "true" } else { "false" })
+    }
+
     pub async fn discover_server_tools(
         &self,
         server_id: &str,

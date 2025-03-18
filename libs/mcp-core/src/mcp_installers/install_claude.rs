@@ -1,4 +1,4 @@
-use crate::mcp_installers::process_manager::kill_process_by_name;
+use crate::utils::process::kill_process_by_name;
 
 use super::install_paths::get_claude_config_path;
 use super::{install_errors::ClaudeError, install_paths};

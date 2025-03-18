@@ -14,7 +14,7 @@ import {
 } from "npm:@modelcontextprotocol/sdk/types.js";
 import { z } from "npm:zod";
 import { Tools } from './types.ts';
-import { proxyRequest } from "./proxyRequest.ts";
+import { proxyRequest, areToolsHidden } from "./proxyRequest.ts";
 import { debugLog } from "./logger.ts";
 import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index.ts";
 
@@ -119,7 +119,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     if (result && typeof result === 'object') {
       // If the result already has a tools array
       if (Array.isArray(result.tools)) {
-        injectInternalTools(result);
+        // Check if tools are hidden before injecting internal tools
+        const toolsHidden = await areToolsHidden();
+        if (!toolsHidden) {
+          injectInternalTools(result);
+        }
         // Filter out inactive tools, process schemas, and clean remaining ones
         result.tools = result.tools
           .filter(tool => tool.is_active !== false)
@@ -130,37 +134,48 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         
         debugLog('Received tools list with correct format');
         // debugLog('Tools list:', JSON.stringify(result.tools, null, 2));
-        return result as any;
+        return { tools: result.tools, _meta: {} };
       }
       
       // If the result is an array
       if (Array.isArray(result)) {
-        injectInternalTools({ tools: result });
+        // Check if tools are hidden before injecting internal tools
+        const toolsHidden = await areToolsHidden();
+        if (!toolsHidden) {
+          injectInternalTools({ tools: result });
+        }
         debugLog('Received tools as array, converting to expected format');
         const filteredTools = result
           .filter(tool => tool.is_active !== false)
           .map(cleanTool);
-          // injectInternalTools(wrappedResult);
-        return { tools: filteredTools } as any;
+        return { tools: filteredTools, _meta: {} };
       }
     }
     
     // If we got here, the format is unexpected
     debugLog('Unexpected tools list format, returning empty list');
-    const emptyResult = { tools: [] } as any;
-    injectInternalTools(emptyResult);
+    const emptyResult = { tools: [], _meta: {} };
+    // Check if tools are hidden before injecting internal tools
+    const toolsHidden = await areToolsHidden();
+    if (!toolsHidden) {
+      injectInternalTools(emptyResult);
+    }
     return emptyResult;
   } catch (error) {
     console.error('Error fetching tools list:', error);
-    const emptyResult = { tools: [] } as any;
-    injectInternalTools(emptyResult);
+    const emptyResult = { tools: [], _meta: {} };
+    // Check if tools are hidden before injecting internal tools
+    const toolsHidden = await areToolsHidden();
+    if (!toolsHidden) {
+      injectInternalTools(emptyResult);
+    }
     return emptyResult;
   }
 });
 
 // Handler for calling tools
 server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
-  debugLog('CallToolRequestSchema handler called', request);
+  debugLog('CallToolRequestSchema handler called', JSON.stringify(request, null, 2));
   const params: { name: string, arguments: Record<string, any> } = request.params;
   const result = await runInternalTool(params);
 
@@ -170,8 +185,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
 
   try {
     const callResult = await proxyRequest('tools/call', request.params);
+    debugLog('CallToolRequestSchema handler called 456', JSON.stringify(callResult, null, 2));
     return callResult as any;
   } catch (error) {
+    debugLog('Error calling tool:', error);
     console.error('Error calling tool:', error);
     return { error: 'Tool call failed' } as any;
   }

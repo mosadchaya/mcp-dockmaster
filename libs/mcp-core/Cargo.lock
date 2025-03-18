@@ -522,19 +522,6 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3716d7a920fb4fac5d84e9d4bce8ceb321e9414b4409da61b07b75c1e3d0697"
@@ -874,12 +861,6 @@ name = "httpdate"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
-
-[[package]]
-name = "humantime"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b112acc8b3adf4b107a8ec20977da0273a8c386765a3ec0229bd500a1443f9f"
 
 [[package]]
 name = "hyper"
@@ -1326,7 +1307,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "mcp-client"
 version = "1.0.7"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk.git?rev=4597d1f#4597d1f047416a2f51e35372bc35b02aae2ec8b0"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1349,7 +1330,7 @@ dependencies = [
 [[package]]
 name = "mcp-core"
 version = "1.0.7"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk.git?rev=4597d1f#4597d1f047416a2f51e35372bc35b02aae2ec8b0"
+source = "git+https://github.com/dcSpark/rust-sdk.git?branch=main#7f7308fbe0fc2e9472156a97acebdd610845a618"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1434,7 +1415,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "toml",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tower-http",
 ]
 

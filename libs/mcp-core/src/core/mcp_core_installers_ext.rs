@@ -1,7 +1,10 @@
 use super::mcp_core::MCPCore;
-use crate::mcp_installers::{
-    get_claude_config, get_cursor_config, get_generic_config, install_claude, install_cursor,
-    is_claude_installed, is_cursor_installed, is_process_running, restart_process,
+use crate::{
+    mcp_installers::{
+        get_claude_config, get_cursor_config, get_generic_config, install_claude, install_cursor,
+        is_claude_installed, is_cursor_installed,
+    },
+    utils::process::{is_process_running, restart_process},
 };
 
 pub trait McpCoreInstallersExt {
