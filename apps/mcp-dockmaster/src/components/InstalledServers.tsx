@@ -678,14 +678,25 @@ const InstalledServers: React.FC = () => {
             {toolsForServer.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Tools</h3>
-                <div className="rounded-md border p-3 space-y-2">
+                <div className="rounded-md border p-3 space-y-6 max-h-[300px] overflow-y-auto">
                   {toolsForServer.map((tool) => (
-                    <div key={tool.id}>
-                      <div className="text-sm font-medium">{tool.name}</div>
-                      <div className="text-sm font-small">{tool.description}</div>
+                    <div key={tool.id} className="pb-4 border-b border-slate-200 last:border-0 last:pb-0">
+                      {/* Command Name - Bold and prominent */}
+                      <div className="text-base font-bold text-slate-800 mb-2">
+                        {tool.name}
+                      </div>
+                      
+                      {/* Description - Regular text */}
+                      <div className="text-sm text-slate-600 mb-3">
+                        {tool.description}
+                      </div>
+                      
+                      {/* JSON Schema - Monospace, indented, and formatted */}
                       {tool.inputSchema && (
-                        <div className="text-xs font-mono">
-                          {JSON.stringify(tool.inputSchema, null, 2)}
+                        <div className="bg-slate-50 p-3 rounded-md border border-slate-200">
+                          <pre className="text-xs font-mono text-slate-700 whitespace-pre-wrap overflow-x-auto">
+                            {JSON.stringify(tool.inputSchema, null, 2)}
+                          </pre>
                         </div>
                       )}
                     </div>
