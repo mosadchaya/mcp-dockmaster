@@ -104,6 +104,7 @@ export interface RuntimeServer extends ServerDefinition {
   status: ServerStatus;
   tool_count: number;
   sourceUrl?: string;
+  colorTags?: string[]; // Add this line to store color tags
 }
 
 export interface ServerToolInfo {
@@ -267,6 +268,34 @@ export class MCPClient {
   static async setToolsHidden(hidden: boolean): Promise<void> {
     return await invoke<void>('set_tools_hidden', { hidden });
   }
+  
+  // Add a function to update server color tags
+  // This is a client-side only function since we're not persisting to backend
+  static updateServerColorTags(serverId: string, colorTags: string[]): string[] {
+    // Get servers from localStorage or initialize empty array
+    const storedServers = localStorage.getItem('serverColorTags') || '{}';
+    const serverTags = JSON.parse(storedServers);
+    
+    // Update tags for this server
+    serverTags[serverId] = colorTags;
+    
+    // Save back to localStorage
+    localStorage.setItem('serverColorTags', JSON.stringify(serverTags));
+    
+    return colorTags;
+  }
+  
+  // Add a function to get server color tags
+  static getServerColorTags(): Record<string, string[]> {
+    const storedServers = localStorage.getItem('serverColorTags') || '{}';
+    return JSON.parse(storedServers);
+  }
+  
+  // Add a function to get color tags for a specific server
+  static getColorTagsForServer(serverId: string): string[] {
+    const allTags = this.getServerColorTags();
+    return allTags[serverId] || [];
+  }
 }
 
-export default MCPClient;                                
+export default MCPClient;                                                                                                                                

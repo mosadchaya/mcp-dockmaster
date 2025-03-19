@@ -4,7 +4,9 @@ import {
   dispatchServerStatusChanged, 
   dispatchServerUninstalled, 
   SERVER_STATUS_CHANGED, 
-  SERVER_UNINSTALLED 
+  SERVER_UNINSTALLED,
+  SERVER_COLOR_TAGS_CHANGED,
+  dispatchServerColorTagsChanged
 } from "../lib/events";
 import "./InstalledServers.css";
 import { Info, Settings } from "lucide-react";
@@ -54,6 +56,23 @@ const Notification: React.FC<NotificationProps> = ({
   );
 };
 
+// Color tag constants
+const COLOR_TAGS = {
+  GREEN: 'green',
+  RED: 'red',
+  ORANGE: 'orange',
+  BLUE: 'blue',
+  PURPLE: 'purple'
+};
+
+const COLOR_TAG_STYLES = {
+  [COLOR_TAGS.GREEN]: 'bg-green-500 text-white border-green-600',
+  [COLOR_TAGS.RED]: 'bg-red-500 text-white border-red-600',
+  [COLOR_TAGS.ORANGE]: 'bg-orange-500 text-white border-orange-600',
+  [COLOR_TAGS.BLUE]: 'bg-blue-500 text-white border-blue-600',
+  [COLOR_TAGS.PURPLE]: 'bg-purple-500 text-white border-purple-600',
+};
+
 const InstalledServers: React.FC = () => {
   const [servers, setServers] = useState<RuntimeServer[]>([]);
   const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
@@ -71,6 +90,8 @@ const InstalledServers: React.FC = () => {
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
+  const [selectedColorFilter, setSelectedColorFilter] = useState<string | null>(null);
+  const [serverColorTags, setServerColorTags] = useState<Record<string, string[]>>({});
 
   // Load initial tool visibility state from backend
   useEffect(() => {
@@ -84,7 +105,14 @@ const InstalledServers: React.FC = () => {
       }
     };
     
+    // Load saved color tags
+    const loadColorTags = () => {
+      const savedTags = MCPClient.getServerColorTags();
+      setServerColorTags(savedTags);
+    };
+    
     loadToolVisibilityState();
+    loadColorTags();
   }, []);
 
 
@@ -418,6 +446,48 @@ const InstalledServers: React.FC = () => {
       prev.filter((notification) => notification.id !== id),
     );
   };
+  
+  // Helper function to toggle a color tag for a server
+  const toggleColorTag = (serverId: string, color: string) => {
+    // Get current tags for this server
+    const currentTags = serverColorTags[serverId] || [];
+    
+    // Toggle the tag (add if not present, remove if present)
+    let newTags: string[];
+    if (currentTags.includes(color)) {
+      newTags = currentTags.filter(tag => tag !== color);
+    } else {
+      newTags = [...currentTags, color];
+    }
+    
+    // Update state
+    setServerColorTags(prev => ({
+      ...prev,
+      [serverId]: newTags
+    }));
+    
+    // Save to localStorage via MCPClient
+    MCPClient.updateServerColorTags(serverId, newTags);
+    
+    // Dispatch event that server color tags changed
+    dispatchServerColorTagsChanged(serverId);
+  };
+  
+  // Filter servers based on selected color
+  const getFilteredServers = () => {
+    if (!selectedColorFilter) {
+      return servers; // Show all servers when no filter is selected
+    }
+    
+    // Filter servers that have the selected color tag
+    return servers.filter(server => {
+      const serverTags = serverColorTags[server.id] || [];
+      return serverTags.includes(selectedColorFilter);
+    });
+  };
+  
+  // Get filtered servers
+  const filteredServers = getFilteredServers();
   
   // Handle tool visibility toggle
   const handleToolsVisibilityChange = async (active: boolean) => {
@@ -898,6 +968,31 @@ const InstalledServers: React.FC = () => {
         (!value.default || value.default.trim() === '');
     });
   };
+  
+  // Add color filter UI
+  const renderColorFilters = () => {
+    return (
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Badge 
+          variant={!selectedColorFilter ? "default" : "outline"} 
+          className="cursor-pointer px-3 py-1"
+          onClick={() => setSelectedColorFilter(null)}
+        >
+          All
+        </Badge>
+        {Object.entries(COLOR_TAGS).map(([name, color]) => (
+          <Badge 
+            key={color}
+            variant={selectedColorFilter === color ? "default" : "outline"} 
+            className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? COLOR_TAG_STYLES[color] : ''}`}
+            onClick={() => setSelectedColorFilter(color === selectedColorFilter ? null : color)}
+          >
+            <div className={`w-4 h-4 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+          </Badge>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
@@ -933,16 +1028,32 @@ const InstalledServers: React.FC = () => {
         </p>
       </div>
 
+      {/* Add color filters */}
+      {renderColorFilters()}
+
       {loading ? (
         <div className="loading-message">Loading installed applications...</div>
-      ) : servers.length === 0 ? (
+      ) : filteredServers.length === 0 ? (
         <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10">
-          <p>You don&apos;t have any applications installed yet.</p>
-          <p>Visit the AI App Store to discover and install applications.</p>
+          {servers.length === 0 ? (
+            <>
+              <p>You don&apos;t have any applications installed yet.</p>
+              <p>Visit the AI App Store to discover and install applications.</p>
+            </>
+          ) : (
+            <>
+              <p>No servers match the selected filter.</p>
+              {selectedColorFilter && (
+                <Button variant="outline" onClick={() => setSelectedColorFilter(null)}>
+                  Clear Filter
+                </Button>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div className="grid w-full grid-cols-2 gap-6">
-          {servers.map((server) => (
+          {filteredServers.map((server) => (
             <Card
               key={server.id}
               className="gap-3 overflow-hidden border-slate-200 shadow-none"
@@ -1062,6 +1173,24 @@ const InstalledServers: React.FC = () => {
                                 : "Stopped"}
                     </span>
                   </div>
+                </div>
+                
+                {/* Add color tag selection */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="text-sm text-muted-foreground mr-2">Tags:</span>
+                  {Object.entries(COLOR_TAGS).map(([name, color]) => {
+                    const isSelected = (serverColorTags[server.id] || []).includes(color);
+                    return (
+                      <Badge 
+                        key={color}
+                        variant={isSelected ? "default" : "outline"} 
+                        className={`cursor-pointer ${isSelected ? COLOR_TAG_STYLES[color] : ''}`}
+                        onClick={() => toggleColorTag(server.id, color)}
+                      >
+                        <div className={`w-3 h-3 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+                      </Badge>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
