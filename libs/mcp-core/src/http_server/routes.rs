@@ -15,7 +15,8 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
         .route("/health", get(health_check))
         .route("/mcp/sse", get(sse_handler).post(json_rpc_handler))
         .route("/mcp", post(handle_mcp_request))
-        .layer(Extension(mcp_core.clone()));
+        .layer(Extension(mcp_core.clone()))
+        .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     info!("MCP HTTP server starting on {}", addr);
