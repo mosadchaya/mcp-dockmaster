@@ -19,8 +19,9 @@ use crate::models::types::{
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
 use axum::{
-    extract::Path,
     response::sse::{Event, Sse},
+    extract::Query,
+    debug_handler,
 };
 use futures::stream::{self, Stream};
 use std::convert::Infallible;
@@ -701,15 +702,97 @@ pub async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>>
     Sse::new(combined_stream)
 }
 
-/// Handler for receiving messages from the client
+/// Query parameter struct for session ID
+#[derive(Debug, Deserialize)]
+pub struct SessionIdParam {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+}
+
+/// Handler for JSON-RPC requests via SSE
+#[debug_handler]
+pub async fn json_rpc_handler(
+    Query(params): Query<SessionIdParam>,
+    Extension(mcp_core): Extension<MCPCore>,
+    Json(request): Json<JsonRpcRequest>,
+) -> Json<JsonRpcResponse> {
+    let session_id = &params.session_id;
+    info!("Processing JSON-RPC request for session {}: method={}", session_id, request.method);
+    
+    // Process the JSON-RPC request using the handle_mcp_request logic
+    let result = match request.method.as_str() {
+        "tools/list" => match handle_list_tools(mcp_core).await {
+            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+            Err(error) => Err(serde_json::to_value(error).unwrap()),
+        },
+        "tools/hidden" => handle_tools_hidden(mcp_core).await,
+        "tools/call" => {
+            if let Some(params) = request.params.clone() {
+                handle_invoke_tool(mcp_core, params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Missing parameters"
+                }))
+            }
+        },
+        // Add other methods as needed
+        _ => Err(json!({
+            "code": -32601,
+            "message": format!("Method '{}' not found", request.method)
+        })),
+    };
+    
+    // Create the JSON-RPC response
+    let response = match result {
+        Ok(result) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(result),
+            error: None,
+        },
+        Err(error) => {
+            let error_obj = error.as_object().unwrap();
+            JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: error_obj
+                        .get("code")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(-32000) as i32,
+                    message: error_obj
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string(),
+                    data: None,
+                }),
+            }
+        }
+    };
+    
+    // Also send the response through the SSE channel
+    if let Ok(response_json) = serde_json::to_vec(&response) {
+        if let Err(e) = SESSION_MANAGER.send_to_session(session_id, response_json).await {
+            log::error!("Failed to send response to SSE channel: {}", e);
+        }
+    }
+    
+    Json(response)
+}
+
+/// Handler for receiving messages from the client (binary data approach)
 pub async fn message_handler(
-    Path(session_id): Path<String>,
+    Query(params): Query<SessionIdParam>,
     Json(message): Json<Vec<u8>>,
 ) -> Json<serde_json::Value> {
-    info!("Processing message for session {}: {} bytes", session_id, message.len());
+    let session_id = &params.session_id;
+    info!("Processing binary message for session {}: {} bytes", session_id, message.len());
     
     // Process the message using the MCP_SERVER and SESSION_MANAGER
-    let result = process_client_message(&session_id, message).await;
+    let result = process_client_message(session_id, message).await;
     
     match result {
         Ok(_) => Json(json!({ "success": true })),
@@ -723,7 +806,7 @@ pub async fn message_handler(
     }
 }
 
-/// Process a client message using the MCP server
+/// Process a client message using the MCP server (binary data approach)
 async fn process_client_message(session_id: &str, message: Vec<u8>) -> Result<(), String> {
     // Create a buffer for the response
     const BUFFER_SIZE: usize = 1 << 12; // 4KB
