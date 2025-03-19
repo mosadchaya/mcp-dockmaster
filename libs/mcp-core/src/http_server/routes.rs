@@ -1,9 +1,10 @@
 use axum::{
     routing::{get, post},
-    Router, Extension,
+    Extension, Router,
 };
 use log::{error, info};
 use std::net::SocketAddr;
+use tower_http::cors::CorsLayer;
 
 use crate::core::mcp_core::MCPCore;
 use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, json_rpc_handler};
@@ -22,7 +23,7 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .map_err(|e| format!("Failed to bind to address: {}", e))?;
-    
+
     // Start the server in a separate task
     tokio::spawn(async move {
         // With axum 0.8.1, we need to create a service
@@ -33,6 +34,6 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
             info!("MCP HTTP server terminated normally");
         }
     });
-    
+
     Ok(())
 }
