@@ -4,7 +4,8 @@ import {
   dispatchServerStatusChanged, 
   dispatchServerUninstalled, 
   SERVER_STATUS_CHANGED, 
-  SERVER_UNINSTALLED 
+  SERVER_UNINSTALLED,
+  dispatchServerColorTagsChanged
 } from "../lib/events";
 import "./InstalledServers.css";
 import { Info, Settings } from "lucide-react";
@@ -24,6 +25,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
+import { Input } from "./ui/input";
 
 // Add a simple notification component
 interface NotificationProps {
@@ -54,6 +56,30 @@ const Notification: React.FC<NotificationProps> = ({
   );
 };
 
+// Color tag constants
+const COLOR_TAGS = {
+  GREEN: 'green',
+  RED: 'red',
+};
+
+// Define a function to get color styles
+const getColorTagStyle = (color: string) => {
+  const colorMap: Record<string, string> = {
+    'green': 'bg-green-500 text-white border-green-600',
+    'red': 'bg-red-500 text-white border-red-600',
+    'orange': 'bg-orange-500 text-white border-orange-600',
+    'blue': 'bg-blue-500 text-white border-blue-600',
+    'purple': 'bg-purple-500 text-white border-purple-600',
+    'yellow': 'bg-yellow-500 text-white border-yellow-600',
+    'pink': 'bg-pink-500 text-white border-pink-600',
+    'indigo': 'bg-indigo-500 text-white border-indigo-600',
+    'teal': 'bg-teal-500 text-white border-teal-600',
+    'cyan': 'bg-cyan-500 text-white border-cyan-600',
+  };
+  
+  return colorMap[color] || 'bg-gray-500 text-white border-gray-600';
+};
+
 const InstalledServers: React.FC = () => {
   const [servers, setServers] = useState<RuntimeServer[]>([]);
   const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
@@ -71,6 +97,12 @@ const InstalledServers: React.FC = () => {
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
+  const [selectedColorFilter, setSelectedColorFilter] = useState<string | null>(null);
+  const [serverColorTags, setServerColorTags] = useState<Record<string, string[]>>({});
+  const [updatingServers, setUpdatingServers] = useState<boolean>(false);
+  const [availableColors, setAvailableColors] = useState<Record<string, string>>(COLOR_TAGS);
+  const [showColorDialog, setShowColorDialog] = useState<boolean>(false);
+  const [newColorName, setNewColorName] = useState<string>('');
 
   // Load initial tool visibility state from backend
   useEffect(() => {
@@ -84,7 +116,20 @@ const InstalledServers: React.FC = () => {
       }
     };
     
+    // Load saved color tags
+    const loadColorTags = () => {
+      const savedTags = MCPClient.getServerColorTags();
+      setServerColorTags(savedTags);
+      
+      // Load custom colors
+      const customColors = localStorage.getItem('availableColors');
+      if (customColors) {
+        setAvailableColors(JSON.parse(customColors));
+      }
+    };
+    
     loadToolVisibilityState();
+    loadColorTags();
   }, []);
 
 
@@ -418,6 +463,149 @@ const InstalledServers: React.FC = () => {
       prev.filter((notification) => notification.id !== id),
     );
   };
+  
+  // Helper function to toggle a color tag for a server
+  const toggleColorTag = (serverId: string, color: string) => {
+    // Get current tags for this server
+    const currentTags = serverColorTags[serverId] || [];
+    
+    // Toggle the tag (add if not present, remove if present)
+    let newTags: string[];
+    if (currentTags.includes(color)) {
+      newTags = currentTags.filter(tag => tag !== color);
+    } else {
+      newTags = [...currentTags, color];
+    }
+    
+    // Update state
+    setServerColorTags(prev => ({
+      ...prev,
+      [serverId]: newTags
+    }));
+    
+    // Save to localStorage via MCPClient
+    MCPClient.updateServerColorTags(serverId, newTags);
+    
+    // Dispatch event that server color tags changed
+    dispatchServerColorTagsChanged(serverId);
+  };
+  
+  // Function to update server enabled states based on color tag
+  const updateServersByColorTag = async (color: string | null) => {
+    // Set loading state
+    setUpdatingServers(true);
+    
+    try {
+      // If no color is selected (All), enable all servers
+      if (!color) {
+        // Show loading notification
+        addNotification("Enabling all servers...", "info");
+        
+        // Track servers that need to be enabled
+        const serversToUpdate = servers.filter(server => !server.enabled);
+        
+        // Enable all servers that are currently disabled
+        for (const server of serversToUpdate) {
+          await toggleToolStatus(server.id);
+        }
+        
+        if (serversToUpdate.length > 0) {
+          addNotification(`Enabled ${serversToUpdate.length} servers`, "success");
+        }
+        return;
+      }
+      
+      // If a specific color is selected, enable servers with that tag and disable others
+      addNotification(`Updating servers for ${color} group...`, "info");
+      
+      // Track which servers need to be enabled/disabled
+      const serversToEnable = [];
+      const serversToDisable = [];
+      
+      // Determine which servers need to be updated
+      for (const server of servers) {
+        const serverTags = serverColorTags[server.id] || [];
+        const hasSelectedColor = serverTags.includes(color);
+        
+        if (hasSelectedColor && !server.enabled) {
+          serversToEnable.push(server);
+        } else if (!hasSelectedColor && server.enabled) {
+          serversToDisable.push(server);
+        }
+      }
+      
+      // Enable servers with the selected color tag
+      for (const server of serversToEnable) {
+        await toggleToolStatus(server.id);
+      }
+      
+      // Disable servers without the selected color tag
+      for (const server of serversToDisable) {
+        await toggleToolStatus(server.id);
+      }
+      
+      // Show completion notification
+      const totalUpdated = serversToEnable.length + serversToDisable.length;
+      if (totalUpdated > 0) {
+        addNotification(
+          `Updated ${totalUpdated} servers for ${color} group`,
+          "success"
+        );
+      }
+    } catch (error) {
+      console.error("Error updating servers by color tag:", error);
+      addNotification("Error updating servers", "error");
+    } finally {
+      // Clear loading state
+      setUpdatingServers(false);
+    }
+  };
+  
+  // Function to add a new color
+  const addNewColor = () => {
+    if (!newColorName.trim()) {
+      addNotification("Color name cannot be empty", "error");
+      return;
+    }
+    
+    const colorKey = newColorName.toUpperCase().replace(/\s+/g, '_');
+    
+    // Update available colors
+    const updatedColors = {
+      ...availableColors,
+      [colorKey]: newColorName.toLowerCase(),
+    };
+    
+    setAvailableColors(updatedColors);
+    
+    // Save to localStorage
+    MCPClient.saveAvailableColors(updatedColors);
+    
+    // Add the new color to all servers
+    MCPClient.addColorToAllServers(newColorName.toLowerCase());
+    
+    // Reset form and close dialog
+    setNewColorName('');
+    setShowColorDialog(false);
+    
+    addNotification(`Added new color: ${newColorName}`, "success");
+  };
+  
+  // Filter servers based on selected color
+  const getFilteredServers = () => {
+    if (!selectedColorFilter) {
+      return servers; // Show all servers when no filter is selected
+    }
+    
+    // Filter servers that have the selected color tag
+    return servers.filter(server => {
+      const serverTags = serverColorTags[server.id] || [];
+      return serverTags.includes(selectedColorFilter);
+    });
+  };
+  
+  // Get filtered servers
+  const filteredServers = getFilteredServers();
   
   // Handle tool visibility toggle
   const handleToolsVisibilityChange = async (active: boolean) => {
@@ -898,6 +1086,103 @@ const InstalledServers: React.FC = () => {
         (!value.default || value.default.trim() === '');
     });
   };
+  
+  // Add color dialog component
+  const renderColorDialog = () => {
+    return (
+      <Dialog open={showColorDialog} onOpenChange={setShowColorDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Color</DialogTitle>
+            <DialogDescription>
+              Enter a name for the new color. This color will be added to all servers.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="colorName" className="text-sm font-medium">Color Name</Label>
+              <Input
+                id="colorName"
+                value={newColorName}
+                onChange={(e) => setNewColorName(e.target.value)}
+                placeholder="e.g. Blue, Yellow, Purple"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="colorPreview" className="text-sm font-medium">Color Preview</Label>
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full ${getColorTagStyle(newColorName.toLowerCase())}`}></div>
+                <span>{newColorName || "New Color"}</span>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowColorDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={addNewColor}>
+              Add Color
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+  
+  // Add color filter UI
+  const renderColorFilters = () => {
+    return (
+      <div className="flex flex-wrap items-center">
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Badge 
+            variant={!selectedColorFilter ? "default" : "outline"} 
+            className="cursor-pointer px-3 py-1"
+            onClick={() => {
+              setSelectedColorFilter(null);
+              updateServersByColorTag(null);
+            }}
+          >
+            All
+          </Badge>
+          
+          {Object.entries(availableColors).map(([key, color]) => (
+            <Badge 
+              key={key}
+              variant={selectedColorFilter === color ? "default" : "outline"} 
+              className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? getColorTagStyle(color) : ''}`}
+              onClick={() => {
+                const newColor = color === selectedColorFilter ? null : color;
+                setSelectedColorFilter(newColor);
+                updateServersByColorTag(newColor);
+              }}
+            >
+              <div className={`w-4 h-4 rounded-full ${getColorTagStyle(color)}`}></div>
+            </Badge>
+          ))}
+          
+          {/* Add plus button */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="rounded-full w-8 h-8 p-0 flex items-center justify-center"
+            onClick={() => setShowColorDialog(true)}
+          >
+            <span className="text-lg">+</span>
+          </Button>
+        </div>
+        
+        {updatingServers && (
+          <div className="updating-servers-indicator">
+            <div className="updating-spinner"></div>
+            <span>Updating servers...</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
@@ -933,16 +1218,32 @@ const InstalledServers: React.FC = () => {
         </p>
       </div>
 
+      {/* Add color filters */}
+      {renderColorFilters()}
+
       {loading ? (
         <div className="loading-message">Loading installed applications...</div>
-      ) : servers.length === 0 ? (
+      ) : filteredServers.length === 0 ? (
         <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10">
-          <p>You don&apos;t have any applications installed yet.</p>
-          <p>Visit the AI App Store to discover and install applications.</p>
+          {servers.length === 0 ? (
+            <>
+              <p>You don&apos;t have any applications installed yet.</p>
+              <p>Visit the AI App Store to discover and install applications.</p>
+            </>
+          ) : (
+            <>
+              <p>No servers match the selected filter.</p>
+              {selectedColorFilter && (
+                <Button variant="outline" onClick={() => setSelectedColorFilter(null)}>
+                  Clear Filter
+                </Button>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div className="grid w-full grid-cols-2 gap-6">
-          {servers.map((server) => (
+          {filteredServers.map((server) => (
             <Card
               key={server.id}
               className="gap-3 overflow-hidden border-slate-200 shadow-none"
@@ -1063,6 +1364,24 @@ const InstalledServers: React.FC = () => {
                     </span>
                   </div>
                 </div>
+                
+                {/* Add color tag selection */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="text-sm text-muted-foreground mr-2">Tags:</span>
+                  {Object.entries(availableColors).map(([key, color]) => {
+                    const isSelected = (serverColorTags[server.id] || []).includes(color);
+                    return (
+                      <Badge 
+                        key={key}
+                        variant={isSelected ? "default" : "outline"} 
+                        className={`cursor-pointer ${isSelected ? getColorTagStyle(color) : ''}`}
+                        onClick={() => toggleColorTag(server.id, color)}
+                      >
+                        <div className={`w-3 h-3 rounded-full ${getColorTagStyle(color)}`}></div>
+                      </Badge>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -1071,6 +1390,7 @@ const InstalledServers: React.FC = () => {
 
       {renderConfigPopup()}
       {renderInfoPopup()}
+      {renderColorDialog()}
     </div>
   );
 };
