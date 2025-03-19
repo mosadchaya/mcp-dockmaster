@@ -4,6 +4,8 @@ MCP Dockmaster is a straightforward tool designed to help you easily install, ma
 
 ## Demo
 
+[![MCP Dockmaster Screenshot](assets/dockmaster-screenshot.png)](https://mcp-dockmaster.com/dockmaster-demo.mp4)
+
 <video src="https://mcp-dockmaster.com/dockmaster-demo.mp4" controls></video>
 
 <!-- If the video embedding doesn't work, here's a direct link -->
@@ -110,4 +112,4 @@ This command optimizes the build process by only running tasks for projects that
 ## Learn More
 
 - [NX Documentation](https://nx.dev) 
-The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.                          
+The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.                              
