@@ -224,9 +224,10 @@ mod tests {
         let db_path = temp_dir.path().join("test_mcp_core2.db");
 
         // TODO: Here the mcp-proxy-server path is a dummy path. This test currently is not using that location
-        let mcp_core = MCPCore::new(
+        let mcp_core = MCPCore::new_with_port(
             db_path,
             path::absolute("mcp-proxy-server").unwrap(),
+            3002,
             "mcp-core-test".to_string(),
         );
         mcp_core.init().await.map_err(|e| {
@@ -432,9 +433,10 @@ mod tests {
         let db_path = temp_dir.path().join("test_server_lifecycle.db");
 
         // Initialize MCP Core
-        let mcp_core = MCPCore::new(
+        let mcp_core = MCPCore::new_with_port(
             db_path,
             path::absolute("mcp-proxy-server").unwrap(),
+            3003,
             "mcp-core-test".to_string(),
         );
         mcp_core.init().await.map_err(|e| {
