@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
@@ -14,7 +15,7 @@ use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
     Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
-    ToolExecutionRequest,
+    ToolExecutionRequest, InputSchemaProperty
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
@@ -34,29 +35,53 @@ use crate::mcp_server::handlers::SessionManager;
 use mcp_sdk_server::Server;
 use mcp_sdk_server::router::RouterService;
 use crate::mcp_server::handlers::MCPRouter;
+use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
 
-#[derive(Deserialize)]
+/// JSON-RPC request structure
+#[derive(Deserialize, Debug)]
 pub struct JsonRpcRequest {
     #[allow(dead_code)]
-    jsonrpc: String,
-    id: Value,
-    method: String,
-    params: Option<Value>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub method: String,
+    pub params: Option<Value>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC response structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcResponse {
-    jsonrpc: String,
-    id: Value,
-    result: Option<Value>,
-    error: Option<JsonRpcError>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub result: Option<Value>,
+    pub error: Option<JsonRpcError>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC error structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcError {
-    code: i32,
-    message: String,
-    data: Option<Value>,
+    pub code: i32,
+    pub message: String,
+    pub data: Option<Value>,
+}
+
+/// JSON-RPC method enum
+#[derive(Debug)]
+pub enum JsonRpcMethod {
+    ToolsList,
+    ToolsHidden,
+    ToolsCall,
+    PromptsList,
+    PromptsGet,
+    ResourcesList,
+    ResourcesRead,
+    RegistryList,
+    RegistryInstall,
+    RegistryImport,
+    ServerStart,
+    ServerStop,
+    ServerConfig,
+    ServerDelete,
+    Unknown(String),
 }
 
 // Cache structure to store registry data and timestamp
@@ -195,10 +220,45 @@ pub async fn handle_mcp_request(
 }
 
 async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
+    // Get the installed tools from MCPCore
     let result = mcp_core.list_all_server_tools().await;
+
+    // Create a list of built-in tools converted to ServerToolInfo format
+    let register_server_tool = get_register_server_tool();
+    let built_in_tools = vec![
+        ServerToolInfo {
+            id: register_server_tool.name.clone(),
+            name: TOOL_REGISTER_SERVER.to_string(),
+            description: register_server_tool.description.clone(),
+            server_id: "builtin".to_string(),
+            proxy_id: None,
+            is_active: true,
+            input_schema: Some(InputSchema {
+                r#type: "object".to_string(),
+                properties: HashMap::from_iter(
+                    serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                        register_server_tool.input_schema.get("properties")
+                            .cloned()
+                            .unwrap_or_else(|| json!({}))
+                    ).unwrap_or_default()
+                ),
+                required: register_server_tool.input_schema.get("required")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                        .collect())
+                    .unwrap_or_else(|| Vec::new()),
+                ..Default::default()
+            }),
+        }
+    ];
 
     match result {
         Ok(tools) => {
+            // Add built-in tools first, then user-installed tools
+            let mut all_tools = built_in_tools;
+            
+            // Add the user-installed tools
             let tools_with_defaults: Vec<ServerToolInfo> = tools
                 .into_iter()
                 .map(|tool| {
@@ -214,9 +274,11 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     tool
                 })
                 .collect();
+            
+            all_tools.extend(tools_with_defaults);
 
             Ok(ServerToolsResponse {
-                tools: tools_with_defaults,
+                tools: all_tools,
             })
         }
         Err(e) => Err(ErrorResponse {
