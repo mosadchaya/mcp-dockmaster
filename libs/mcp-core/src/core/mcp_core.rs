@@ -45,7 +45,11 @@ impl MCPCore {
     /// # Returns
     /// A new MCPCore instance with initialized components
     pub fn new(database_path: PathBuf, proxy_server_binary_path: PathBuf) -> Self {
-        Self::new_with_port(database_path, proxy_server_binary_path, 3000)
+        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
+            .unwrap_or_else(|_| "11011".to_string())
+            .parse::<u16>()
+            .unwrap_or(11011);
+        Self::new_with_port(database_path, proxy_server_binary_path, port)
     }
 
     /// Creates a new MCPCore instance with the given database path and port
