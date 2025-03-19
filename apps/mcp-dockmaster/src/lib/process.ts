@@ -17,18 +17,18 @@ export const installClaude = async () => {
   }
 };
 
-export const checkCursor = async (after0470: boolean) => {
+export const checkCursor = async () => {
   try {
-    return await invoke<boolean>("check_cursor_installed", { after0470 });
+    return await invoke<boolean>("check_cursor_installed");
   } catch (error) {
     console.error("Failed to check Cursor:", error);
     throw error;
   }
 };
 
-export const installCursor = async (after0470: boolean) => {
+export const installCursor = async () => {
   try {
-    return await invoke<void>("install_cursor", { after0470 });
+    return await invoke<void>("install_cursor");
   } catch (error) {
     console.error("Failed to install Cursor:", error);
     throw error;

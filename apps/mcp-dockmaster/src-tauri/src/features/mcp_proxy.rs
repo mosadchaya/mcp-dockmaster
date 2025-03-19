@@ -110,11 +110,8 @@ pub async fn check_claude_installed(mcp_core: State<'_, MCPCore>) -> Result<bool
 
 // Check if Cursor is installed
 #[tauri::command]
-pub async fn check_cursor_installed(
-    mcp_core: State<'_, MCPCore>,
-    after_0470: bool,
-) -> Result<bool, String> {
-    mcp_core.is_cursor_installed(after_0470)
+pub async fn check_cursor_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
+    mcp_core.is_cursor_installed()
 }
 
 // Install Claude
@@ -125,8 +122,8 @@ pub async fn install_claude(mcp_core: State<'_, MCPCore>) -> Result<(), String> 
 
 // Install Cursor
 #[tauri::command]
-pub async fn install_cursor(mcp_core: State<'_, MCPCore>, after_0470: bool) -> Result<(), String> {
-    mcp_core.install_cursor(after_0470)
+pub async fn install_cursor(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
+    mcp_core.install_cursor()
 }
 
 // Get Claude config
@@ -137,11 +134,8 @@ pub async fn get_claude_config(mcp_core: State<'_, MCPCore>) -> Result<String, S
 
 // Get Cursor config
 #[tauri::command]
-pub async fn get_cursor_config(
-    mcp_core: State<'_, MCPCore>,
-    after_0470: bool,
-) -> Result<String, String> {
-    mcp_core.get_cursor_config(after_0470)
+pub async fn get_cursor_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
+    mcp_core.get_cursor_config()
 }
 
 // Get Generic config

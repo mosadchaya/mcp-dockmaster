@@ -1,7 +1,5 @@
 mod install_claude;
 mod install_cursor;
-mod install_cursor_after_0470;
-mod install_cursor_before_0470;
 mod install_errors;
 mod install_paths;
 pub use self::install_claude::get_claude_config;

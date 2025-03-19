@@ -1,7 +1,13 @@
 import claudeIcon from "../assets/claude.svg";
 import cursorIcon from "../assets/cursor.svg";
 import { OsType, type as osType } from "@tauri-apps/plugin-os";
-import { checkClaude, checkCursor, installClaude, installCursor, isProcessRunning } from "../lib/process";
+import {
+  checkClaude,
+  checkCursor,
+  installClaude,
+  installCursor,
+  isProcessRunning,
+} from "../lib/process";
 
 export type McpClientAppId = "claude" | "cursor" | "cursor-after-0470";
 export interface McpClientApp {
@@ -9,6 +15,7 @@ export interface McpClientApp {
   name: string;
   icon: string;
   supportedOS: OsType[];
+  processName: string;
   isInstalled: () => Promise<boolean>;
   isRunning: () => Promise<boolean>;
   install: () => Promise<void>;
@@ -20,27 +27,20 @@ const MCP_CLIENT_APPS: McpClientApp[] = [
     name: "Claude",
     icon: claudeIcon,
     supportedOS: ["macos", "windows"] as OsType[],
+    processName: "Claude",
     isInstalled: checkClaude,
     isRunning: () => isProcessRunning("Claude"),
     install: () => installClaude(),
   },
   {
     id: "cursor",
-    name: "Cursor before v0.47",
+    name: "Cursor (v0.47+)",
+    processName: "Cursor",
     icon: cursorIcon,
     supportedOS: ["macos", "windows", "linux"] as OsType[],
-    isInstalled: () => checkCursor(false),
+    isInstalled: () => checkCursor(),
     isRunning: () => isProcessRunning("Cursor"),
-    install: () => installCursor(false),
-  },
-  {
-    id: "cursor-after-0470",
-    name: "Cursor since v0.47+",
-    icon: cursorIcon,
-    supportedOS: ["macos", "windows", "linux"] as OsType[],
-    isInstalled: () => checkCursor(true),
-    isRunning: () => isProcessRunning("Cursor"),
-    install: () => installCursor(true),
+    install: () => installCursor(),
   },
 ];
 

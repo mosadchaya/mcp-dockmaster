@@ -781,7 +781,7 @@ const Home: React.FC = () => {
                               className="mt-2 flex items-center gap-2"
                               onClick={async () => {
                                 try {
-                                  await restartProcess(client.app.name);
+                                  await restartProcess(client.app.processName);
                                   toast.success(
                                     `${client.app.name} restarted successfully!`,
                                   );
