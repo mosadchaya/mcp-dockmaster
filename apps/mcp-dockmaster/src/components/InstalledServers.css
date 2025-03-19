@@ -711,6 +711,31 @@
   margin-bottom: 1rem;
 }
 
+/* Loading indicator styles for updating servers */
+.updating-servers-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.updating-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Color tag styles */
 .color-tag-filter {
   display: flex;

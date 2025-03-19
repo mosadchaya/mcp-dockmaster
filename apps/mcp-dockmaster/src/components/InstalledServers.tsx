@@ -91,6 +91,7 @@ const InstalledServers: React.FC = () => {
   >([]);
   const [selectedColorFilter, setSelectedColorFilter] = useState<string | null>(null);
   const [serverColorTags, setServerColorTags] = useState<Record<string, string[]>>({});
+  const [updatingServers, setUpdatingServers] = useState<boolean>(false);
 
   // Load initial tool visibility state from backend
   useEffect(() => {
@@ -470,6 +471,77 @@ const InstalledServers: React.FC = () => {
     
     // Dispatch event that server color tags changed
     dispatchServerColorTagsChanged(serverId);
+  };
+  
+  // Function to update server enabled states based on color tag
+  const updateServersByColorTag = async (color: string | null) => {
+    // Set loading state
+    setUpdatingServers(true);
+    
+    try {
+      // If no color is selected (All), enable all servers
+      if (!color) {
+        // Show loading notification
+        addNotification("Enabling all servers...", "info");
+        
+        // Track servers that need to be enabled
+        const serversToUpdate = servers.filter(server => !server.enabled);
+        
+        // Enable all servers that are currently disabled
+        for (const server of serversToUpdate) {
+          await toggleToolStatus(server.id);
+        }
+        
+        if (serversToUpdate.length > 0) {
+          addNotification(`Enabled ${serversToUpdate.length} servers`, "success");
+        }
+        return;
+      }
+      
+      // If a specific color is selected, enable servers with that tag and disable others
+      addNotification(`Updating servers for ${color} group...`, "info");
+      
+      // Track which servers need to be enabled/disabled
+      const serversToEnable = [];
+      const serversToDisable = [];
+      
+      // Determine which servers need to be updated
+      for (const server of servers) {
+        const serverTags = serverColorTags[server.id] || [];
+        const hasSelectedColor = serverTags.includes(color);
+        
+        if (hasSelectedColor && !server.enabled) {
+          serversToEnable.push(server);
+        } else if (!hasSelectedColor && server.enabled) {
+          serversToDisable.push(server);
+        }
+      }
+      
+      // Enable servers with the selected color tag
+      for (const server of serversToEnable) {
+        await toggleToolStatus(server.id);
+      }
+      
+      // Disable servers without the selected color tag
+      for (const server of serversToDisable) {
+        await toggleToolStatus(server.id);
+      }
+      
+      // Show completion notification
+      const totalUpdated = serversToEnable.length + serversToDisable.length;
+      if (totalUpdated > 0) {
+        addNotification(
+          `Updated ${totalUpdated} servers for ${color} group`,
+          "success"
+        );
+      }
+    } catch (error) {
+      console.error("Error updating servers by color tag:", error);
+      addNotification("Error updating servers", "error");
+    } finally {
+      // Clear loading state
+      setUpdatingServers(false);
+    }
   };
   
   // Filter servers based on selected color
@@ -971,24 +1043,40 @@ const InstalledServers: React.FC = () => {
   // Add color filter UI
   const renderColorFilters = () => {
     return (
-      <div className="flex flex-wrap gap-2 mb-4">
-        <Badge 
-          variant={!selectedColorFilter ? "default" : "outline"} 
-          className="cursor-pointer px-3 py-1"
-          onClick={() => setSelectedColorFilter(null)}
-        >
-          All
-        </Badge>
-        {Object.entries(COLOR_TAGS).map(([_, color]) => (
+      <div className="flex flex-wrap items-center">
+        <div className="flex flex-wrap gap-2 mb-4">
           <Badge 
-            key={color}
-            variant={selectedColorFilter === color ? "default" : "outline"} 
-            className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? COLOR_TAG_STYLES[color] : ''}`}
-            onClick={() => setSelectedColorFilter(color === selectedColorFilter ? null : color)}
+            variant={!selectedColorFilter ? "default" : "outline"} 
+            className="cursor-pointer px-3 py-1"
+            onClick={() => {
+              setSelectedColorFilter(null);
+              updateServersByColorTag(null);
+            }}
           >
-            <div className={`w-4 h-4 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+            All
           </Badge>
-        ))}
+          {Object.entries(COLOR_TAGS).map(([_, color]) => (
+            <Badge 
+              key={color}
+              variant={selectedColorFilter === color ? "default" : "outline"} 
+              className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? COLOR_TAG_STYLES[color] : ''}`}
+              onClick={() => {
+                const newColor = color === selectedColorFilter ? null : color;
+                setSelectedColorFilter(newColor);
+                updateServersByColorTag(newColor);
+              }}
+            >
+              <div className={`w-4 h-4 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+            </Badge>
+          ))}
+        </div>
+        
+        {updatingServers && (
+          <div className="updating-servers-indicator">
+            <div className="updating-spinner"></div>
+            <span>Updating servers...</span>
+          </div>
+        )}
       </div>
     );
   };
