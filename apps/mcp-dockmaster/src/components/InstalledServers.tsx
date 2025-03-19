@@ -5,7 +5,6 @@ import {
   dispatchServerUninstalled, 
   SERVER_STATUS_CHANGED, 
   SERVER_UNINSTALLED,
-  SERVER_COLOR_TAGS_CHANGED,
   dispatchServerColorTagsChanged
 } from "../lib/events";
 import "./InstalledServers.css";
@@ -980,7 +979,7 @@ const InstalledServers: React.FC = () => {
         >
           All
         </Badge>
-        {Object.entries(COLOR_TAGS).map(([name, color]) => (
+        {Object.entries(COLOR_TAGS).map(([_, color]) => (
           <Badge 
             key={color}
             variant={selectedColorFilter === color ? "default" : "outline"} 
@@ -1178,7 +1177,7 @@ const InstalledServers: React.FC = () => {
                 {/* Add color tag selection */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   <span className="text-sm text-muted-foreground mr-2">Tags:</span>
-                  {Object.entries(COLOR_TAGS).map(([name, color]) => {
+                  {Object.entries(COLOR_TAGS).map(([_, color]) => {
                     const isSelected = (serverColorTags[server.id] || []).includes(color);
                     return (
                       <Badge 
