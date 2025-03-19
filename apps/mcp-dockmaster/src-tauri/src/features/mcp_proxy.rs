@@ -110,8 +110,11 @@ pub async fn check_claude_installed(mcp_core: State<'_, MCPCore>) -> Result<bool
 
 // Check if Cursor is installed
 #[tauri::command]
-pub async fn check_cursor_installed(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
-    mcp_core.is_cursor_installed()
+pub async fn check_cursor_installed(
+    mcp_core: State<'_, MCPCore>,
+    after_0470: bool,
+) -> Result<bool, String> {
+    mcp_core.is_cursor_installed(after_0470)
 }
 
 // Install Claude
@@ -122,8 +125,8 @@ pub async fn install_claude(mcp_core: State<'_, MCPCore>) -> Result<(), String> 
 
 // Install Cursor
 #[tauri::command]
-pub async fn install_cursor(mcp_core: State<'_, MCPCore>) -> Result<(), String> {
-    mcp_core.install_cursor()
+pub async fn install_cursor(mcp_core: State<'_, MCPCore>, after_0470: bool) -> Result<(), String> {
+    mcp_core.install_cursor(after_0470)
 }
 
 // Get Claude config
@@ -134,8 +137,11 @@ pub async fn get_claude_config(mcp_core: State<'_, MCPCore>) -> Result<String, S
 
 // Get Cursor config
 #[tauri::command]
-pub async fn get_cursor_config(mcp_core: State<'_, MCPCore>) -> Result<String, String> {
-    mcp_core.get_cursor_config()
+pub async fn get_cursor_config(
+    mcp_core: State<'_, MCPCore>,
+    after_0470: bool,
+) -> Result<String, String> {
+    mcp_core.get_cursor_config(after_0470)
 }
 
 // Get Generic config
@@ -171,19 +177,14 @@ pub async fn is_process_running(
 
 /// Set the tool visibility state
 #[tauri::command]
-pub async fn set_tools_hidden(
-    mcp_core: State<'_, MCPCore>,
-    hidden: bool,
-) -> Result<(), String> {
+pub async fn set_tools_hidden(mcp_core: State<'_, MCPCore>, hidden: bool) -> Result<(), String> {
     let mcp_state = mcp_core.mcp_state.read().await;
     mcp_state.set_tools_hidden(hidden).await
 }
 
 /// Get the tool visibility state
 #[tauri::command]
-pub async fn get_tools_visibility_state(
-    mcp_core: State<'_, MCPCore>,
-) -> Result<bool, String> {
+pub async fn get_tools_visibility_state(mcp_core: State<'_, MCPCore>) -> Result<bool, String> {
     let mcp_state = mcp_core.mcp_state.read().await;
     Ok(mcp_state.are_tools_hidden().await)
 }
