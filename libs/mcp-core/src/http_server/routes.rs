@@ -7,24 +7,15 @@ use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
 use crate::core::mcp_core::MCPCore;
-use crate::http_server::handlers::{
-    handle_mcp_request, health_check, message_handler, sse_handler,
-};
+use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, json_rpc_handler};
 
 pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
     let app = Router::new()
         .route("/", get(health_check))
         .route("/health", get(health_check))
-        .route("/mcp/sse", get(sse_handler))
-        .route(
-            "/mcp/message/{session_id}",
-            post(|path, body| async {
-                // Call the existing handler function directly
-                message_handler(path, body).await
-            }),
-        )
+        .route("/mcp/sse", get(sse_handler).post(json_rpc_handler))
         .route("/mcp", post(handle_mcp_request))
-        .layer(Extension(mcp_core))
+        .layer(Extension(mcp_core.clone()))
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

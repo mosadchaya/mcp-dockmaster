@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
@@ -14,13 +15,14 @@ use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
     Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
-    ToolExecutionRequest,
+    ToolExecutionRequest, InputSchemaProperty
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 
 use axum::{
-    extract::Path,
     response::sse::{Event, Sse},
+    extract::Query,
+    debug_handler,
 };
 use futures::stream::{self, Stream};
 use std::convert::Infallible;
@@ -33,29 +35,53 @@ use crate::mcp_server::handlers::SessionManager;
 use mcp_sdk_server::Server;
 use mcp_sdk_server::router::RouterService;
 use crate::mcp_server::handlers::MCPRouter;
+use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
 
-#[derive(Deserialize)]
+/// JSON-RPC request structure
+#[derive(Deserialize, Debug)]
 pub struct JsonRpcRequest {
     #[allow(dead_code)]
-    jsonrpc: String,
-    id: Value,
-    method: String,
-    params: Option<Value>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub method: String,
+    pub params: Option<Value>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC response structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcResponse {
-    jsonrpc: String,
-    id: Value,
-    result: Option<Value>,
-    error: Option<JsonRpcError>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub result: Option<Value>,
+    pub error: Option<JsonRpcError>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC error structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcError {
-    code: i32,
-    message: String,
-    data: Option<Value>,
+    pub code: i32,
+    pub message: String,
+    pub data: Option<Value>,
+}
+
+/// JSON-RPC method enum
+#[derive(Debug)]
+pub enum JsonRpcMethod {
+    ToolsList,
+    ToolsHidden,
+    ToolsCall,
+    PromptsList,
+    PromptsGet,
+    ResourcesList,
+    ResourcesRead,
+    RegistryList,
+    RegistryInstall,
+    RegistryImport,
+    ServerStart,
+    ServerStop,
+    ServerConfig,
+    ServerDelete,
+    Unknown(String),
 }
 
 // Cache structure to store registry data and timestamp
@@ -194,10 +220,45 @@ pub async fn handle_mcp_request(
 }
 
 async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
+    // Get the installed tools from MCPCore
     let result = mcp_core.list_all_server_tools().await;
+
+    // Create a list of built-in tools converted to ServerToolInfo format
+    let register_server_tool = get_register_server_tool();
+    let built_in_tools = vec![
+        ServerToolInfo {
+            id: register_server_tool.name.clone(),
+            name: TOOL_REGISTER_SERVER.to_string(),
+            description: register_server_tool.description.clone(),
+            server_id: "builtin".to_string(),
+            proxy_id: None,
+            is_active: true,
+            input_schema: Some(InputSchema {
+                r#type: "object".to_string(),
+                properties: HashMap::from_iter(
+                    serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                        register_server_tool.input_schema.get("properties")
+                            .cloned()
+                            .unwrap_or_else(|| json!({}))
+                    ).unwrap_or_default()
+                ),
+                required: register_server_tool.input_schema.get("required")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                        .collect())
+                    .unwrap_or_else(|| Vec::new()),
+                ..Default::default()
+            }),
+        }
+    ];
 
     match result {
         Ok(tools) => {
+            // Add built-in tools first, then user-installed tools
+            let mut all_tools = built_in_tools;
+            
+            // Add the user-installed tools
             let tools_with_defaults: Vec<ServerToolInfo> = tools
                 .into_iter()
                 .map(|tool| {
@@ -213,9 +274,11 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     tool
                 })
                 .collect();
+            
+            all_tools.extend(tools_with_defaults);
 
             Ok(ServerToolsResponse {
-                tools: tools_with_defaults,
+                tools: all_tools,
             })
         }
         Err(e) => Err(ErrorResponse {
@@ -701,15 +764,97 @@ pub async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>>
     Sse::new(combined_stream)
 }
 
-/// Handler for receiving messages from the client
+/// Query parameter struct for session ID
+#[derive(Debug, Deserialize)]
+pub struct SessionIdParam {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+}
+
+/// Handler for JSON-RPC requests via SSE
+#[debug_handler]
+pub async fn json_rpc_handler(
+    Query(params): Query<SessionIdParam>,
+    Extension(mcp_core): Extension<MCPCore>,
+    Json(request): Json<JsonRpcRequest>,
+) -> Json<JsonRpcResponse> {
+    let session_id = &params.session_id;
+    info!("Processing JSON-RPC request for session {}: method={}", session_id, request.method);
+    
+    // Process the JSON-RPC request using the handle_mcp_request logic
+    let result = match request.method.as_str() {
+        "tools/list" => match handle_list_tools(mcp_core).await {
+            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+            Err(error) => Err(serde_json::to_value(error).unwrap()),
+        },
+        "tools/hidden" => handle_tools_hidden(mcp_core).await,
+        "tools/call" => {
+            if let Some(params) = request.params.clone() {
+                handle_invoke_tool(mcp_core, params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Missing parameters"
+                }))
+            }
+        },
+        // Add other methods as needed
+        _ => Err(json!({
+            "code": -32601,
+            "message": format!("Method '{}' not found", request.method)
+        })),
+    };
+    
+    // Create the JSON-RPC response
+    let response = match result {
+        Ok(result) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(result),
+            error: None,
+        },
+        Err(error) => {
+            let error_obj = error.as_object().unwrap();
+            JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: error_obj
+                        .get("code")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(-32000) as i32,
+                    message: error_obj
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string(),
+                    data: None,
+                }),
+            }
+        }
+    };
+    
+    // Also send the response through the SSE channel
+    if let Ok(response_json) = serde_json::to_vec(&response) {
+        if let Err(e) = SESSION_MANAGER.send_to_session(session_id, response_json).await {
+            log::error!("Failed to send response to SSE channel: {}", e);
+        }
+    }
+    
+    Json(response)
+}
+
+/// Handler for receiving messages from the client (binary data approach)
 pub async fn message_handler(
-    Path(session_id): Path<String>,
+    Query(params): Query<SessionIdParam>,
     Json(message): Json<Vec<u8>>,
 ) -> Json<serde_json::Value> {
-    info!("Processing message for session {}: {} bytes", session_id, message.len());
+    let session_id = &params.session_id;
+    info!("Processing binary message for session {}: {} bytes", session_id, message.len());
     
     // Process the message using the MCP_SERVER and SESSION_MANAGER
-    let result = process_client_message(&session_id, message).await;
+    let result = process_client_message(session_id, message).await;
     
     match result {
         Ok(_) => Json(json!({ "success": true })),
@@ -723,7 +868,7 @@ pub async fn message_handler(
     }
 }
 
-/// Process a client message using the MCP server
+/// Process a client message using the MCP server (binary data approach)
 async fn process_client_message(session_id: &str, message: Vec<u8>) -> Result<(), String> {
     // Create a buffer for the response
     const BUFFER_SIZE: usize = 1 << 12; // 4KB
