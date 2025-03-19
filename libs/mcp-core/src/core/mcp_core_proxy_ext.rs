@@ -529,10 +529,11 @@ impl McpCoreProxyExt for MCPCore {
         let (_session_manager, router_service) = crate::mcp_server::handlers::create_sse_handler(client_manager);
         
         // Create the server
-        let server = mcp_sdk_server::Server::new(router_service);
+        let _server = mcp_sdk_server::Server::new(router_service);
         
-        // Set the global server instance
-        crate::http_server::handlers::set_mcp_server(server);
+        // We no longer need to set a global server instance
+        // Instead, we create server instances on demand for each SSE connection
+        // crate::http_server::handlers::set_mcp_server(server);
         
         info!("MCP server initialized with SSE transport");
 
