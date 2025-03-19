@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
+import { Input } from "./ui/input";
 
 // Add a simple notification component
 interface NotificationProps {
@@ -59,17 +60,24 @@ const Notification: React.FC<NotificationProps> = ({
 const COLOR_TAGS = {
   GREEN: 'green',
   RED: 'red',
-  ORANGE: 'orange',
-  BLUE: 'blue',
-  PURPLE: 'purple'
 };
 
-const COLOR_TAG_STYLES = {
-  [COLOR_TAGS.GREEN]: 'bg-green-500 text-white border-green-600',
-  [COLOR_TAGS.RED]: 'bg-red-500 text-white border-red-600',
-  [COLOR_TAGS.ORANGE]: 'bg-orange-500 text-white border-orange-600',
-  [COLOR_TAGS.BLUE]: 'bg-blue-500 text-white border-blue-600',
-  [COLOR_TAGS.PURPLE]: 'bg-purple-500 text-white border-purple-600',
+// Define a function to get color styles
+const getColorTagStyle = (color: string) => {
+  const colorMap: Record<string, string> = {
+    'green': 'bg-green-500 text-white border-green-600',
+    'red': 'bg-red-500 text-white border-red-600',
+    'orange': 'bg-orange-500 text-white border-orange-600',
+    'blue': 'bg-blue-500 text-white border-blue-600',
+    'purple': 'bg-purple-500 text-white border-purple-600',
+    'yellow': 'bg-yellow-500 text-white border-yellow-600',
+    'pink': 'bg-pink-500 text-white border-pink-600',
+    'indigo': 'bg-indigo-500 text-white border-indigo-600',
+    'teal': 'bg-teal-500 text-white border-teal-600',
+    'cyan': 'bg-cyan-500 text-white border-cyan-600',
+  };
+  
+  return colorMap[color] || 'bg-gray-500 text-white border-gray-600';
 };
 
 const InstalledServers: React.FC = () => {
@@ -92,6 +100,9 @@ const InstalledServers: React.FC = () => {
   const [selectedColorFilter, setSelectedColorFilter] = useState<string | null>(null);
   const [serverColorTags, setServerColorTags] = useState<Record<string, string[]>>({});
   const [updatingServers, setUpdatingServers] = useState<boolean>(false);
+  const [availableColors, setAvailableColors] = useState<Record<string, string>>(COLOR_TAGS);
+  const [showColorDialog, setShowColorDialog] = useState<boolean>(false);
+  const [newColorName, setNewColorName] = useState<string>('');
 
   // Load initial tool visibility state from backend
   useEffect(() => {
@@ -109,6 +120,12 @@ const InstalledServers: React.FC = () => {
     const loadColorTags = () => {
       const savedTags = MCPClient.getServerColorTags();
       setServerColorTags(savedTags);
+      
+      // Load custom colors
+      const customColors = localStorage.getItem('availableColors');
+      if (customColors) {
+        setAvailableColors(JSON.parse(customColors));
+      }
     };
     
     loadToolVisibilityState();
@@ -542,6 +559,36 @@ const InstalledServers: React.FC = () => {
       // Clear loading state
       setUpdatingServers(false);
     }
+  };
+  
+  // Function to add a new color
+  const addNewColor = () => {
+    if (!newColorName.trim()) {
+      addNotification("Color name cannot be empty", "error");
+      return;
+    }
+    
+    const colorKey = newColorName.toUpperCase().replace(/\s+/g, '_');
+    
+    // Update available colors
+    const updatedColors = {
+      ...availableColors,
+      [colorKey]: newColorName.toLowerCase(),
+    };
+    
+    setAvailableColors(updatedColors);
+    
+    // Save to localStorage
+    MCPClient.saveAvailableColors(updatedColors);
+    
+    // Add the new color to all servers
+    MCPClient.addColorToAllServers(newColorName.toLowerCase());
+    
+    // Reset form and close dialog
+    setNewColorName('');
+    setShowColorDialog(false);
+    
+    addNotification(`Added new color: ${newColorName}`, "success");
   };
   
   // Filter servers based on selected color
@@ -1040,6 +1087,51 @@ const InstalledServers: React.FC = () => {
     });
   };
   
+  // Add color dialog component
+  const renderColorDialog = () => {
+    return (
+      <Dialog open={showColorDialog} onOpenChange={setShowColorDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Color</DialogTitle>
+            <DialogDescription>
+              Enter a name for the new color. This color will be added to all servers.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="colorName" className="text-sm font-medium">Color Name</Label>
+              <Input
+                id="colorName"
+                value={newColorName}
+                onChange={(e) => setNewColorName(e.target.value)}
+                placeholder="e.g. Blue, Yellow, Purple"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="colorPreview" className="text-sm font-medium">Color Preview</Label>
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full ${getColorTagStyle(newColorName.toLowerCase())}`}></div>
+                <span>{newColorName || "New Color"}</span>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowColorDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={addNewColor}>
+              Add Color
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+  
   // Add color filter UI
   const renderColorFilters = () => {
     return (
@@ -1055,20 +1147,31 @@ const InstalledServers: React.FC = () => {
           >
             All
           </Badge>
-          {Object.entries(COLOR_TAGS).map(([_, color]) => (
+          
+          {Object.entries(availableColors).map(([key, color]) => (
             <Badge 
-              key={color}
+              key={key}
               variant={selectedColorFilter === color ? "default" : "outline"} 
-              className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? COLOR_TAG_STYLES[color] : ''}`}
+              className={`cursor-pointer px-3 py-1 ${selectedColorFilter === color ? getColorTagStyle(color) : ''}`}
               onClick={() => {
                 const newColor = color === selectedColorFilter ? null : color;
                 setSelectedColorFilter(newColor);
                 updateServersByColorTag(newColor);
               }}
             >
-              <div className={`w-4 h-4 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+              <div className={`w-4 h-4 rounded-full ${getColorTagStyle(color)}`}></div>
             </Badge>
           ))}
+          
+          {/* Add plus button */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="rounded-full w-8 h-8 p-0 flex items-center justify-center"
+            onClick={() => setShowColorDialog(true)}
+          >
+            <span className="text-lg">+</span>
+          </Button>
         </div>
         
         {updatingServers && (
@@ -1265,16 +1368,16 @@ const InstalledServers: React.FC = () => {
                 {/* Add color tag selection */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   <span className="text-sm text-muted-foreground mr-2">Tags:</span>
-                  {Object.entries(COLOR_TAGS).map(([_, color]) => {
+                  {Object.entries(availableColors).map(([key, color]) => {
                     const isSelected = (serverColorTags[server.id] || []).includes(color);
                     return (
                       <Badge 
-                        key={color}
+                        key={key}
                         variant={isSelected ? "default" : "outline"} 
-                        className={`cursor-pointer ${isSelected ? COLOR_TAG_STYLES[color] : ''}`}
+                        className={`cursor-pointer ${isSelected ? getColorTagStyle(color) : ''}`}
                         onClick={() => toggleColorTag(server.id, color)}
                       >
-                        <div className={`w-3 h-3 rounded-full ${COLOR_TAG_STYLES[color]}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${getColorTagStyle(color)}`}></div>
                       </Badge>
                     );
                   })}
@@ -1287,6 +1390,7 @@ const InstalledServers: React.FC = () => {
 
       {renderConfigPopup()}
       {renderInfoPopup()}
+      {renderColorDialog()}
     </div>
   );
 };

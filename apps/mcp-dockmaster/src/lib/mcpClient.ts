@@ -296,6 +296,28 @@ export class MCPClient {
     const allTags = this.getServerColorTags();
     return allTags[serverId] || [];
   }
+  
+  // Add a function to save available colors
+  static saveAvailableColors(colors: Record<string, string>): void {
+    localStorage.setItem('availableColors', JSON.stringify(colors));
+  }
+  
+  // Add a function to get available colors
+  static getAvailableColors(): Record<string, string> {
+    const storedColors = localStorage.getItem('availableColors');
+    return storedColors ? JSON.parse(storedColors) : {};
+  }
+  
+  // Add a function to add a new color to all servers
+  static addColorToAllServers(colorKey: string): void {
+    const serverTags = this.getServerColorTags();
+    Object.keys(serverTags).forEach(serverId => {
+      if (!serverTags[serverId].includes(colorKey)) {
+        serverTags[serverId].push(colorKey);
+      }
+    });
+    localStorage.setItem('serverColorTags', JSON.stringify(serverTags));
+  }
 }
 
-export default MCPClient;                                                                                                                                
+export default MCPClient;                                                                                                                                                                                                
