@@ -19,6 +19,7 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
         .route("/", get(health_check))
         .route("/health", get(health_check))
         .route("/mcp/sse", get(sse_handler).post(sse_post_handler))
+        .route("/mcp-proxy", post(handle_mcp_request))
         .route("/mcp", post(handle_mcp_request))
         .layer(Extension(mcp_core.clone()))
         .layer(Extension(mcp_router))

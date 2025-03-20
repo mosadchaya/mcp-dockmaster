@@ -154,48 +154,14 @@ pub async fn handle_mcp_request(
                 "capabilities": capabilities
             }))
         },
-        "tools/list" => {
-            // Get tools from the router
-            let tools = mcp_router.list_tools();
-            Ok(json!({
-                "tools": tools
-            }))
+        "tools/list" => match handle_list_tools(mcp_core).await {
+            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+            Err(error) => Err(serde_json::to_value(error).unwrap()),
         },
         "tools/hidden" => handle_tools_hidden(mcp_core).await,
         "tools/call" => {
             if let Some(params) = request.params {
-                if let Some(tool_name) = params.get("name").and_then(|v| v.as_str()) {
-                    let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
-                    
-                    // Use the router's call_tool method
-                    match mcp_router.call_tool(tool_name, arguments).await {
-                        Ok(content) => {
-                            // Convert content to JSON value
-                            let content_json = content.into_iter().map(|c| {
-                                match c {
-                                    mcp_sdk_core::Content::Text(text) => json!(text),
-                                    // Handle other content types
-                                    _ => json!(null),
-                                }
-                            }).collect::<Vec<_>>();
-                            
-                            Ok(json!({
-                                "result": content_json
-                            }))
-                        },
-                        Err(err) => {
-                            Err(json!({
-                                "code": -32000,
-                                "message": format!("Tool execution error: {}", err)
-                            }))
-                        }
-                    }
-                } else {
-                    Err(json!({
-                        "code": -32602,
-                        "message": "Missing name in parameters"
-                    }))
-                }
+                handle_invoke_tool(mcp_core, params).await
             } else {
                 Err(json!({
                     "code": -32602,
