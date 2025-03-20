@@ -2,10 +2,11 @@ use crate::utils::process::kill_process_by_name;
 
 use super::install_paths::get_claude_config_path;
 use super::{install_errors::ClaudeError, install_paths};
+use log::info;
 use serde_json::{json, Value};
 use std::{fs, path::Path};
 
-pub fn is_claude_installed() -> Result<(), ClaudeError> {
+pub fn is_claude_installed(app_name: &str) -> Result<(), ClaudeError> {
     let config_path = get_claude_config_path()?;
 
     // Check if the file exists
@@ -23,26 +24,27 @@ pub fn is_claude_installed() -> Result<(), ClaudeError> {
     // Check for mcpServers
     if let Some(servers) = parsed.get("mcpServers") {
         // Check for mcp-dockmaster key
-        if servers.get("mcp-dockmaster").is_some() {
-            println!("✅ MCP Dockmaster installed in CLAUDE");
+        if servers.get(app_name).is_some() {
+            info!("✅ MCP Dockmaster is currently installed in CLAUDE");
             Ok(())
         } else {
-            println!("❌ MCP Dockmaster not installed in CLAUDE");
-            println!("mcp-dockmaster missing from mcpServers");
+            info!("❌ MCP Dockmaster is not installed in CLAUDE");
+            info!("{} missing from mcpServers", app_name);
             Err(ClaudeError::NoDockmaster)
         }
     } else {
-        println!("❌ MCP Dockmaster not installed in CLAUDE");
-        println!("No mcpServers found in the configuration");
+        info!("❌ MCP Dockmaster is not installed in CLAUDE");
+        info!("No mcpServers found in the configuration");
         Err(ClaudeError::NoMcpServers)
     }
 }
 
-pub fn install_claude(binary_path: &str) -> Result<(), ClaudeError> {
-    if is_claude_installed().is_ok() {
+pub fn install_claude(app_name: &str, binary_path: &str) -> Result<(), ClaudeError> {
+    if is_claude_installed(app_name).is_ok() {
         return Ok(());
     }
 
+    info!("Killing Claude process...");
     kill_process_by_name("Claude");
 
     let config_path = get_claude_config_path()?;
@@ -84,34 +86,34 @@ pub fn install_claude(binary_path: &str) -> Result<(), ClaudeError> {
     }
 
     // Add mcp-dockmaster configuration with the correct format
-    config["mcpServers"]["mcp-dockmaster"] = json!({
+    config["mcpServers"][app_name] = json!({
         "args": [],
         "command": binary_path
     });
 
     // Write the updated configuration
     fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
-    println!("✅ MCP Dockmaster installed in CLAUDE");
-    println!("Please restart Claude to apply the changes.");
-    println!("config_path: {}", config_path);
-    println!("content: {}", config);
-    is_claude_installed()
+    info!("✅ MCP Dockmaster installed in CLAUDE");
+    info!("Please restart Claude to apply the changes.");
+    info!("config_path: {}", config_path);
+    info!("content: {}", config);
+    is_claude_installed(app_name)
 }
 
-pub fn get_claude_config(binary_path: &str) -> Result<String, ClaudeError> {
+pub fn get_claude_config(app_name: &str, binary_path: &str) -> Result<String, ClaudeError> {
     let config_path = get_claude_config_path()?;
     let config = json!({
         "mcpServers": {
-            "mcp-dockmaster": {
+            format!("{}", app_name): {
                 "args": [],
                 "command": binary_path
             }
         }
     });
-    
+
     // Format the JSON with proper indentation
     let pretty_json = serde_json::to_string_pretty(&config)?;
-    
+
     Ok(format!(
         "
 Open {config_path}

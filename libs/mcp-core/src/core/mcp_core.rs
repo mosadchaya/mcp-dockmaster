@@ -34,6 +34,8 @@ pub struct MCPCore {
     pub mcp_state: Arc<RwLock<MCPState>>,
     /// HTTP server port
     pub port: u16,
+    /// App name
+    pub app_name: String,
 }
 
 impl MCPCore {
@@ -44,8 +46,16 @@ impl MCPCore {
     ///
     /// # Returns
     /// A new MCPCore instance with initialized components
-    pub fn new(database_path: PathBuf, proxy_server_binary_path: PathBuf) -> Self {
-        Self::new_with_port(database_path, proxy_server_binary_path, 3000)
+    pub fn new(
+        database_path: PathBuf,
+        proxy_server_binary_path: PathBuf,
+        app_name: String,
+    ) -> Self {
+        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
+            .unwrap_or_else(|_| "11011".to_string())
+            .parse::<u16>()
+            .unwrap_or(11011);
+        Self::new_with_port(database_path, proxy_server_binary_path, port, app_name)
     }
 
     /// Creates a new MCPCore instance with the given database path and port
@@ -61,6 +71,7 @@ impl MCPCore {
         database_path: PathBuf,
         proxy_server_binary_path: PathBuf,
         port: u16,
+        app_name: String,
     ) -> Self {
         info!("Creating new MCPCore instance");
         let db_manager = DBManager::with_path(database_path).unwrap();
@@ -81,6 +92,7 @@ impl MCPCore {
             mcp_state: mcp_state_arc,
             tool_registry: tool_registry_arc,
             port,
+            app_name,
         }
     }
 

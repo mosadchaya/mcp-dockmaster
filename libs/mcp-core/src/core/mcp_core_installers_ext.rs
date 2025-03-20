@@ -28,7 +28,7 @@ impl McpCoreInstallersExt for MCPCore {
     }
 
     fn is_claude_installed(&self) -> Result<bool, String> {
-        match is_claude_installed() {
+        match is_claude_installed(&self.app_name) {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string()),
         }
@@ -37,13 +37,13 @@ impl McpCoreInstallersExt for MCPCore {
         let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
             return Err("failed to convert path to string".to_string());
         };
-        match install_claude(proxy_server_binary_path) {
+        match install_claude(&self.app_name, proxy_server_binary_path) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
     }
     fn is_cursor_installed(&self) -> Result<bool, String> {
-        match is_cursor_installed() {
+        match is_cursor_installed(&self.app_name) {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string()),
         }
@@ -52,7 +52,7 @@ impl McpCoreInstallersExt for MCPCore {
         let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
             return Err("failed to convert path to string".to_string());
         };
-        match install_cursor(proxy_server_binary_path) {
+        match install_cursor(&self.app_name, proxy_server_binary_path) {
             Ok(_) => Ok(()),
             Err(err) => Err(err.to_string()),
         }
@@ -61,7 +61,7 @@ impl McpCoreInstallersExt for MCPCore {
         let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
             return Err("failed to convert path to string".to_string());
         };
-        match get_claude_config(proxy_server_binary_path) {
+        match get_claude_config(&self.app_name, proxy_server_binary_path) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),
         }
@@ -70,7 +70,7 @@ impl McpCoreInstallersExt for MCPCore {
         let Some(proxy_server_binary_path) = self.proxy_server_binary_path.to_str() else {
             return Err("failed to convert path to string".to_string());
         };
-        match get_cursor_config(proxy_server_binary_path) {
+        match get_cursor_config(&self.app_name, proxy_server_binary_path) {
             Ok(config) => Ok(config),
             Err(err) => Err(err.to_string()),
         }

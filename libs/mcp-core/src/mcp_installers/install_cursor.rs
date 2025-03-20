@@ -1,239 +1,154 @@
-use super::install_paths::get_cursor_db_path;
-use crate::mcp_installers::install_errors::CursorError;
-use crate::mcp_installers::install_paths;
-use crate::utils::process::kill_process_by_name;
-use diesel::prelude::*;
-use diesel::r2d2::{self, ConnectionManager};
-use diesel::sqlite::SqliteConnection;
-use serde_json;
-use std::path::Path;
+use std::{collections::HashMap, fs::File, path::PathBuf};
 
-type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+use home::home_dir;
+use log::error;
+use serde::{Deserialize, Serialize};
 
-#[derive(QueryableByName)]
-struct TableName {
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    name: String,
+use super::install_errors::CursorError;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct CursorMcpGlobalConfig {
+    #[serde(rename = "mcpServers")]
+    pub mcp_servers: Option<HashMap<String, McpServer>>,
 }
 
-#[derive(QueryableByName)]
-struct ItemTableRow {
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    key: String,
-    #[diesel(sql_type = diesel::sql_types::Text)]
-    value: String,
+#[derive(Deserialize, Serialize, Clone, Debug)]
+enum McpServer {
+    Command(CommandMcpServer),
+    Sse(SseMcpServer),
 }
 
-pub fn get_item_value(key: &str) -> Result<Option<String>, CursorError> {
-    let db_path = get_cursor_db_path()?;
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct CommandMcpServer {
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: Option<HashMap<String, String>>,
+}
 
-    if !Path::new(&db_path).exists() {
-        return Err(CursorError::DatabaseNotFound(db_path));
-    }
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct SseMcpServer {
+    pub url: String,
+    pub env: Option<HashMap<String, String>>,
+}
 
-    let manager = ConnectionManager::<SqliteConnection>::new(db_path);
-    let pool = Pool::builder()
-        .build(manager)
-        .expect("Failed to create pool");
+fn get_cursor_mcp_global_config_path() -> Result<PathBuf, CursorError> {
+    let cursor_mcp_global_config_path = home_dir().unwrap().join(".cursor/mcp.json");
+    Ok(cursor_mcp_global_config_path)
+}
 
-    let mut conn = pool.get().map_err(|e| {
-        println!("❌ Cannot install: Failed to connect to database");
-        CursorError::DatabaseCorrupt(e.to_string())
+pub fn is_cursor_installed(app_name: &str) -> Result<bool, CursorError> {
+    let cursor_mcp_global_config_path = get_cursor_mcp_global_config_path()?;
+    let cursor_mcp_global_config_as_str = std::fs::read_to_string(&cursor_mcp_global_config_path)
+        .map_err(|e| {
+        error!(
+            "cannot install: Failed to read Cursor MCP global config: {}",
+            e.to_string()
+        );
+        CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;
-
-    let items: Vec<ItemTableRow> =
-        diesel::sql_query("SELECT key, value FROM ItemTable WHERE key = ?")
-            .bind::<diesel::sql_types::Text, _>(key)
-            .load(&mut *conn)?;
-
-    if let Some(item) = items.first() {
-        println!("Found item for key: {}", item.key);
-        Ok(Some(item.value.clone()))
-    } else {
-        println!("No item found with the specified key");
-        Ok(None)
-    }
-}
-
-fn get_key() -> String {
-    "src.vs.platform.reactivestorage.browser.reactiveStorageServiceImpl.persistentStorage.applicationUser".to_string()
-}
-
-// Example usage
-pub fn is_cursor_installed() -> Result<(), CursorError> {
-    let key = get_key();
-    let v = get_item_value(&key)?;
-
-    if v.is_none() {
-        println!("❌ MCP Dockmaster not installed in CURSOR");
-        println!("src.vs.platform.reactivestorage.browser.reactiveStorageServiceImpl.persistentStorage.applicationUser not found");
-        return Err(CursorError::KeyNotFound(key));
-    }
-    let value = v.unwrap();
-
-    // Parse the JSON string
-    let parsed: serde_json::Value = serde_json::from_str(&value)?;
-
-    // Extract the mcpServers array
-    let servers = parsed.get("mcpServers");
-    if servers.is_none() {
-        println!("❌ MCP Dockmaster not installed in CURSOR");
-        println!("mcpServers not found in the configuration");
-        return Err(CursorError::NoMcpServers);
-    }
-
-    let servers = servers.unwrap();
-
-    // Check if mcp-dockmaster exists in the servers array
-    let is_dockmaster_installed = servers
-        .as_array()
-        .map(|arr| {
-            arr.iter().any(|server| {
-                server
-                    .get("name")
-                    .and_then(|name| name.as_str())
-                    .map(|name| name == "mcp-dockmaster")
-                    .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false);
-
-    if is_dockmaster_installed {
-        println!("✅ MCP Dockmaster installed in CURSOR");
-        Ok(())
-    } else {
-        println!("❌ MCP Dockmaster not installed in CURSOR");
-        println!("mcp-dockmaster missing from list");
-        Err(CursorError::NoDockmaster)
-    }
-}
-
-pub fn install_cursor(binary_path: &str) -> Result<(), CursorError> {
-    // First check if already installed
-    if is_cursor_installed().is_ok() {
-        return Ok(());
-    }
-
-    kill_process_by_name("Cursor");
-
-    let db_path = get_cursor_db_path()?;
-
-    // Check if database exists and create backup
-    if Path::new(&db_path).exists() {
-        println!("ℹ️ Creating backup of Cursor database...");
-        match install_paths::backup_file(&db_path) {
-            Ok(backup_path) => println!("✅ Backup created at: {}", backup_path),
-            Err(e) => println!("⚠️ Failed to create backup: {}", e),
-        }
-    } else {
-        println!("❌ Cannot install: Cursor database not found");
-        return Err(CursorError::DatabaseNotFound(db_path));
-    }
-
-    // Set up connection manager and pool
-    let manager = ConnectionManager::<SqliteConnection>::new(&db_path);
-    let pool = Pool::builder().build(manager).map_err(|e| {
-        println!("❌ Cannot install: Cursor database is corrupt");
-        CursorError::DatabaseCorrupt(e.to_string())
-    })?;
-
-    // Get a connection from the pool
-    let mut conn = pool.get().map_err(|e| {
-        println!("❌ Cannot install: Failed to connect to database");
-        CursorError::DatabaseCorrupt(e.to_string())
-    })?;
-
-    // Check if ItemTable exists
-    let tables: Vec<TableName> = diesel::sql_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='ItemTable' ORDER BY name;",
-    )
-    .load(&mut *conn)?;
-
-    if tables.is_empty() {
-        println!("❌ Cannot install: ItemTable not found in database");
-        return Err(CursorError::TableNotFound("ItemTable".to_string()));
-    }
-
-    tables.iter().for_each(|table| {
-        println!("Table: {}", table.name);
-    });
-
-    let key = get_key();
-    let existing_value = get_item_value(&key)?;
-
-    // Start with existing config or create new one
-    let mut config: serde_json::Value = if let Some(value) = existing_value {
-        match serde_json::from_str(&value) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                println!("❌ Cannot install: Existing configuration is corrupt");
-                return Err(CursorError::InvalidJson(e.to_string()));
-            }
-        }
-    } else {
-        println!("ℹ️ Creating new configuration");
-        serde_json::json!({})
-    };
-
-    // Get or create mcpServers array
-    let servers = if let Some(existing_servers) = config.get_mut("mcpServers") {
-        if !existing_servers.is_array() {
-            println!("ℹ️ Replacing invalid mcpServers with array");
-            config["mcpServers"] = serde_json::json!([]);
-            config["mcpServers"].as_array_mut().unwrap()
+    println!(
+        "cursor_mcp_global_config_file: {}",
+        cursor_mcp_global_config_as_str
+    );
+    let cursor_mcp_global_config: CursorMcpGlobalConfig =
+        if cursor_mcp_global_config_as_str.is_empty() {
+            CursorMcpGlobalConfig { mcp_servers: None }
         } else {
-            existing_servers.as_array_mut().unwrap()
-        }
-    } else {
-        println!("ℹ️ Creating mcpServers array");
-        config["mcpServers"] = serde_json::json!([]);
-        config["mcpServers"].as_array_mut().unwrap()
-    };
+            serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
+                error!(
+                    "cannot install: Failed to parse Cursor MCP global config: {}",
+                    e.to_string()
+                );
+                CursorError::InvalidJson(e.to_string())
+            })?
+        };
 
-    // Add mcp-dockmaster if not present
-    if !servers.iter().any(|server| {
-        server
-            .get("name")
-            .and_then(|name| name.as_str())
-            .map(|name| name == "mcp-dockmaster")
-            .unwrap_or(false)
-    }) {
-        println!("ℹ️ Adding mcp-dockmaster to configuration");
-        servers.push(serde_json::json!({
-            "command": binary_path,
-            "identifier": "769f94c1-0076-47df-a0aa-6a394ab263cd",
-            "name": "mcp-dockmaster",
-            "type": "stdio"
-        }));
-    }
-
-    // Update the value in the database
-    match diesel::sql_query("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)")
-        .bind::<diesel::sql_types::Text, _>(key)
-        .bind::<diesel::sql_types::Text, _>(serde_json::to_string(&config)?)
-        .execute(&mut *conn)
-    {
-        Ok(_) => {
-            // Verify the installation was successful
-            is_cursor_installed()
-        }
-        Err(e) => {
-            println!("❌ Failed to update database configuration");
-            Err(CursorError::DatabaseCorrupt(e.to_string()))
-        }
-    }
+    let mcp_servers = cursor_mcp_global_config.mcp_servers.unwrap_or_default();
+    Ok(mcp_servers.contains_key(app_name))
 }
 
-pub fn get_cursor_config(binary_path: &str) -> Result<String, CursorError> {
-    Ok(format!(
-        "
-Cursor Settings -> MCP Servers -> Add new MCP server
+pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorError> {
+    let cursor_mcp_global_config_path = get_cursor_mcp_global_config_path()?;
+    let cursor_mcp_global_config_as_str = if !cursor_mcp_global_config_path.exists() {
+        File::create(&cursor_mcp_global_config_path).map_err(|e| {
+            error!(
+                "cannot install: Failed to create Cursor MCP global config: {}",
+                e.to_string()
+            );
+            CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
+        })?;
+        String::new()
+    } else {
+        std::fs::read_to_string(&cursor_mcp_global_config_path).map_err(|e| {
+            error!(
+                "cannot install: Failed to read Cursor MCP global config: {}",
+                e.to_string()
+            );
+            CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
+        })?
+    };
 
-```
-name:         mcp-dockmaster
-type:         command
-command_path: {binary_path}
-```
-    "
+    println!(
+        "cursor_mcp_global_config_file: {}",
+        cursor_mcp_global_config_as_str
+    );
+    let mut cursor_mcp_global_config: CursorMcpGlobalConfig =
+        if cursor_mcp_global_config_as_str.is_empty() {
+            CursorMcpGlobalConfig { mcp_servers: None }
+        } else {
+            serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
+                error!(
+                    "cannot install: Failed to parse Cursor MCP global config: {}",
+                    e.to_string()
+                );
+                CursorError::InvalidJson(e.to_string())
+            })?
+        };
+
+    let mut servers = cursor_mcp_global_config.mcp_servers.unwrap_or_default();
+    servers.insert(
+        app_name.to_string(),
+        McpServer::Command(CommandMcpServer {
+            command: binary_path.to_string(),
+            args: vec![],
+            env: None,
+        }),
+    );
+
+    cursor_mcp_global_config.mcp_servers = Some(servers);
+
+    std::fs::write(
+        &cursor_mcp_global_config_path,
+        serde_json::to_string_pretty(&cursor_mcp_global_config.clone()).map_err(|e| {
+            error!("cannot install: Failed to serialize Cursor MCP global config");
+            CursorError::InvalidJson(e.to_string())
+        })?,
+    )
+    .map_err(|e| {
+        error!(
+            "cannot install: Failed to write Cursor MCP global config: {}",
+            e.to_string()
+        );
+        CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
+    })?;
+
+    Ok(())
+}
+
+pub fn get_cursor_config(app_name: &str, binary_path: &str) -> Result<String, CursorError> {
+    Ok(format!(
+        r#"
+{{
+  "mcpServers": {{
+    ...
+    "{app_name}": {{
+      "command": "{binary_path}",
+      "args": [],
+      "env": {{}}
+    }}
+    ...
+  }}
+}}
+"#
     ))
 }
