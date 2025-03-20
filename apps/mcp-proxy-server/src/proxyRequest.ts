@@ -1,7 +1,7 @@
 import { debugLog } from "./logger.ts";
 // Target server URL
 
-const TARGET_SERVER_URL = 'http://localhost:3000/mcp-proxy';
+const TARGET_SERVER_URL = 'http://localhost:3000/mcp';
 console.error(`Target server: ${TARGET_SERVER_URL}`);
 
 /**

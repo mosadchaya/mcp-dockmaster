@@ -13,6 +13,7 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use serde_json::Value;
+use tracing;
 
 #[derive(Clone)]
 pub struct DockmasterRouter {
@@ -47,16 +48,9 @@ impl DockmasterRouter {
     }
 
     async fn fetch_tools_list() -> Vec<Tool> {
-        let request_result = request::<serde_json::Value, serde_json::Value>(
-            "tools/list",
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/list",
-                "params": {}
-            }),
-        )
-        .await;
+        let request_result =
+            request::<serde_json::Value, serde_json::Value>("tools/list", serde_json::json!({}))
+                .await;
 
         match request_result {
             Ok(response) => {
@@ -155,7 +149,7 @@ impl DockmasterRouter {
 
 impl mcp_server::Router for DockmasterRouter {
     fn name(&self) -> String {
-        "dockmaster-proxy".to_string()
+        "dockmaster".to_string()
     }
 
     fn instructions(&self) -> String {
@@ -163,7 +157,11 @@ impl mcp_server::Router for DockmasterRouter {
     }
 
     fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new().with_tools(true).build()
+        CapabilitiesBuilder::new()
+            .with_tools(false)
+            .with_prompts(false)
+            .with_resources(false, false)
+            .build()
     }
 
     fn list_tools(&self) -> Vec<Tool> {
