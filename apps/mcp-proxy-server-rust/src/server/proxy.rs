@@ -1,9 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use tracing::{debug, error};
-
-const TARGET_SERVER_URL: &str = "http://localhost:3000/mcp";
+use tracing::{debug, error, info};
 
 #[derive(Debug, Serialize)]
 struct JsonRpcRequest<T> {
@@ -41,9 +39,15 @@ where
 {
     debug!("proxy_request called with method: {}", method);
 
-    error!("Target server: {}", TARGET_SERVER_URL);
-    error!("Proxying request: {} to {}", method, TARGET_SERVER_URL);
-    error!("Request params: {}", serde_json::to_string(&params)?);
+    let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
+        .unwrap_or_else(|_| "11011".to_string())
+        .parse::<u16>()
+        .unwrap_or(11011);
+    let target_server_url = format!("http://localhost:{}/mcp", port);
+
+    info!("Target server: {}", target_server_url);
+    info!("Proxying request: {} to {}", method, target_server_url);
+    info!("Request params: {}", serde_json::to_string(&params)?);
 
     let request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
@@ -53,11 +57,11 @@ where
     };
 
     let request_body = serde_json::to_string(&request)?;
-    error!("Request body: {}", request_body);
+    info!("Request body: {}", request_body);
 
     let client = Client::new();
     let response = client
-        .post(TARGET_SERVER_URL)
+        .post(target_server_url)
         .header("Content-Type", "application/json")
         .body(request_body)
         .send()
@@ -77,8 +81,8 @@ where
         return Err(error.message.into());
     }
 
-    error!("Received response for: {}", method);
-    error!(
+    info!("Received response for: {}", method);
+    info!(
         "Response data: {}...",
         serde_json::to_string(&data.result)?
             .chars()

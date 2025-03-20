@@ -23,7 +23,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // Set up file appender for logging
-    let file_appender = RollingFileAppender::new(Rotation::DAILY, "logs", "mcp-server.log");
+    let temp_path = std::env::temp_dir().join("mcp-server-logs");
+    let file_appender = RollingFileAppender::new(Rotation::DAILY, temp_path, "proxy-server.log");
 
     // Initialize the tracing subscriber with file and stdout logging
     tracing_subscriber::fmt()
