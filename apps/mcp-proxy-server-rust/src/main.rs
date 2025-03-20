@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
     // Create an instance of our counter router
-    let dockmaster_router = server::router::DockmasterRouter::new();
+    let mut dockmaster_router = server::router::DockmasterRouter::new();
     dockmaster_router.initialize().await;
     let router = RouterService(dockmaster_router);
 

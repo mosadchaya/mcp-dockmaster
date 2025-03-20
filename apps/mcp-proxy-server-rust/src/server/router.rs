@@ -4,7 +4,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::server::proxy::request;
+use crate::server::mcp_client::McpClientProxy;
+use mcp_client::McpClientTrait;
 use mcp_core::{
     Content, Resource, Tool, ToolError,
     handler::{PromptError, ResourceError},
@@ -13,11 +14,19 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use serde_json::Value;
-use tracing;
 
-#[derive(Clone)]
 pub struct DockmasterRouter {
     tools_cache: Arc<Mutex<Vec<Tool>>>,
+    mcp_client: McpClientProxy,
+}
+
+impl Clone for DockmasterRouter {
+    fn clone(&self) -> Self {
+        Self {
+            tools_cache: self.tools_cache.clone(),
+            mcp_client: self.mcp_client.clone(),
+        }
+    }
 }
 
 impl Default for DockmasterRouter {
@@ -27,126 +36,66 @@ impl Default for DockmasterRouter {
 }
 
 impl DockmasterRouter {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> DockmasterRouter {
+        DockmasterRouter {
             tools_cache: Arc::new(Mutex::new(vec![])),
+            mcp_client: McpClientProxy::new(&Self::get_target_server_url()),
         }
     }
 
-    pub async fn initialize(&self) {
-        // Fetch tools list and update cache
-        let tools = Self::fetch_tools_list().await;
+    pub fn get_target_server_url() -> String {
+        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
+            .unwrap_or_else(|_| "11011".to_string())
+            .parse::<u16>()
+            .unwrap_or(11011);
+        format!("http://localhost:{}/mcp/sse", port)
+    }
+
+    pub async fn initialize(&mut self) {
+        // Create client instance
+        let _ = self.mcp_client.init().await;
+
+        // Save tools to cache
+        let tools = self.mcp_client.get_client().unwrap().list_tools(None).await;
         if let Ok(mut cache) = self.tools_cache.lock() {
-            *cache = tools;
+            *cache = tools.unwrap().tools;
         }
 
         // Spawn background task to update tools cache
         let tools_cache = self.tools_cache.clone();
+        let client = self.mcp_client.get_client().unwrap();
         tokio::spawn(async move {
             loop {
-                let tools = Self::fetch_tools_list().await;
+                let tools = client.list_tools(None).await;
                 if let Ok(mut cache) = tools_cache.lock() {
-                    *cache = tools;
+                    *cache = tools.unwrap().tools;
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
             }
         });
     }
 
-    async fn fetch_tools_list() -> Vec<Tool> {
-        let request_result =
-            request::<serde_json::Value, serde_json::Value>("tools/list", serde_json::json!({}))
-                .await;
-
-        match request_result {
-            Ok(response) => {
-                if let Some(tools) = response.get("tools") {
-                    match serde_json::from_value(tools.clone()) {
-                        Ok(tools) => tools,
-                        Err(e) => {
-                            tracing::error!("Error parsing tools: {}", e);
-                            vec![]
-                        }
-                    }
-                } else {
-                    tracing::error!("No tools found in response");
-                    vec![]
-                }
-            }
-            Err(e) => {
-                tracing::error!("Error making request: {}", e);
-                vec![]
-            }
-        }
-    }
-
-    async fn execute_tool(tool_name: &str, arguments: Value) -> Result<Vec<Content>, ToolError> {
+    async fn execute_tool(
+        &self,
+        tool_name: &str,
+        arguments: Value,
+    ) -> Result<Vec<Content>, ToolError> {
         tracing::info!(
             "Executing tool: {} with arguments: {}",
             tool_name,
             arguments
         );
 
-        let request_result = request::<serde_json::Value, serde_json::Value>(
-            "tools/call",
-            serde_json::json!({
-                "name": tool_name,
-                "arguments": arguments
-            }),
-        )
-        .await;
-
-        match request_result {
-            Ok(response) => {
-                if let Some(content) = response.get("content") {
-                    let mut contents = Vec::new();
-
-                    if let Some(items) = content.as_array() {
-                        for item in items {
-                            if let Some(content_type) = item.get("type").and_then(|t| t.as_str()) {
-                                match content_type {
-                                    "text" => {
-                                        if let Some(text) =
-                                            item.get("text").and_then(|c| c.as_str())
-                                        {
-                                            contents.push(Content::text(text.to_string()));
-                                        }
-                                    }
-                                    "image" => {
-                                        if let (Some(data), Some(mime)) = (
-                                            item.get("data").and_then(|d| d.as_str()),
-                                            item.get("mimeType").and_then(|m| m.as_str()),
-                                        ) {
-                                            contents.push(Content::image(
-                                                data.to_string(),
-                                                mime.to_string(),
-                                            ));
-                                        }
-                                    }
-                                    _ => {
-                                        tracing::warn!("Unknown content type: {}", content_type);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if contents.is_empty() {
-                        Err(ToolError::ExecutionError(
-                            "No valid content found in response".to_string(),
-                        ))
-                    } else {
-                        Ok(contents)
-                    }
-                } else {
-                    // Handle single result as text for backward compatibility
-                    let result_str = serde_json::to_string(&response)
-                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-                    Ok(vec![Content::text(result_str)])
-                }
-            }
+        let result = self
+            .mcp_client
+            .get_client()
+            .unwrap()
+            .call_tool(tool_name, arguments)
+            .await;
+        match result {
+            Ok(response) => Ok(response.content),
             Err(e) => {
-                tracing::error!("Error making request: {}", e);
+                tracing::error!("Error executing tool: {}", e);
                 Err(ToolError::ExecutionError(e.to_string()))
             }
         }
@@ -187,8 +136,10 @@ impl mcp_server::Router for DockmasterRouter {
         arguments: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let tool_name = tool_name.to_string();
+        let arguments = arguments.clone();
+        let router = self.clone();
 
-        Box::pin(async move { Self::execute_tool(&tool_name, arguments).await })
+        Box::pin(async move { router.execute_tool(&tool_name, arguments).await })
     }
 
     fn list_resources(&self) -> Vec<Resource> {
