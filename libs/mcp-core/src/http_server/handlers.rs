@@ -933,11 +933,8 @@ pub struct SessionIdParam {
 }
 
 /// Handler for JSON-RPC requests via POST to the SSE endpoint
-#[debug_handler]
-pub async fn json_rpc_handler(
+pub async fn sse_post_handler(
     Query(params): Query<SessionIdParam>,
-    Extension(_mcp_core): Extension<MCPCore>,
-    Extension(_mcp_router): Extension<MCPDockmasterRouter>,
     body: axum::body::Body,
 ) -> (StatusCode, &'static str) {
     let session_id = &params.session_id;

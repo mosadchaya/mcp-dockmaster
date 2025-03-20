@@ -149,10 +149,63 @@ impl MCPDockmasterRouter {
         match self.mcp_core.register_server(request).await {
             Ok(response) => {
                 if response.success {
-                    // Clear the tools cache to force a refresh
-                    {
-                        let mut cache = self.tools_cache.write().await;
-                        cache.clear();
+                    // Restart the server after registration
+                    if let Err(e) = self.mcp_core.restart_server_command(tool_id.to_string()).await {
+                        log::error!("Failed to restart server after registration: {}", e);
+                    }
+                    // Update the tools cache with the latest tools
+                    match self.mcp_core.list_all_server_tools().await {
+                        Ok(server_tools) => {
+                            let mut tools_vec = Vec::new();
+                            
+                            // Add built-in tools
+                            tools_vec.push(get_register_server_tool());
+                            
+                            // Add user-installed tools
+                            for tool_info in server_tools {
+                                // Convert ServerToolInfo to Tool
+                                if let Some(input_schema) = tool_info.input_schema {
+                                    // Convert InputSchema to serde_json::Value
+                                    let schema_value = json!({
+                                        "type": input_schema.r#type,
+                                        "properties": input_schema.properties,
+                                        "required": input_schema.required,
+                                    });
+                                    
+                                    let tool = Tool {
+                                        name: tool_info.name,
+                                        description: tool_info.description,
+                                        input_schema: schema_value,
+                                    };
+                                    
+                                    tools_vec.push(tool);
+                                } else {
+                                    // Create a tool with an empty schema
+                                    let tool = Tool {
+                                        name: tool_info.name,
+                                        description: tool_info.description,
+                                        input_schema: json!({
+                                            "type": "object",
+                                            "properties": {},
+                                            "required": []
+                                        }),
+                                    };
+                                    
+                                    tools_vec.push(tool);
+                                }
+                            }
+                            
+                            // Update the cache immediately
+                            let mut cache = self.tools_cache.write().await;
+                            *cache = tools_vec;
+                            log::info!("Tools cache updated with {} tools after registration", cache.len());
+                        },
+                        Err(e) => {
+                            log::error!("Failed to update tools cache after registration: {}", e);
+                            // Clear the cache to force refresh on next request
+                            let mut cache = self.tools_cache.write().await;
+                            cache.clear();
+                        }
                     }
                     
                     Ok(json!({
@@ -217,17 +270,34 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
 
     fn list_tools(&self) -> Vec<Tool> {
         // This is synchronous, so we need to use a synchronous approach instead of block_on
-        // Return the register_server tool by default
-        let mut tools = vec![get_register_server_tool()];
+        // Start with an empty list of tools
+        let mut tools = Vec::new();
         
         // Get cached tools if available (using a std::sync Mutex instead of an async lock)
         let cache_handle = self.tools_cache.clone();
         
-        // We can't use an async lock in a sync context
-        // Return only the built-in tools and let the cache update happen elsewhere
+        // Try to read from the existing cache (non-blocking)
+        let cache_found = if let Ok(cache) = cache_handle.try_read() {
+            if !cache.is_empty() {
+                log::info!("Found {} tools in cache", cache.len());
+                // Add all cached tools
+                tools = cache.clone();
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         
-        // Log that we're returning only built-in tools
-        log::info!("Returning built-in tools from list_tools (synchronous context)");
+        // If we didn't find any cached tools, add the register_server tool
+        if !cache_found {
+            log::info!("No tools in cache, adding register_server tool");
+            tools.push(get_register_server_tool());
+        }
+        
+        // Log what we're returning
+        log::info!("Returning {} tools from list_tools", tools.len());
         
         // Trigger an async task to update the cache for future calls
         let mcp_core = self.mcp_core.clone();

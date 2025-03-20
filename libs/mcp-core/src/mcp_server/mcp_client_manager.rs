@@ -12,7 +12,7 @@ use crate::mcp_server::tools::{get_register_server_tool, TOOL_REGISTER_SERVER};
 use crate::models::types::{ServerRegistrationRequest, ServerToolInfo};
 use crate::registry::registry_service::RegistryService;
 
-use super::handlers::{start_mcp_server, ClientManagerTrait};
+use super::handlers::ClientManagerTrait;
 
 /// Client manager implementation that uses MCPCore
 pub struct MCPClientManager {
@@ -38,17 +38,6 @@ impl MCPClientManager {
             input_schema: serde_json::to_value(server_tool.input_schema.clone())
                 .unwrap_or(serde_json::json!({})),
         }
-    }
-
-    /// Start the MCP server with this client manager
-    pub async fn start_server(self) -> Result<(), Box<dyn std::error::Error>> {
-        // First update the tools cache
-        info!("Initializing tool cache before starting server...");
-        self.update_tools_cache().await;
-
-        // Then start the server
-        let client_manager = Arc::new(self);
-        start_mcp_server(client_manager).await
     }
 
     /// Handle register_server tool call

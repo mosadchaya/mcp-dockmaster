@@ -115,17 +115,17 @@ impl MCPCore {
             Ok(_) => info!("Registry cache successfully updated"),
             Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
         }
-        
+        info!("Initializing Background MCP servers");
+        if let Err(e) = self.init_mcp_server().await {
+            error!("Failed to initialize MCP server: {}", e);
+            return Err(InitError::InitMcpServer(e.to_string()));
+        }
         info!("Starting HTTP server");
         if let Err(e) = crate::http_server::start_http_server(self.clone(), self.port).await {
             error!("Failed to start HTTP server: {}", e);
             return Err(InitError::StartHttpServer(e.to_string()));
         }
-        info!("Initializing MCP server");
-        if let Err(e) = self.init_mcp_server().await {
-            error!("Failed to initialize MCP server: {}", e);
-            return Err(InitError::InitMcpServer(e.to_string()));
-        }
+
         Ok(())
     }
 

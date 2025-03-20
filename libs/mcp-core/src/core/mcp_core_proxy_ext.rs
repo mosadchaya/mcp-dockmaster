@@ -498,7 +498,7 @@ impl McpCoreProxyExt for MCPCore {
         }
     }
 
-    /// Initialize the MCP server and start background services
+    /// Initialize and start background mcp services
     async fn init_mcp_server(&self) -> Result<()> {
         info!("Starting background initialization of MCP services");
 
@@ -515,27 +515,8 @@ impl McpCoreProxyExt for MCPCore {
                 return Err(anyhow::anyhow!("Failed to get tools from database: {}", e));
             }
         };
-
-        // Create and initialize the MCP server with SSE transport
-        info!("Initializing MCP server with SSE transport");
-        let client_manager = std::sync::Arc::new(crate::mcp_server::mcp_client_manager::MCPClientManager::new(
-            std::sync::Arc::new(self.clone()),
-        ));
         
-        // Update the tool cache
-        client_manager.update_tools_cache().await;
-        
-        // Create the SSE handler and get the router service
-        let (_session_manager, router_service) = crate::mcp_server::handlers::create_sse_handler(client_manager);
-        
-        // Create the server
-        let _server = mcp_sdk_server::Server::new(router_service);
-        
-        // We no longer need to set a global server instance
-        // Instead, we create server instances on demand for each SSE connection
-        // crate::http_server::handlers::set_mcp_server(server);
-        
-        info!("MCP server initialized with SSE transport");
+        info!("MCP state initialized, preparing to restart enabled tools");
 
         // Update the state with the new registry
         // Create a vector of futures for parallel execution

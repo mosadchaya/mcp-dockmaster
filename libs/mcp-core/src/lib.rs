@@ -21,11 +21,7 @@ pub mod utils;
 // Re-export key items for convenience
 pub use mcp_server::{
     ClientManagerTrait,
-    ClientManager,
-    handlers::{
-        SessionManager,
-        process_message
-    }
+    ClientManager
 };
 
 // Re-export ByteTransport from mcp-sdk-server

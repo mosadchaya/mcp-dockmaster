@@ -19,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proxy_server_binary_path = PathBuf::from("./proxy_server");
     
     // Create MCPCore instance
-    let mcp_core = MCPCore::new_with_port(db_path, proxy_server_binary_path, 3333);
-    
+    let mcp_core = MCPCore::new_with_port(db_path, proxy_server_binary_path, 3333, "mcp_server_example".to_string());
+
     // Apply database migrations
     // (This could also be handled by init() but doing it separately for clarity)
     info!("Applying database migrations...");

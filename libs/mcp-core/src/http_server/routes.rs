@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
 use crate::core::mcp_core::MCPCore;
-use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, json_rpc_handler};
+use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, sse_post_handler};
 use crate::mcp_server::{MCPDockmasterRouter};
 
 pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
@@ -18,7 +18,7 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
     let app = Router::new()
         .route("/", get(health_check))
         .route("/health", get(health_check))
-        .route("/mcp/sse", get(sse_handler).post(json_rpc_handler))
+        .route("/mcp/sse", get(sse_handler).post(sse_post_handler))
         .route("/mcp", post(handle_mcp_request))
         .layer(Extension(mcp_core.clone()))
         .layer(Extension(mcp_router))
