@@ -1,12 +1,12 @@
 use anyhow::Result;
+use clap::Parser;
 use mcp_server::router::RouterService;
 use mcp_server::{ByteTransport, Server};
+use std::net::SocketAddr;
 use tokio::io::{stdin, stdout};
+use tokio::net::TcpListener;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
-use clap::Parser;
-use tokio::net::TcpListener;
-use std::net::SocketAddr;
 
 pub mod server;
 
@@ -38,7 +38,9 @@ async fn main() -> Result<()> {
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
     // Create an instance of our counter router
-    let router = RouterService(server::router::DockmasterRouter::new());
+    let dockmaster_router = server::router::DockmasterRouter::new();
+    dockmaster_router.initialize().await;
+    let router = RouterService(dockmaster_router);
 
     // Create the server
     let server = Server::new(router);
@@ -49,7 +51,7 @@ async fn main() -> Result<()> {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let _listener = TcpListener::bind(&addr).await?;
         tracing::info!("SSE server listening on {}", addr);
-        
+
         // TODO: Implement SSE transport handling
         todo!("SSE transport not yet implemented");
     }

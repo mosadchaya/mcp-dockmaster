@@ -28,12 +28,20 @@ impl Default for DockmasterRouter {
 
 impl DockmasterRouter {
     pub fn new() -> Self {
-        let router = Self {
+        Self {
             tools_cache: Arc::new(Mutex::new(vec![])),
-        };
+        }
+    }
+
+    pub async fn initialize(&self) {
+        // Fetch tools list and update cache
+        let tools = Self::fetch_tools_list().await;
+        if let Ok(mut cache) = self.tools_cache.lock() {
+            *cache = tools;
+        }
 
         // Spawn background task to update tools cache
-        let tools_cache = router.tools_cache.clone();
+        let tools_cache = self.tools_cache.clone();
         tokio::spawn(async move {
             loop {
                 let tools = Self::fetch_tools_list().await;
@@ -43,8 +51,6 @@ impl DockmasterRouter {
                 tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
             }
         });
-
-        router
     }
 
     async fn fetch_tools_list() -> Vec<Tool> {
@@ -158,9 +164,9 @@ impl mcp_server::Router for DockmasterRouter {
 
     fn capabilities(&self) -> ServerCapabilities {
         CapabilitiesBuilder::new()
-            .with_tools(false)
-            .with_prompts(false)
-            .with_resources(false, false)
+            .with_tools(true)
+            .with_prompts(true)
+            .with_resources(true, true)
             .build()
     }
 

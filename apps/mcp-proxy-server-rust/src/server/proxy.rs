@@ -82,7 +82,6 @@ where
         "Response data: {}...",
         serde_json::to_string(&data.result)?
             .chars()
-            .take(100)
             .collect::<String>()
     );
 
