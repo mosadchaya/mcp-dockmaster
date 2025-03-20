@@ -13,7 +13,8 @@ use crate::mcp_server::{MCPDockmasterRouter};
 pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
     // Create our MCP router that will handle RPC requests
     let mcp_router = MCPDockmasterRouter::new(mcp_core.clone());
-    
+    mcp_router.update_tools_cache().await;
+
     // Set up the HTTP routes
     let app = Router::new()
         .route("/", get(health_check))

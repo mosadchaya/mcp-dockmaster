@@ -153,60 +153,9 @@ impl MCPDockmasterRouter {
                     if let Err(e) = self.mcp_core.restart_server_command(tool_id.to_string()).await {
                         log::error!("Failed to restart server after registration: {}", e);
                     }
-                    // Update the tools cache with the latest tools
-                    match self.mcp_core.list_all_server_tools().await {
-                        Ok(server_tools) => {
-                            let mut tools_vec = Vec::new();
-                            
-                            // Add built-in tools
-                            tools_vec.push(get_register_server_tool());
-                            
-                            // Add user-installed tools
-                            for tool_info in server_tools {
-                                // Convert ServerToolInfo to Tool
-                                if let Some(input_schema) = tool_info.input_schema {
-                                    // Convert InputSchema to serde_json::Value
-                                    let schema_value = json!({
-                                        "type": input_schema.r#type,
-                                        "properties": input_schema.properties,
-                                        "required": input_schema.required,
-                                    });
-                                    
-                                    let tool = Tool {
-                                        name: tool_info.name,
-                                        description: tool_info.description,
-                                        input_schema: schema_value,
-                                    };
-                                    
-                                    tools_vec.push(tool);
-                                } else {
-                                    // Create a tool with an empty schema
-                                    let tool = Tool {
-                                        name: tool_info.name,
-                                        description: tool_info.description,
-                                        input_schema: json!({
-                                            "type": "object",
-                                            "properties": {},
-                                            "required": []
-                                        }),
-                                    };
-                                    
-                                    tools_vec.push(tool);
-                                }
-                            }
-                            
-                            // Update the cache immediately
-                            let mut cache = self.tools_cache.write().await;
-                            *cache = tools_vec;
-                            log::info!("Tools cache updated with {} tools after registration", cache.len());
-                        },
-                        Err(e) => {
-                            log::error!("Failed to update tools cache after registration: {}", e);
-                            // Clear the cache to force refresh on next request
-                            let mut cache = self.tools_cache.write().await;
-                            cache.clear();
-                        }
-                    }
+                    
+                    // Update the tools cache immediately after registration
+                    self.update_tools_cache().await;
                     
                     Ok(json!({
                         "success": true,
@@ -228,24 +177,73 @@ impl MCPDockmasterRouter {
             return self.handle_register_server(args).await;
         }
         
-        // For non-built-in tools, use the MCPCore to find and execute
-        // The tool_id format is expected to be server_id:tool_name
-        let tool_id = format!("auto:{}", tool_name); // Use "auto" as a special server_id to let MCPCore find the right server
-        
-        let request = ToolExecutionRequest {
-            tool_id,
-            parameters: args,
-        };
-        
-        match self.mcp_core.execute_proxy_tool(request).await {
-            Ok(response) => {
-                if response.success {
-                    Ok(response.result.unwrap_or(json!(null)))
-                } else {
-                    Err(ToolError::ExecutionError(response.error.unwrap_or_else(|| "Unknown error".to_string())))
+        // For non-built-in tools, find the appropriate server that has this tool
+        let mcp_state = self.mcp_core.mcp_state.read().await;
+        let server_tools = mcp_state.server_tools.read().await;
+
+        // Find which server has the requested tool
+        let mut server_id = None;
+
+        for (sid, tools) in &*server_tools {
+            for tool in tools {
+                if tool.id == tool_name {
+                    server_id = Some(sid.clone());
+                    break;
+                }
+
+                // Also check by name if id doesn't match
+                if tool.name == tool_name {
+                    server_id = Some(sid.clone());
+                    break;
+                }
+            }
+
+            if server_id.is_some() {
+                break;
+            }
+        }
+
+        // Drop the locks before proceeding
+        drop(server_tools);
+        drop(mcp_state);
+
+        match server_id {
+            Some(server_id) => {
+                let request = ToolExecutionRequest {
+                    tool_id: format!("{}:{}", server_id, tool_name),
+                    parameters: args,
+                };
+
+                match self.mcp_core.execute_proxy_tool(request).await {
+                    Ok(response) => {
+                        if response.success {
+                            Ok(response.result.unwrap_or(json!(null)))
+                        } else {
+                            Err(ToolError::ExecutionError(response.error.unwrap_or_else(|| "Unknown error".to_string())))
+                        }
+                    },
+                    Err(e) => Err(ToolError::ExecutionError(format!("Failed to execute tool: {}", e))),
                 }
             },
-            Err(e) => Err(ToolError::ExecutionError(format!("Failed to execute tool: {}", e))),
+            None => Err(ToolError::NotFound(format!("Tool '{}' not found", tool_name))),
+        }
+    }
+    
+    /// Update the tools cache with the latest tools from all servers
+    pub async fn update_tools_cache(&self) {
+        // Update the tools cache
+        match self.list_all_tools().await {
+            Ok(tools) => {
+                let mut cache = self.tools_cache.write().await;
+                *cache = tools.clone();
+                log::info!("Tools cache updated with {} tools", cache.len());
+            },
+            Err(e) => {
+                log::error!("Failed to update tools cache: {}", e);
+                // Clear the cache to force refresh on next request
+                let mut cache = self.tools_cache.write().await;
+                cache.clear();
+            }
         }
     }
 }
@@ -367,7 +365,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
-
+        info!("Calling tool: {}", tool_name);
         Box::pin(async move {
             match this.execute_tool(&tool_name, arguments).await {
                 Ok(result) => {
@@ -408,4 +406,4 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
             Err(PromptError::NotFound(format!("Prompt not found: {}", prompt_name)))
         })
     }
-} 
+}
