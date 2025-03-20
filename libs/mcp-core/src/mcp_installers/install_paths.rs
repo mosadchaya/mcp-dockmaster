@@ -4,52 +4,6 @@ use std::io;
 use std::path::Path;
 
 use super::install_errors::ClaudeError;
-use super::install_errors::CursorError;
-
-pub fn get_cursor_db_path() -> Result<String, CursorError> {
-    match env::consts::OS {
-        "windows" => {
-            let appdata = env::var("APPDATA").map_err(|_| {
-                CursorError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "APPDATA environment variable not found",
-                ))
-            })?;
-            Ok(format!(
-                "{}\\Cursor\\User\\globalStorage\\state.vscdb",
-                appdata
-            ))
-        }
-        "macos" => {
-            let home = env::var("HOME").map_err(|_| {
-                CursorError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "HOME environment variable not found",
-                ))
-            })?;
-            Ok(format!(
-                "{}/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
-                home
-            ))
-        }
-        "linux" => {
-            let home = env::var("HOME").map_err(|_| {
-                CursorError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "HOME environment variable not found",
-                ))
-            })?;
-            Ok(format!(
-                "{}/.config/Cursor/User/globalStorage/state.vscdb",
-                home
-            ))
-        }
-        os => Err(CursorError::IoError(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            format!("Unsupported operating system: {}", os),
-        ))),
-    }
-}
 
 pub fn get_claude_config_path() -> Result<String, ClaudeError> {
     match env::consts::OS {

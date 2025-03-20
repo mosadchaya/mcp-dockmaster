@@ -1,6 +1,6 @@
 /**
  * MCP Proxy Server
- * This server proxies MCP Protocol commands to a server running on localhost:3000
+ * This server proxies MCP Protocol commands to a server running on localhost:11011 or the port specified in the DOCKMASTER_HTTP_SERVER_PORT environment variable
  */
 import { Server } from "npm:@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk/server/stdio.js";

@@ -1,7 +1,7 @@
 import { debugLog } from "./logger.ts";
 // Target server URL
 
-const TARGET_SERVER_URL = 'http://localhost:3000/mcp';
+const TARGET_SERVER_URL = `http://localhost:${Deno.env.get("DOCKMASTER_HTTP_SERVER_PORT") || 11011}/mcp-proxy`;
 console.error(`Target server: ${TARGET_SERVER_URL}`);
 
 /**

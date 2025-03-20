@@ -39,6 +39,7 @@ impl From<serde_json::Error> for ClaudeError {
 
 #[derive(Debug)]
 pub enum CursorError {
+    ConfigNotFound(String),
     DatabaseNotFound(String),
     DatabaseCorrupt(String),
     TableNotFound(String),
@@ -52,6 +53,9 @@ pub enum CursorError {
 impl std::fmt::Display for CursorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            CursorError::ConfigNotFound(path) => {
+                write!(f, "Configuration file not found at {}", path)
+            }
             CursorError::DatabaseNotFound(path) => write!(f, "Database not found at {}", path),
             CursorError::DatabaseCorrupt(err) => write!(f, "Database is corrupt: {}", err),
             CursorError::TableNotFound(table) => write!(f, "Required table not found: {}", table),

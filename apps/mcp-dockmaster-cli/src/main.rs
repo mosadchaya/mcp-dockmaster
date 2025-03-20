@@ -112,7 +112,11 @@ async fn main() {
     let database_path = storage_path.join("mcp_dockmaster.db");
 
     // TODO: We should implement a way to bundle/download the mcp-proxy-server location so we can pass this param to the library
-    let mcp_core = MCPCore::new(database_path, path::absolute("mcp-proxy-server").unwrap());
+    let mcp_core = MCPCore::new(
+        database_path,
+        path::absolute("mcp-proxy-server").unwrap(),
+        "mcp-dockmaster-cli".to_string(),
+    );
     mcp_core.init().await.unwrap();
 
     // Handle commands

@@ -127,6 +127,7 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
     let mcp_core = MCPCore::new(
         database_path.clone(),
         proxy_server_sidecar_path.to_path_buf(),
+        app_handle.config().identifier.clone(),
     );
     app_handle.manage(MCPCoreOptions {
         database_path,

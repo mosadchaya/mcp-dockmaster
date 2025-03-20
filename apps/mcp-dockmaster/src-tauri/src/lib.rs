@@ -1,10 +1,10 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_tools_visibility_state, import_server_from_url, list_all_server_tools, list_servers, 
-    register_server, restart_server_command, set_tools_hidden, uninstall_server, 
+    get_tools_visibility_state, import_server_from_url, list_all_server_tools, list_servers,
+    register_server, restart_server_command, set_tools_hidden, uninstall_server,
     update_server_config, update_server_status,
 };
-use commands::get_mcp_proxy_server_binary_path;
+use commands::{get_app_identifier, get_mcp_proxy_server_binary_path};
 use features::mcp_proxy::{
     check_claude_installed, check_cursor_installed, get_claude_config, get_cursor_config,
     get_generic_config, install_claude, install_cursor, is_process_running, restart_process,
@@ -62,6 +62,11 @@ mod commands {
             .proxy_server_sidecar_path
             .to_string_lossy()
             .to_string())
+    }
+
+    #[tauri::command]
+    pub async fn get_app_identifier(app_handle: tauri::AppHandle) -> Result<String, String> {
+        Ok(app_handle.config().identifier.clone())
     }
 }
 
@@ -189,7 +194,8 @@ pub async fn run() {
             check_for_updates_command,
             set_tools_hidden,
             get_tools_visibility_state,
-            get_mcp_proxy_server_binary_path
+            get_mcp_proxy_server_binary_path,
+            get_app_identifier,
         ])
         .build(tauri::generate_context!())
         .expect("Error while running Tauri application")

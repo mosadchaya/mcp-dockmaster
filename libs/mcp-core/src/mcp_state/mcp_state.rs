@@ -1,6 +1,7 @@
 use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
+use crate::utils::command::CommandWrappedInShellBuilder;
 use crate::MCPError;
 use log::{error, info};
 use mcp_sdk_client::transport::stdio::StdioTransport;
@@ -251,30 +252,29 @@ impl MCPState {
             return Err(format!("Missing configuration for server {}", server_id));
         };
 
-        // Use safe defaults for command and args if they're missing
-        let command = config_value["command"].as_str()
-            .unwrap_or_else(|| {
-                log::warn!("Missing command for server {}, using 'echo' as fallback", server_id);
-                "echo"
-            })
-            .to_string();
-            
-        let args: Vec<String> = config_value["args"].as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                log::warn!("Missing args for server {}, using default fallback", server_id);
-                vec!["Server configuration incomplete".to_string()]
-            });
+        let mut envs = env_vars.unwrap_or_default();
+        let mut sustituted_args = Vec::new();
+        for v in config_value["args"].as_array().unwrap_or(&vec![]) {
+            let args_key = v.as_str().unwrap();
+            let adapted_args_key = args_key.replace("$", "");
 
-        let transport = StdioTransport::new(
-            command,
-            args,
-            env_vars.unwrap_or_default(),
-        );
+            let args_value = if args_key.starts_with("$") && envs.contains_key(&adapted_args_key) {
+                let args_value_from_env = envs.get(&adapted_args_key).unwrap().clone();
+                envs.remove(&adapted_args_key);
+                args_value_from_env
+            } else {
+                args_key.to_string()
+            };
+            sustituted_args.push(args_value);
+        }
+        let (adapted_program, adapted_args, adapted_envs) =
+            CommandWrappedInShellBuilder::wrap_in_shell_as_values(
+                config_value["command"].as_str().unwrap(),
+                Some(sustituted_args.iter().map(|s| s.as_str())),
+                Some(envs),
+            );
+
+        let transport = StdioTransport::new(adapted_program, adapted_args, adapted_envs);
 
         let transport_handle = match transport.start().await {
             Ok(handle) => handle,
