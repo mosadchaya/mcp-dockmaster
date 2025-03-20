@@ -105,8 +105,14 @@ const Home: React.FC = () => {
   const checkInstalled = async () => {
     let newValue = mcpClientApps;
     for (const mcpClientApp of SUPPORTED_MCP_CLIENT_APPS) {
-      const isInstalled = await mcpClientApp.isInstalled();
-      const isRunning = await mcpClientApp.isRunning();
+      const isInstalled = await mcpClientApp.isInstalled().catch((error) => {
+        console.error("Failed to check if MCP client is installed:", error);
+        return false;
+      });
+      const isRunning = await mcpClientApp.isRunning().catch((error) => {
+        console.error("Failed to check if MCP client is running:", error);
+        return false;
+      });
       newValue = {
         ...newValue,
         [mcpClientApp.id]: {
@@ -118,6 +124,7 @@ const Home: React.FC = () => {
         },
       };
     }
+    console.log("newValue", newValue);
     setMCPClientApps(newValue);
   };
 
@@ -294,7 +301,7 @@ const Home: React.FC = () => {
       title: mcpClientApp.app.name,
       onConfirm: async () => {
         try {
-          await invoke(`install_${mcpClientAppId.toLowerCase()}`);
+          await mcpClientApp.app.install();
           await checkInstalled();
           toast.success(
             `${mcpClientApp.app.name} installed successfully! Please restart ${mcpClientApp.app.name} to apply the changes.`,
@@ -774,7 +781,7 @@ const Home: React.FC = () => {
                               className="mt-2 flex items-center gap-2"
                               onClick={async () => {
                                 try {
-                                  await restartProcess(client.app.name);
+                                  await restartProcess(client.app.processName);
                                   toast.success(
                                     `${client.app.name} restarted successfully!`,
                                   );
