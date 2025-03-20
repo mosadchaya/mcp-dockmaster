@@ -8,6 +8,7 @@ pub mod registry;
 pub mod schema;
 pub mod spawned_process;
 pub mod mcp_server;
+pub mod jsonrpc_frame_codec;
 
 // Re-export commonly used types and functions
 pub use error::{MCPError, MCPResult};

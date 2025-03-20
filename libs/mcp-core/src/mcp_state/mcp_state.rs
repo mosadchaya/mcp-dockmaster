@@ -251,14 +251,28 @@ impl MCPState {
             return Err(format!("Missing configuration for server {}", server_id));
         };
 
+        // Use safe defaults for command and args if they're missing
+        let command = config_value["command"].as_str()
+            .unwrap_or_else(|| {
+                log::warn!("Missing command for server {}, using 'echo' as fallback", server_id);
+                "echo"
+            })
+            .to_string();
+            
+        let args: Vec<String> = config_value["args"].as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                log::warn!("Missing args for server {}, using default fallback", server_id);
+                vec!["Server configuration incomplete".to_string()]
+            });
+
         let transport = StdioTransport::new(
-            config_value["command"].as_str().unwrap().to_string(),
-            config_value["args"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|v| v.as_str().unwrap().to_string())
-                .collect(),
+            command,
+            args,
             env_vars.unwrap_or_default(),
         );
 

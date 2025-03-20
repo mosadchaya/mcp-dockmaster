@@ -9,6 +9,7 @@ authors = ["MCP Team"]
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.44.1", features = ["full"] }
+tokio-util = { version = "0.7.10", features = ["codec"] }
 reqwest = { version = "0.12.14", features = ["json", "gzip"] }
 axum = { version = "0.8.1", features = ["macros", "ws"] }
 tower = "0.5.2"
@@ -35,6 +36,7 @@ uuid = { version = "1.7.0", features = ["v4", "serde"] }
 mcp_sdk_core = { package = "mcp-core", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 mcp_sdk_client = { package = "mcp-client", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 mcp_sdk_server = { package = "mcp-server", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
+bytes = "1.5.0"
 
 [lib]
 name = "mcp_core"

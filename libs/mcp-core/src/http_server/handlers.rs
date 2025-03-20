@@ -18,24 +18,29 @@ use crate::models::types::{
     ToolExecutionRequest, InputSchemaProperty
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
+use mcp_sdk_server::Router;
 
 use axum::{
     response::sse::{Event, Sse},
     extract::Query,
     debug_handler,
 };
-use futures::stream::{self, Stream};
+use futures::stream::Stream;
 use std::convert::Infallible;
 use tokio::sync::mpsc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use futures::StreamExt;
 use uuid::Uuid;
 
-use crate::mcp_server::handlers::SessionManager;
-use mcp_sdk_server::Server;
 use mcp_sdk_server::router::RouterService;
-use crate::mcp_server::handlers::MCPRouter;
 use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
+
+use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
+
+use crate::mcp_server::mcp_router::MCPDockmasterRouter;
+use mcp_sdk_server::{ByteTransport, Server};
+use tokio_util::codec::FramedRead;
 
 /// JSON-RPC request structure
 #[derive(Deserialize, Debug)]
@@ -105,28 +110,99 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
 }
 
+/// Handle initialization request from clients
+async fn handle_initialize(_params: Option<Value>) -> Result<Value, Value> {
+    // Return the protocol version, server info, and capabilities
+    Ok(json!({
+        "protocolVersion": "2024-11-05",
+        "serverInfo": {
+            "name": "mcp-dockmaster-server",
+            "version": "1.0.0"
+        },
+        "instructions": "This is server for the MCP Dockmaster Platform.",
+        "capabilities": {
+            "prompts": { "listChanged": false },
+            "resources": { "listChanged": false, "subscribe": false },
+            "tools": { "listChanged": false }
+        }
+    }))
+}
+
 pub async fn handle_mcp_request(
     Extension(mcp_core): Extension<MCPCore>,
+    Extension(mcp_router): Extension<crate::mcp_server::MCPDockmasterRouter>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
     let result: Result<Value, Value> = match request.method.as_str() {
-        "tools/list" => match handle_list_tools(mcp_core).await {
-            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-            Err(error) => Err(serde_json::to_value(error).unwrap()),
+        // Use our MCP router for the initialize method
+        "initialize" => {
+            // Use the router's capabilities for the response
+            let capabilities = mcp_router.capabilities();
+            let name = mcp_router.name();
+            let instructions = mcp_router.instructions();
+            
+            // Return the initialization response
+            Ok(json!({
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {
+                    "name": name,
+                    "version": "1.0.0"
+                },
+                "instructions": instructions,
+                "capabilities": capabilities
+            }))
+        },
+        "tools/list" => {
+            // Get tools from the router
+            let tools = mcp_router.list_tools();
+            Ok(json!({
+                "tools": tools
+            }))
         },
         "tools/hidden" => handle_tools_hidden(mcp_core).await,
         "tools/call" => {
             if let Some(params) = request.params {
-                handle_invoke_tool(mcp_core, params).await
+                if let Some(tool_name) = params.get("name").and_then(|v| v.as_str()) {
+                    let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
+                    
+                    // Use the router's call_tool method
+                    match mcp_router.call_tool(tool_name, arguments).await {
+                        Ok(content) => {
+                            // Convert content to JSON value
+                            let content_json = content.into_iter().map(|c| {
+                                match c {
+                                    mcp_sdk_core::Content::Text(text) => json!(text),
+                                    // Handle other content types
+                                    _ => json!(null),
+                                }
+                            }).collect::<Vec<_>>();
+                            
+                            Ok(json!({
+                                "result": content_json
+                            }))
+                        },
+                        Err(err) => {
+                            Err(json!({
+                                "code": -32000,
+                                "message": format!("Tool execution error: {}", err)
+                            }))
+                        }
+                    }
+                } else {
+                    Err(json!({
+                        "code": -32602,
+                        "message": "Missing name in parameters"
+                    }))
+                }
             } else {
                 Err(json!({
                     "code": -32602,
                     "message": "Missing parameters"
                 }))
             }
-        }
+        },
         "prompts/list" => handle_list_prompts().await,
         "resources/list" => handle_list_resources().await,
         "resources/read" => {
@@ -138,7 +214,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for resource reading"
                 }))
             }
-        }
+        },
         "prompts/get" => {
             if let Some(params) = request.params {
                 handle_get_prompt(params).await
@@ -148,7 +224,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for prompt retrieval"
                 }))
             }
-        }
+        },
         "registry/install" => {
             if let Some(params) = request.params {
                 match handle_register_tool(mcp_core, params).await {
@@ -161,7 +237,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for tool installation"
                 }))
             }
-        }
+        },
         "registry/import" => {
             if let Some(params) = request.params {
                 handle_import_server_from_url(mcp_core, params).await
@@ -171,7 +247,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for server import"
                 }))
             }
-        }
+        },
         "registry/list" => handle_list_all_tools(mcp_core).await,
         "server/config" => {
             if let Some(params) = request.params {
@@ -182,7 +258,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for server config"
                 }))
             }
-        }
+        },
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method '{}' not found", request.method)
@@ -707,36 +783,102 @@ async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
     Ok(json!({ "hidden": hidden }))
 }
 
-/// Global session manager
-static SESSION_MANAGER: once_cell::sync::Lazy<SessionManager> = once_cell::sync::Lazy::new(|| {
-    SessionManager::new()
-});
-
-/// Global server instance
-static MCP_SERVER: once_cell::sync::Lazy<std::sync::Mutex<Option<Server<RouterService<MCPRouter>>>>> = 
-    once_cell::sync::Lazy::new(|| {
-        std::sync::Mutex::new(None)
-    });
-
-/// Set the MCP server instance
-pub fn set_mcp_server(server: Server<RouterService<MCPRouter>>) {
-    let mut server_guard = MCP_SERVER.lock().unwrap();
-    *server_guard = Some(server);
+/// Session manager to handle SSE connections
+#[derive(Default)]
+pub struct SSESessionManager {
+    sessions: TokioMutex<HashMap<String, Arc<TokioMutex<io::WriteHalf<io::SimplexStream>>>>>,
 }
 
+impl SSESessionManager {
+    pub fn new() -> Self {
+        Self {
+            sessions: Default::default(),
+        }
+    }
+
+    /// Register a session with a channel
+    pub async fn register_session(&self, session_id: String, writer: Arc<TokioMutex<io::WriteHalf<io::SimplexStream>>>) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(session_id, writer);
+    }
+
+    /// Remove a session
+    pub async fn remove_session(&self, session_id: &str) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.remove(session_id);
+    }
+
+    /// Send data to a specific session
+    pub async fn send_to_session(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
+        let sessions = self.sessions.lock().await;
+        if let Some(writer) = sessions.get(session_id) {
+            let mut writer = writer.lock().await;
+            writer.write_all(&data).await
+                .map_err(|e| format!("Failed to write to session {}: {}", session_id, e))?;
+            writer.flush().await
+                .map_err(|e| format!("Failed to flush session {}: {}", session_id, e))?;
+            Ok(())
+        } else {
+            Err(format!("Session {} not found", session_id))
+        }
+    }
+}
+
+/// Global session manager
+static SESSION_MANAGER: once_cell::sync::Lazy<SSESessionManager> = once_cell::sync::Lazy::new(|| {
+    SSESessionManager::new()
+});
+
 /// SSE endpoint handler with bidirectional communication
-pub async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+pub async fn sse_handler(
+    Extension(_mcp_core): Extension<MCPCore>,
+    Extension(router): Extension<MCPDockmasterRouter>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     // Create a unique session ID
     let session_id = Uuid::new_v4().to_string();
     
     // Log the connection
     info!("New SSE connection established: {}", session_id);
     
-    // Create a channel for sending SSE events to the client
-    let (tx, rx) = mpsc::channel::<Vec<u8>>(32);
+    // Create simplex channels for bidirectional communication
+    const BUFFER_SIZE: usize = 1 << 12; // 4KB
+    let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
+    let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
     
-    // Register the session with the standard channel
-    SESSION_MANAGER.register_session(session_id.clone(), tx).await;
+    // Wrap the writer in an Arc<Mutex> for shared access
+    let writer = Arc::new(TokioMutex::new(c2s_write));
+    
+    // Register the session
+    SESSION_MANAGER.register_session(session_id.clone(), writer).await;
+    
+    // Spawn a task to handle incoming messages from the client
+    {
+        let session_id = session_id.clone();
+        let router_clone = router.clone();
+        
+        tokio::spawn(async move {
+            // Create a router service using our MCPDockmasterRouter
+            let router_service = RouterService(router_clone);
+            
+            // Create an MCP server with the router service
+            let server = Server::new(router_service);
+            
+            // Create a ByteTransport using the simplex channels
+            let byte_transport = ByteTransport::new(c2s_read, s2c_write);
+            
+            // Run the server with the transport
+            let result = server.run(byte_transport).await;
+            
+            if let Err(e) = &result {
+                log::error!("Server run error for session {}: {:?}", session_id, e);
+            }
+            
+            // Clean up the session when done
+            SESSION_MANAGER.remove_session(&session_id).await;
+            
+            result
+        });
+    }
     
     // Create an initial event with the session ID
     let initial_event = futures::stream::once(futures::future::ok(
@@ -745,14 +887,33 @@ pub async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>>
             .data(format!("?sessionId={session_id}"))
     ));
     
-    // Create a stream from the receiver that handles messages
-    let message_stream = stream::unfold(rx, |mut rx| async move {
-        if let Some(data) = rx.recv().await {
-            let event = Event::default()
-                .event("message")
-                .data(String::from_utf8_lossy(&data).to_string());
-            Some((Ok(event), rx))
+    // Create a stream from the s2c_read channel using StreamExt's unfold method
+    let message_stream = futures::stream::unfold(s2c_read, |mut read_half| async move {
+        let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
+        
+        if let Some(result) = framed.next().await {
+            let read_half = framed.into_inner();
+            match result {
+                Ok(bytes) => {
+                    let event = match std::str::from_utf8(&bytes) {
+                        Ok(message) => {
+                            Event::default().event("message").data(message)
+                        },
+                        Err(e) => {
+                            log::error!("Error parsing UTF-8: {}", e);
+                            Event::default().event("error").data(format!("UTF-8 error: {}", e))
+                        }
+                    };
+                    Some((Ok::<_, Infallible>(event), read_half))
+                },
+                Err(e) => {
+                    log::error!("Error reading frame: {}", e);
+                    let event = Event::default().event("error").data(format!("Frame error: {}", e));
+                    Some((Ok::<_, Infallible>(event), read_half))
+                }
+            }
         } else {
+            // End of stream
             None
         }
     });
@@ -771,150 +932,71 @@ pub struct SessionIdParam {
     pub session_id: String,
 }
 
-/// Handler for JSON-RPC requests via SSE
+/// Handler for JSON-RPC requests via POST to the SSE endpoint
 #[debug_handler]
 pub async fn json_rpc_handler(
     Query(params): Query<SessionIdParam>,
-    Extension(mcp_core): Extension<MCPCore>,
-    Json(request): Json<JsonRpcRequest>,
-) -> Json<JsonRpcResponse> {
+    Extension(_mcp_core): Extension<MCPCore>,
+    Extension(_mcp_router): Extension<MCPDockmasterRouter>,
+    body: axum::body::Body,
+) -> (StatusCode, &'static str) {
     let session_id = &params.session_id;
-    info!("Processing JSON-RPC request for session {}: method={}", session_id, request.method);
+    info!("Received POST request for session {}", session_id);
     
-    // Process the JSON-RPC request using the handle_mcp_request logic
-    let result = match request.method.as_str() {
-        "tools/list" => match handle_list_tools(mcp_core).await {
-            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-            Err(error) => Err(serde_json::to_value(error).unwrap()),
-        },
-        "tools/hidden" => handle_tools_hidden(mcp_core).await,
-        "tools/call" => {
-            if let Some(params) = request.params.clone() {
-                handle_invoke_tool(mcp_core, params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Missing parameters"
-                }))
-            }
-        },
-        // Add other methods as needed
-        _ => Err(json!({
-            "code": -32601,
-            "message": format!("Method '{}' not found", request.method)
-        })),
-    };
-    
-    // Create the JSON-RPC response
-    let response = match result {
-        Ok(result) => JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id: request.id,
-            result: Some(result),
-            error: None,
-        },
-        Err(error) => {
-            let error_obj = error.as_object().unwrap();
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: error_obj
-                        .get("code")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(-32000) as i32,
-                    message: error_obj
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown error")
-                        .to_string(),
-                    data: None,
-                }),
+    // Get the session's write channel
+    let writer = {
+        let sessions = SESSION_MANAGER.sessions.lock().await;
+        match sessions.get(session_id) {
+            Some(writer) => writer.clone(),
+            None => {
+                log::error!("Session {} not found", session_id);
+                return (StatusCode::NOT_FOUND, "Session not found");
             }
         }
     };
     
-    // Also send the response through the SSE channel
-    if let Ok(response_json) = serde_json::to_vec(&response) {
-        if let Err(e) = SESSION_MANAGER.send_to_session(session_id, response_json).await {
-            log::error!("Failed to send response to SSE channel: {}", e);
+    // Convert the body to a byte stream
+    const BODY_BYTES_LIMIT: usize = 1 << 22; // 4MB
+    let mut body = body.into_data_stream();
+    let mut size = 0;
+    
+    // Lock the writer for the entire request
+    let mut writer = writer.lock().await;
+    
+    // Forward each chunk to the session's channel
+    while let Some(chunk) = body.next().await {
+        match chunk {
+            Ok(chunk) => {
+                size += chunk.len();
+                if size > BODY_BYTES_LIMIT {
+                    log::error!("Payload too large for session {}", session_id);
+                    return (StatusCode::PAYLOAD_TOO_LARGE, "Payload too large");
+                }
+                
+                if let Err(e) = writer.write_all(&chunk).await {
+                    log::error!("Failed to write to session {}: {}", session_id, e);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
+                }
+            }
+            Err(_) => {
+                log::error!("Invalid request body for session {}", session_id);
+                return (StatusCode::BAD_REQUEST, "Invalid request body");
+            }
         }
     }
     
-    Json(response)
-}
-
-/// Handler for receiving messages from the client (binary data approach)
-pub async fn message_handler(
-    Query(params): Query<SessionIdParam>,
-    Json(message): Json<Vec<u8>>,
-) -> Json<serde_json::Value> {
-    let session_id = &params.session_id;
-    info!("Processing binary message for session {}: {} bytes", session_id, message.len());
-    
-    // Process the message using the MCP_SERVER and SESSION_MANAGER
-    let result = process_client_message(session_id, message).await;
-    
-    match result {
-        Ok(_) => Json(json!({ "success": true })),
-        Err(e) => {
-            log::error!("Failed to process message for session {}: {}", session_id, e);
-            Json(json!({
-                "success": false,
-                "error": e
-            }))
-        }
-    }
-}
-
-/// Process a client message using the MCP server (binary data approach)
-async fn process_client_message(session_id: &str, message: Vec<u8>) -> Result<(), String> {
-    // Create a buffer for the response
-    const BUFFER_SIZE: usize = 1 << 12; // 4KB
-    
-    // Create bidirectional channels using simplex
-    let (c2s_read, mut c2s_write) = io::simplex(BUFFER_SIZE);
-    let (mut s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
-    
-    // Write the message to the client-to-server channel
-    c2s_write.write_all(&message).await
-        .map_err(|e| format!("Failed to write to c2s channel: {}", e))?;
-    c2s_write.flush().await
-        .map_err(|e| format!("Failed to flush c2s channel: {}", e))?;
-    
-    // Create a ByteTransport from the simplex channels
-    let _bytes_transport = crate::ByteTransport::new(c2s_read, s2c_write);
-    
-    // Process the message with the server if available
-    {
-        let server_guard = MCP_SERVER.lock().unwrap();
-        
-        if let Some(_server) = &*server_guard {
-            // We can't clone the server or hold the MutexGuard across an await point
-            // Instead, we'll just process a single message and then drop the guard
-            
-            // TODO: Implement actual message processing with the server
-            // This would be where we'd normally use server.process_message or similar
-            // For now, we'll just log that we got the server
-            log::info!("Got server for session {}, would process message here", session_id);
-        } else {
-            return Err(format!("No server instance available for session {}", session_id));
-        }
-        
-        // MutexGuard is dropped here, before any await points
+    // Add a newline to separate messages
+    if let Err(e) = writer.write_u8(b'\n').await {
+        log::error!("Failed to write newline to session {}: {}", session_id, e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
     }
     
-    // Read the response from the server-to-client channel
-    let mut response_buffer = vec![0u8; BUFFER_SIZE];
-    let bytes_read = s2c_read.read(&mut response_buffer).await
-        .map_err(|e| format!("Failed to read from s2c channel: {}", e))?;
-    
-    // If we got a response, forward it to the session
-    if bytes_read > 0 {
-        response_buffer.truncate(bytes_read);
-        SESSION_MANAGER.send_to_session(session_id, response_buffer).await?;
+    // Flush the writer to ensure the data is sent
+    if let Err(e) = writer.flush().await {
+        log::error!("Failed to flush session {}: {}", session_id, e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to flush session");
     }
     
-    Ok(())
+    // Return a success response
+    (StatusCode::ACCEPTED, "")
 }
