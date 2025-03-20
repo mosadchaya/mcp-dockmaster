@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
 use home::home_dir;
-use log::{error, info};
+use log::error;
 use serde::{Deserialize, Serialize};
 
 use super::install_errors::CursorError;
@@ -125,7 +125,10 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
         })?,
     )
     .map_err(|e| {
-        error!("cannot install: Failed to write Cursor MCP global config");
+        error!(
+            "cannot install: Failed to write Cursor MCP global config: {}",
+            e.to_string()
+        );
         CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;
 
