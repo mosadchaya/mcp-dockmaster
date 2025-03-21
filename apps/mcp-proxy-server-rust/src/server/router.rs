@@ -10,7 +10,7 @@ use mcp_core::{
     Content, Resource, Tool, ToolError,
     handler::{PromptError, ResourceError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcNotification, ServerCapabilities},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use serde_json::Value;
@@ -39,40 +39,67 @@ impl DockmasterRouter {
     pub fn new() -> DockmasterRouter {
         DockmasterRouter {
             tools_cache: Arc::new(Mutex::new(vec![])),
-            mcp_client: McpClientProxy::new(&Self::get_target_server_url()),
+            mcp_client: McpClientProxy::new(),
         }
-    }
-
-    pub fn get_target_server_url() -> String {
-        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
-            .unwrap_or_else(|_| "11011".to_string())
-            .parse::<u16>()
-            .unwrap_or(11011);
-        format!("http://localhost:{}/mcp/sse", port)
     }
 
     pub async fn initialize(&mut self) {
         // Create client instance
-        let _ = self.mcp_client.init().await;
+        match self.mcp_client.init().await {
+            Ok(_) => {
+                tracing::info!("Client initialized");
+            }
+            Err(e) => {
+                tracing::error!("Error initializing client: {}", e);
+            }
+        }
 
         // Save tools to cache
-        let tools = self.mcp_client.get_client().unwrap().list_tools(None).await;
-        if let Ok(mut cache) = self.tools_cache.lock() {
-            *cache = tools.unwrap().tools;
+        match self.mcp_client.get_client() {
+            Some(client) => {
+                let tools = client.list_tools(None).await;
+                if let Ok(mut cache) = self.tools_cache.lock() {
+                    *cache = tools.unwrap().tools;
+                }
+            }
+            None => {
+                tracing::error!("No client found");
+            }
         }
 
         // Spawn background task to update tools cache
-        let tools_cache = self.tools_cache.clone();
-        let client = self.mcp_client.get_client().unwrap();
-        tokio::spawn(async move {
-            loop {
-                let tools = client.list_tools(None).await;
-                if let Ok(mut cache) = tools_cache.lock() {
-                    *cache = tools.unwrap().tools;
-                }
-                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        match self.mcp_client.get_client() {
+            Some(client) => {
+                let tools_cache = self.tools_cache.clone();
+                tokio::spawn(async move {
+                    loop {
+                        match client.list_tools(None).await {
+                            Ok(list_tools_result) => {
+                                if let Ok(mut cache) = tools_cache.lock() {
+                                    if list_tools_result.tools != *cache {
+                                        *cache = list_tools_result.tools;
+
+                                        // TODO: Send notification to clients
+                                        let _req = JsonRpcNotification {
+                                            method: "notifications/tools/list_changed".to_string(),
+                                            params: None,
+                                            jsonrpc: "2.0".to_string(),
+                                        };
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Error updating tools cache: {}", e);
+                            }
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                    }
+                });
             }
-        });
+            None => {
+                tracing::error!("No client found");
+            }
+        }
     }
 
     async fn execute_tool(
@@ -86,17 +113,20 @@ impl DockmasterRouter {
             arguments
         );
 
-        let result = self
-            .mcp_client
-            .get_client()
-            .unwrap()
-            .call_tool(tool_name, arguments)
-            .await;
-        match result {
-            Ok(response) => Ok(response.content),
-            Err(e) => {
-                tracing::error!("Error executing tool: {}", e);
-                Err(ToolError::ExecutionError(e.to_string()))
+        match self.mcp_client.get_client() {
+            Some(client) => {
+                let result = client.call_tool(tool_name, arguments).await;
+                match result {
+                    Ok(response) => Ok(response.content),
+                    Err(e) => {
+                        tracing::error!("Error executing tool: {}", e);
+                        Err(ToolError::ExecutionError(e.to_string()))
+                    }
+                }
+            }
+            None => {
+                tracing::error!("No client found");
+                Err(ToolError::ExecutionError("No client found".to_string()))
             }
         }
     }
@@ -135,10 +165,8 @@ impl mcp_server::Router for DockmasterRouter {
         tool_name: &str,
         arguments: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
-        let tool_name = tool_name.to_string();
-        let arguments = arguments.clone();
         let router = self.clone();
-
+        let tool_name = tool_name.to_string();
         Box::pin(async move { router.execute_tool(&tool_name, arguments).await })
     }
 

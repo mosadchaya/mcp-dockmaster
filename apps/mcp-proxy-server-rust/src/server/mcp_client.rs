@@ -1,8 +1,8 @@
 use anyhow::Result;
+use mcp_client::McpService;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::sse::SseTransportHandle;
 use mcp_client::transport::{SseTransport, Transport};
-use mcp_client::{McpService, TransportHandle};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,8 +25,20 @@ impl Clone for McpClientProxy {
     }
 }
 
+impl Default for McpClientProxy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl McpClientProxy {
-    pub fn new(server_url: &str) -> Self {
+    pub fn new() -> Self {
+        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
+            .unwrap_or_else(|_| "11011".to_string())
+            .parse::<u16>()
+            .unwrap_or(11011);
+        let server_url = format!("http://localhost:{}/mcp/sse", port);
+
         McpClientProxy {
             server_url: server_url.to_string(),
             client: None,
