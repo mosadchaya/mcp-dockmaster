@@ -145,6 +145,12 @@ impl MCPDockmasterRouter {
                 // Update the tools cache after successful registration
                 self.update_tools_cache().await;
                 
+                // Spawn the broadcast notification as a separate task
+                tokio::spawn(async {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    crate::mcp_server::notifications::broadcast_tools_list_changed().await;
+                });
+                
                 Ok(json!({
                     "success": true,
                     "message": response.message,

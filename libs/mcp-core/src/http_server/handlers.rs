@@ -39,8 +39,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
 
 use crate::mcp_server::mcp_router::MCPDockmasterRouter;
+use crate::mcp_server::session_manager::SESSION_MANAGER;
 use mcp_sdk_server::{ByteTransport, Server};
 use tokio_util::codec::FramedRead;
+
 
 /// JSON-RPC request structure
 #[derive(Deserialize, Debug)]
@@ -749,73 +751,31 @@ async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
     Ok(json!({ "hidden": hidden }))
 }
 
-/// Session manager to handle SSE connections
-#[derive(Default)]
-pub struct SSESessionManager {
-    sessions: TokioMutex<HashMap<String, Arc<TokioMutex<io::WriteHalf<io::SimplexStream>>>>>,
-}
-
-impl SSESessionManager {
-    pub fn new() -> Self {
-        Self {
-            sessions: Default::default(),
-        }
-    }
-
-    /// Register a session with a channel
-    pub async fn register_session(&self, session_id: String, writer: Arc<TokioMutex<io::WriteHalf<io::SimplexStream>>>) {
-        let mut sessions = self.sessions.lock().await;
-        sessions.insert(session_id, writer);
-    }
-
-    /// Remove a session
-    pub async fn remove_session(&self, session_id: &str) {
-        let mut sessions = self.sessions.lock().await;
-        sessions.remove(session_id);
-    }
-
-    /// Send data to a specific session
-    pub async fn send_to_session(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        if let Some(writer) = sessions.get(session_id) {
-            let mut writer = writer.lock().await;
-            writer.write_all(&data).await
-                .map_err(|e| format!("Failed to write to session {}: {}", session_id, e))?;
-            writer.flush().await
-                .map_err(|e| format!("Failed to flush session {}: {}", session_id, e))?;
-            Ok(())
-        } else {
-            Err(format!("Session {} not found", session_id))
-        }
-    }
-}
-
-/// Global session manager
-static SESSION_MANAGER: once_cell::sync::Lazy<SSESessionManager> = once_cell::sync::Lazy::new(|| {
-    SSESessionManager::new()
-});
-
 /// SSE endpoint handler with bidirectional communication
 pub async fn sse_handler(
     Extension(_mcp_core): Extension<MCPCore>,
     Extension(router): Extension<MCPDockmasterRouter>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    // Create a unique session ID
     let session_id = Uuid::new_v4().to_string();
-    
-    // Log the connection
     info!("New SSE connection established: {}", session_id);
     
-    // Create simplex channels for bidirectional communication
     const BUFFER_SIZE: usize = 1 << 12; // 4KB
+    // Create channels for command and response
     let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
     let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
+    // Create a separate channel for notifications
+    let (notification_read, notification_write) = io::simplex(BUFFER_SIZE);
     
-    // Wrap the writer in an Arc<Mutex> for shared access
-    let writer = Arc::new(TokioMutex::new(c2s_write));
+    // Wrap writers in Arc<Mutex>
+    let command_writer = Arc::new(TokioMutex::new(c2s_write));
+    let notification_writer = Arc::new(TokioMutex::new(notification_write));
     
-    // Register the session
-    SESSION_MANAGER.register_session(session_id.clone(), writer).await;
+    // Register both channels
+    SESSION_MANAGER.register_session(
+        session_id.clone(),
+        command_writer,
+        notification_writer
+    ).await;
     
     // Spawn a task to handle incoming messages from the client
     {
@@ -823,23 +783,16 @@ pub async fn sse_handler(
         let router_clone = router.clone();
         
         tokio::spawn(async move {
-            // Create a router service using our MCPDockmasterRouter
             let router_service = RouterService(router_clone);
-            
-            // Create an MCP server with the router service
             let server = Server::new(router_service);
-            
-            // Create a ByteTransport using the simplex channels
             let byte_transport = ByteTransport::new(c2s_read, s2c_write);
             
-            // Run the server with the transport
             let result = server.run(byte_transport).await;
             
             if let Err(e) = &result {
                 log::error!("Server run error for session {}: {:?}", session_id, e);
             }
             
-            // Clean up the session when done
             SESSION_MANAGER.remove_session(&session_id).await;
             
             result
@@ -853,41 +806,14 @@ pub async fn sse_handler(
             .data(format!("?sessionId={session_id}"))
     ));
     
-    // Create a stream from the s2c_read channel using StreamExt's unfold method
-    let message_stream = futures::stream::unfold(s2c_read, |mut read_half| async move {
-        let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
-        
-        if let Some(result) = framed.next().await {
-            let read_half = framed.into_inner();
-            match result {
-                Ok(bytes) => {
-                    let event = match std::str::from_utf8(&bytes) {
-                        Ok(message) => {
-                            Event::default().event("message").data(message)
-                        },
-                        Err(e) => {
-                            log::error!("Error parsing UTF-8: {}", e);
-                            Event::default().event("error").data(format!("UTF-8 error: {}", e))
-                        }
-                    };
-                    Some((Ok::<_, Infallible>(event), read_half))
-                },
-                Err(e) => {
-                    log::error!("Error reading frame: {}", e);
-                    let event = Event::default().event("error").data(format!("Frame error: {}", e));
-                    Some((Ok::<_, Infallible>(event), read_half))
-                }
-            }
-        } else {
-            // End of stream
-            None
-        }
-    });
+    // Create streams for both s2c and notification channels
+    let message_stream = create_message_stream(s2c_read);
+    let notification_stream = create_message_stream(notification_read);
     
-    // Chain the initial event with the message stream
-    let combined_stream = initial_event.chain(message_stream);
+    // Merge all streams together
+    let combined_stream = initial_event
+        .chain(futures::stream::select(message_stream, notification_stream));
     
-    // Return the SSE stream
     Sse::new(combined_stream)
 }
 
@@ -906,11 +832,10 @@ pub async fn sse_post_handler(
     let session_id = &params.session_id;
     info!("Received POST request for session {}", session_id);
     
-    // Get the session's write channel
     let writer = {
         let sessions = SESSION_MANAGER.sessions.lock().await;
         match sessions.get(session_id) {
-            Some(writer) => writer.clone(),
+            Some(channels) => channels.command.clone(),
             None => {
                 log::error!("Session {} not found", session_id);
                 return (StatusCode::NOT_FOUND, "Session not found");
@@ -962,4 +887,38 @@ pub async fn sse_post_handler(
     
     // Return a success response
     (StatusCode::ACCEPTED, "")
+}
+
+/// Creates a message stream from a read half of a simplex channel
+fn create_message_stream(
+    read_half: io::ReadHalf<io::SimplexStream>,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    futures::stream::unfold(read_half, |mut read_half| async move {
+        let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
+        
+        if let Some(result) = framed.next().await {
+            let read_half = framed.into_inner();
+            match result {
+                Ok(bytes) => {
+                    let event = match std::str::from_utf8(&bytes) {
+                        Ok(message) => {
+                            Event::default().event("message").data(message)
+                        },
+                        Err(e) => {
+                            log::error!("Error parsing UTF-8: {}", e);
+                            Event::default().event("error").data(format!("UTF-8 error: {}", e))
+                        }
+                    };
+                    Some((Ok::<_, Infallible>(event), read_half))
+                },
+                Err(e) => {
+                    log::error!("Error reading frame: {}", e);
+                    let event = Event::default().event("error").data(format!("Frame error: {}", e));
+                    Some((Ok::<_, Infallible>(event), read_half))
+                }
+            }
+        } else {
+            None
+        }
+    })
 }
