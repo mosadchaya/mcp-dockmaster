@@ -23,12 +23,10 @@ use mcp_sdk_server::Router;
 use axum::{
     response::sse::{Event, Sse},
     extract::Query,
-    debug_handler,
 };
 use futures::stream::Stream;
 use std::convert::Infallible;
-use tokio::sync::mpsc;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt};
 use futures::StreamExt;
 use uuid::Uuid;
 
@@ -893,7 +891,7 @@ pub async fn sse_post_handler(
 fn create_message_stream(
     read_half: io::ReadHalf<io::SimplexStream>,
 ) -> impl Stream<Item = Result<Event, Infallible>> {
-    futures::stream::unfold(read_half, |mut read_half| async move {
+    futures::stream::unfold(read_half, |read_half| async move {
         let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
         
         if let Some(result) = framed.next().await {

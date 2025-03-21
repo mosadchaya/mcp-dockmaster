@@ -17,7 +17,6 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use toml::Table;
 
-use crate::mcp_server::handlers::ClientManagerTrait;
 use super::mcp_core::MCPCore;
 
 #[async_trait]

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde_json::{Value};
 use std::future::Future;
 use std::pin::Pin;
-use log::{info, error, warn};
+use log::error;
 
 // Import SDK modules
 use mcp_sdk_core::{Tool, Content, Resource};
@@ -11,7 +11,7 @@ use mcp_sdk_core::protocol;
 use mcp_sdk_core::handler::{ToolError, ResourceError, PromptError};
 use mcp_sdk_core::prompt;
 use mcp_sdk_server::Router;
-use mcp_sdk_server::router::{RouterService, CapabilitiesBuilder};
+use mcp_sdk_server::router::CapabilitiesBuilder;
 
 /// Trait for client managers to implement
 #[async_trait]
@@ -60,21 +60,6 @@ pub struct MCPRouter {
     name: String,
     client_manager: Arc<dyn ClientManagerTrait>,
     capabilities: protocol::ServerCapabilities,
-}
-
-impl MCPRouter {
-    /// Create a new MCPRouter
-    fn new(name: String, client_manager: Arc<dyn ClientManagerTrait>) -> Self {
-        Self {
-            name,
-            client_manager,
-            capabilities: CapabilitiesBuilder::new()
-                .with_tools(false)
-                .with_resources(false, false)
-                .with_prompts(false)
-                .build(),
-        }
-    }
 }
 
 impl Router for MCPRouter {

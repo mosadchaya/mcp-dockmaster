@@ -9,12 +9,12 @@ use mcp_sdk_core::{
 use mcp_sdk_server::router::CapabilitiesBuilder;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
-use log::{info, error};
+use log::info;
 
 use crate::{
     core::mcp_core::MCPCore,
     core::mcp_core_proxy_ext::McpCoreProxyExt,
-    models::types::{ServerToolsResponse, ServerRegistrationRequest, ToolExecutionRequest},
+    models::types::{ServerToolsResponse, ToolExecutionRequest},
 };
 
 use super::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};

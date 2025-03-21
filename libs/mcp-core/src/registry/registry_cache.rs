@@ -8,8 +8,8 @@ use tokio::sync::Mutex;
 
 use crate::models::types::{ErrorResponse, RegistryToolsResponse};
 
-// Cache duration constant (1 minute)
-const CACHE_DURATION: Duration = Duration::from_secs(60);
+// Cache duration constant (10 minute)
+const CACHE_DURATION: Duration = Duration::from_secs(600);
 
 // Cache structure to store registry data and timestamp
 struct RegistryCacheEntry {
