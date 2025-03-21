@@ -37,6 +37,7 @@ mcp_sdk_core = { package = "mcp-core", git = "https://github.com/dcSpark/rust-sd
 mcp_sdk_client = { package = "mcp-client", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 mcp_sdk_server = { package = "mcp-server", git = "https://github.com/dcSpark/rust-sdk.git", branch = "main" }
 bytes = "1.5.0"
+probly-search = "2.0.1"
 
 [lib]
 name = "mcp_core"

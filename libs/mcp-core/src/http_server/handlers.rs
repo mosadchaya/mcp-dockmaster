@@ -110,24 +110,6 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
 }
 
-/// Handle initialization request from clients
-async fn handle_initialize(_params: Option<Value>) -> Result<Value, Value> {
-    // Return the protocol version, server info, and capabilities
-    Ok(json!({
-        "protocolVersion": "2024-11-05",
-        "serverInfo": {
-            "name": "mcp-dockmaster-server",
-            "version": "1.0.0"
-        },
-        "instructions": "This is server for the MCP Dockmaster Platform.",
-        "capabilities": {
-            "prompts": { "listChanged": false },
-            "resources": { "listChanged": false, "subscribe": false },
-            "tools": { "listChanged": false }
-        }
-    }))
-}
-
 pub async fn handle_mcp_request(
     Extension(mcp_core): Extension<MCPCore>,
     Extension(mcp_router): Extension<crate::mcp_server::MCPDockmasterRouter>,

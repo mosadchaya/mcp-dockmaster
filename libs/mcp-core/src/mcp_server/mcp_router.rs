@@ -9,15 +9,19 @@ use mcp_sdk_core::{
 use mcp_sdk_server::router::CapabilitiesBuilder;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
-use log::info;
+use log::{info, error};
 
 use crate::{
     core::mcp_core::MCPCore,
     core::mcp_core_proxy_ext::McpCoreProxyExt,
     models::types::{ServerToolsResponse, ToolExecutionRequest},
+    registry::registry_search::{RegistrySearch, SearchError},
 };
 
-use super::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
+use super::tools::{
+    TOOL_REGISTER_SERVER, get_register_server_tool,
+    TOOL_SEARCH_SERVER, get_search_server_tool,
+};
 
 /// MCP Router implementation for the Dockmaster server
 /// This router handles all MCP protocol methods and integrates with the MCPCore
@@ -57,7 +61,8 @@ impl MCPDockmasterRouter {
                 
                 // Add built-in tools
                 tools.push(get_register_server_tool());
-                
+                tools.push(get_search_server_tool());
+
                 // Add user-installed tools
                 for tool_info in response.tools {
                     // Convert ServerToolInfo to Tool
@@ -160,12 +165,86 @@ impl MCPDockmasterRouter {
             Err(error) => Err(ToolError::ExecutionError(error.message)),
         }
     }
-    
+
+    /// Handle search_server tool
+    async fn handle_search_server(&self, args: Value) -> Result<Value, ToolError> {
+        // Extract the query parameter from the args
+        let query = match args.get("query").and_then(|q| q.as_str()) {
+            Some(q) => q,
+            None => return Err(ToolError::ExecutionError("Missing or invalid 'query' parameter".to_string())),
+        };
+
+        // Create a new RegistrySearch instance
+        let mut registry_search = match RegistrySearch::new().await {
+            Ok(search) => search,
+            Err(e) => match e {
+                SearchError::CacheError(msg) => {
+                    error!("Cache error during registry search: {}", msg);
+                    return Err(ToolError::ExecutionError(format!("Registry cache error: {}", msg)));
+                },
+                SearchError::IndexError(msg) => {
+                    error!("Index error during registry search: {}", msg);
+                    return Err(ToolError::ExecutionError(format!("Registry index error: {}", msg)));
+                },
+                SearchError::QueryError(msg) => {
+                    error!("Query error during registry search: {}", msg);
+                    return Err(ToolError::ExecutionError(format!("Query error: {}", msg)));
+                },
+            },
+        };
+
+        // Execute the search
+        let search_results = match registry_search.search(query) {
+            Ok(results) => results,
+            Err(e) => match e {
+                SearchError::QueryError(msg) => {
+                    return Err(ToolError::ExecutionError(format!("Invalid query: {}", msg)));
+                },
+                _ => {
+                    return Err(ToolError::ExecutionError(format!("Search execution error: {:?}", e)));
+                },
+            },
+        };
+
+        // Limit results to top 10 for better UI display
+        let top_results = search_results.into_iter().take(10).collect::<Vec<_>>();
+        
+        // Transform results into a format suitable for JSON response
+        let formatted_results = top_results.into_iter().map(|(tool, score)| {
+            json!({
+                "id": tool.id,
+                "name": tool.name,
+                "description": tool.description,
+                "short_description": tool.short_description,
+                "publisher": tool.publisher,
+                "is_official": tool.is_official,
+                "source_url": tool.source_url,
+                "distribution": tool.distribution,
+                "license": tool.license,
+                "runtime": tool.runtime,
+                "categories": tool.categories,
+                "tags": tool.tags,
+                "score": score
+            })
+        }).collect::<Vec<_>>();
+
+        // Return the results as JSON
+        Ok(json!({
+            "results": formatted_results,
+            "count": formatted_results.len(),
+            "query": query
+        }))
+    }
+
     /// Execute a tool by finding the appropriate server and forwarding the call
     async fn execute_tool(&self, tool_name: &str, args: Value) -> Result<Value, ToolError> {
         // Handle built-in tools first
         if tool_name == TOOL_REGISTER_SERVER {
             return self.handle_register_server(args).await;
+        }
+
+        if tool_name == TOOL_SEARCH_SERVER {
+            return self.handle_search_server(args).await;
         }
         
         // For non-built-in tools, find the appropriate server that has this tool
@@ -283,6 +362,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
         if !cache_found {
             log::info!("No tools in cache, adding register_server tool");
             tools.push(get_register_server_tool());
+            tools.push(get_search_server_tool());
         }
         
         // Log what we're returning
@@ -300,7 +380,8 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
                     
                     // Add built-in tools
                     tools_vec.push(get_register_server_tool());
-                    
+                    tools_vec.push(get_search_server_tool());
+
                     // Add user-installed tools
                     for tool_info in server_tools {
                         // Convert ServerToolInfo to Tool

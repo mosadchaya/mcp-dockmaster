@@ -11,7 +11,6 @@ use mcp_sdk_core::protocol;
 use mcp_sdk_core::handler::{ToolError, ResourceError, PromptError};
 use mcp_sdk_core::prompt;
 use mcp_sdk_server::Router;
-use mcp_sdk_server::router::CapabilitiesBuilder;
 
 /// Trait for client managers to implement
 #[async_trait]
