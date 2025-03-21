@@ -125,48 +125,33 @@ impl MCPDockmasterRouter {
     
     /// Handle register_server tool
     async fn handle_register_server(&self, args: Value) -> Result<Value, ToolError> {
-        let tool_id = args.get("tool_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::ExecutionError("Missing tool_id parameter".to_string()))?;
-            
-        info!("Registering server with tool ID: {}", tool_id);
-        
-        // Create a server registration request with a default configuration
-        // to prevent panics during restart
-        let request = ServerRegistrationRequest {
-            server_id: tool_id.to_string(),
-            server_name: format!("Imported server {}", tool_id),
-            description: format!("Server imported via MCP API with ID {}", tool_id),
-            tools_type: "unknown".to_string(), // This will be updated during the registry lookup
-            configuration: Some(crate::models::types::ServerConfiguration {
-                command: Some("echo".to_string()),  // A safe default command that won't do anything harmful
-                args: Some(vec!["Server registration pending".to_string()]),
-                env: Some(std::collections::HashMap::new()),
-            }),
-            distribution: None,
+        // Convert the args into the format expected by the HTTP handler
+        let registration_request = if let Some(tool_id) = args.get("tool_id").and_then(|v| v.as_str()) {
+            // If we receive a tool_id, treat it as a registry-based installation
+            serde_json::json!({
+                "tool_id": tool_id
+            })
+        } else {
+            // Otherwise, expect direct registration parameters
+            args
         };
-        
-        match self.mcp_core.register_server(request).await {
+
+        // Use the HTTP handler's logic through MCPCore
+        match crate::http_server::handlers::handle_register_tool(
+            self.mcp_core.clone(),
+            registration_request
+        ).await {
             Ok(response) => {
-                if response.success {
-                    // Restart the server after registration
-                    if let Err(e) = self.mcp_core.restart_server_command(tool_id.to_string()).await {
-                        log::error!("Failed to restart server after registration: {}", e);
-                    }
-                    
-                    // Update the tools cache immediately after registration
-                    self.update_tools_cache().await;
-                    
-                    Ok(json!({
-                        "success": true,
-                        "message": response.message,
-                        "tool_id": response.tool_id
-                    }))
-                } else {
-                    Err(ToolError::ExecutionError(response.message))
-                }
+                // Update the tools cache after successful registration
+                self.update_tools_cache().await;
+                
+                Ok(json!({
+                    "success": true,
+                    "message": response.message,
+                    "tool_id": response.tool_id
+                }))
             },
-            Err(e) => Err(ToolError::ExecutionError(format!("Failed to register server: {}", e))),
+            Err(error) => Err(ToolError::ExecutionError(error.message)),
         }
     }
     

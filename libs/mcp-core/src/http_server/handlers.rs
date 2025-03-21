@@ -354,7 +354,7 @@ enum ToolRegistrationRequest {
     ById(ToolRegistrationRequestById),
 }
 
-async fn handle_register_tool(
+pub async fn handle_register_tool(
     mcp_core: MCPCore,
     params: Value,
 ) -> Result<ServerRegistrationResponse, ErrorResponse> {
