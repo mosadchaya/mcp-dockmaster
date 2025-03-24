@@ -18,12 +18,6 @@ pub mod utils;
 
 // pub use registry::ToolRegistry;
 
-// Re-export key items for convenience
-pub use mcp_server::{
-    ClientManagerTrait,
-    ClientManager
-};
-
 // Re-export ByteTransport from mcp-sdk-server
 pub use mcp_sdk_server::ByteTransport;
 

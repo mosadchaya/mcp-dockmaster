@@ -24,13 +24,14 @@ use super::tools::{
     TOOL_CONFIGURE_SERVER, get_configure_server_tool,
 };
 
+use super::notifications::broadcast_tools_list_changed;
+
 /// MCP Router implementation for the Dockmaster server
 /// This router handles all MCP protocol methods and integrates with the MCPCore
 #[derive(Clone)]
 pub struct MCPDockmasterRouter {
     mcp_core: MCPCore,
     server_name: String,
-    version: String,
     tools_cache: Arc<RwLock<Vec<Tool>>>,
 }
 
@@ -40,7 +41,6 @@ impl MCPDockmasterRouter {
         Self {
             mcp_core,
             server_name: "mcp-dockmaster-server".to_string(),
-            version: "1.0.0".to_string(),
             tools_cache: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -155,7 +155,7 @@ impl MCPDockmasterRouter {
                 // Spawn the broadcast notification as a separate task
                 tokio::spawn(async {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    crate::mcp_server::notifications::broadcast_tools_list_changed().await;
+                    broadcast_tools_list_changed().await;
                 });
                 
                 Ok(json!({
@@ -185,7 +185,15 @@ impl MCPDockmasterRouter {
             self.mcp_core.clone(),
             configure_request
         ).await {
-            Ok(response) => Ok(response),
+            Ok(response) => {
+                // Spawn the broadcast notification as a separate task
+                self.update_tools_cache().await;
+                tokio::spawn(async {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    broadcast_tools_list_changed().await;
+                });
+                Ok(response)
+            }
             Err(error) => Err(ToolError::ExecutionError(error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string())),
         }
     }
