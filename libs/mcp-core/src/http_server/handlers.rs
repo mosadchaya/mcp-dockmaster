@@ -271,7 +271,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     .map(|arr| arr.iter()
                         .filter_map(|item| item.as_str().map(|s| s.to_string()))
                         .collect())
-                    .unwrap_or_else(|| Vec::new()),
+                    .unwrap_or_default(),
                 ..Default::default()
             }),
         }

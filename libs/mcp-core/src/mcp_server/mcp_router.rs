@@ -59,13 +59,13 @@ impl MCPDockmasterRouter {
         // Get user-installed tools from MCPCore
         match self.get_server_tools().await {
             Ok(response) => {
-                let mut tools = Vec::new();
-                
                 // Add built-in tools
-                tools.push(get_register_server_tool());
-                tools.push(get_search_server_tool());
-                tools.push(get_configure_server_tool());
-                tools.push(get_uninstall_server_tool());
+                let mut tools = vec![
+                    get_register_server_tool(),
+                    get_search_server_tool(),
+                    get_configure_server_tool(),
+                    get_uninstall_server_tool(),
+                ];
                 // Add user-installed tools
                 for tool_info in response.tools {
                     // Convert ServerToolInfo to Tool
@@ -120,9 +120,7 @@ impl MCPDockmasterRouter {
         match result {
             Ok(tools) => {
                 // Use the existing ServerToolsResponse struct
-                Ok(ServerToolsResponse {
-                    tools: tools,
-                })
+                Ok(ServerToolsResponse { tools })
             },
             Err(e) => Err(crate::models::types::ErrorResponse {
                 code: -32000,
@@ -449,13 +447,13 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
         tokio::spawn(async move {
             match mcp_core.list_all_server_tools().await {
                 Ok(server_tools) => {
-                    let mut tools_vec = Vec::new();
-                    
                     // Add built-in tools
-                    tools_vec.push(get_register_server_tool());
-                    tools_vec.push(get_search_server_tool());
-                    tools_vec.push(get_configure_server_tool());
-                    tools_vec.push(get_uninstall_server_tool());
+                    let mut tools_vec = vec![
+                        get_register_server_tool(),
+                        get_search_server_tool(),
+                        get_configure_server_tool(),
+                        get_uninstall_server_tool(),
+                    ];
 
                     // Add user-installed tools
                     for tool_info in server_tools {
