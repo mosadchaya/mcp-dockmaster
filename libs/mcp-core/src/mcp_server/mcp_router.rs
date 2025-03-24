@@ -21,6 +21,7 @@ use crate::{
 use super::tools::{
     TOOL_REGISTER_SERVER, get_register_server_tool,
     TOOL_SEARCH_SERVER, get_search_server_tool,
+    TOOL_CONFIGURE_SERVER, get_configure_server_tool,
 };
 
 /// MCP Router implementation for the Dockmaster server
@@ -62,6 +63,7 @@ impl MCPDockmasterRouter {
                 // Add built-in tools
                 tools.push(get_register_server_tool());
                 tools.push(get_search_server_tool());
+                tools.push(get_configure_server_tool());
 
                 // Add user-installed tools
                 for tool_info in response.tools {
@@ -166,6 +168,28 @@ impl MCPDockmasterRouter {
         }
     }
 
+    async fn handle_configure_server(&self, args: Value) -> Result<Value, ToolError> {
+        // Convert the args into the format expected by the HTTP handler
+        let configure_request = if let Some(tool_id) = args.get("tool_id").and_then(|v| v.as_str()) {
+            serde_json::json!({
+                "tool_id": tool_id,
+                "config": args.get("config").unwrap_or(&Value::Null)
+            })
+        } else {
+            // Otherwise, expect direct registration parameters
+            args
+        };
+
+        // Use the HTTP handler's logic through MCPCore
+        match crate::http_server::handlers::handle_get_server_config(
+            self.mcp_core.clone(),
+            configure_request
+        ).await {
+            Ok(response) => Ok(response),
+            Err(error) => Err(ToolError::ExecutionError(error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string())),
+        }
+    }
+
     /// Handle search_server tool
     async fn handle_search_server(&self, args: Value) -> Result<Value, ToolError> {
         // Extract the query parameter from the args
@@ -245,6 +269,10 @@ impl MCPDockmasterRouter {
 
         if tool_name == TOOL_SEARCH_SERVER {
             return self.handle_search_server(args).await;
+        }
+        
+        if tool_name == TOOL_CONFIGURE_SERVER {
+            return self.handle_configure_server(args).await;
         }
         
         // For non-built-in tools, find the appropriate server that has this tool
@@ -363,6 +391,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
             log::info!("No tools in cache, adding register_server tool");
             tools.push(get_register_server_tool());
             tools.push(get_search_server_tool());
+            tools.push(get_configure_server_tool());
         }
         
         // Log what we're returning
@@ -381,6 +410,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
                     // Add built-in tools
                     tools_vec.push(get_register_server_tool());
                     tools_vec.push(get_search_server_tool());
+                    tools_vec.push(get_configure_server_tool());
 
                     // Add user-installed tools
                     for tool_info in server_tools {

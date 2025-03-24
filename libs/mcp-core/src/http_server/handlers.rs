@@ -668,7 +668,7 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
     }
 }
 
-async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
+pub async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     info!("handle_get_server_config: params {:?}", params);
     let config: ConfigUpdateRequest = match serde_json::from_value(params) {
         Ok(config) => config,
