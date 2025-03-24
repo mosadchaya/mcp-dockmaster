@@ -5,7 +5,7 @@ use serde_json::json;
 pub const TOOL_REGISTER_SERVER: &str = "register_server";
 pub const TOOL_SEARCH_SERVER: &str = "search_server";
 pub const TOOL_CONFIGURE_SERVER: &str = "configure_server";
-
+pub const TOOL_UNINSTALL_SERVER: &str = "uninstall_server";
 /// Get the register_server tool definition
 pub fn get_register_server_tool() -> Tool {
     Tool {
@@ -48,16 +48,34 @@ pub fn get_configure_server_tool() -> Tool {
         input_schema: json!({
             "type": "object",
             "properties": {
-                "tool_id": {
+                "server_id": {
                     "type": "string",
-                    "description": "ID of the tool to configure"
+                    "description": "ID of the server to configure"
                 },
                 "config": {
                     "type": "object",
                     "description": "Configuration for the server"
                 }
             },
-            "required": ["tool_id", "config"]
+            "required": ["server_id", "config"]
+        }),
+    }
+}
+
+/// Get the uninstall_server tool definition
+pub fn get_uninstall_server_tool() -> Tool {
+    Tool {
+        name: TOOL_UNINSTALL_SERVER.to_string(),
+        description: "Uninstall a server from MCP using its registry tool ID".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "server_id": {
+                    "type": "string",
+                    "description": "ID of the server to uninstall"
+                }
+            },
+            "required": ["server_id"]
         }),
     }
 }

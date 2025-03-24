@@ -14,7 +14,7 @@ use log::{info, error};
 use crate::{
     core::mcp_core::MCPCore,
     core::mcp_core_proxy_ext::McpCoreProxyExt,
-    models::types::{ServerToolsResponse, ToolExecutionRequest},
+    models::types::{ServerToolsResponse, ToolExecutionRequest, ToolUninstallRequest},
     registry::registry_search::{RegistrySearch, SearchError},
 };
 
@@ -22,6 +22,7 @@ use super::tools::{
     TOOL_REGISTER_SERVER, get_register_server_tool,
     TOOL_SEARCH_SERVER, get_search_server_tool,
     TOOL_CONFIGURE_SERVER, get_configure_server_tool,
+    TOOL_UNINSTALL_SERVER, get_uninstall_server_tool,
 };
 
 use super::notifications::broadcast_tools_list_changed;
@@ -64,7 +65,7 @@ impl MCPDockmasterRouter {
                 tools.push(get_register_server_tool());
                 tools.push(get_search_server_tool());
                 tools.push(get_configure_server_tool());
-
+                tools.push(get_uninstall_server_tool());
                 // Add user-installed tools
                 for tool_info in response.tools {
                     // Convert ServerToolInfo to Tool
@@ -168,11 +169,41 @@ impl MCPDockmasterRouter {
         }
     }
 
+    /// Handle uninstall_server tool
+    async fn handle_uninstall_server(&self, args: Value) -> Result<Value, ToolError> {
+        // Convert the args into the format expected by the HTTP handler
+        let uninstall_request: ToolUninstallRequest = if let Some(server_id) = args.get("server_id").and_then(|v| v.as_str()) {
+            ToolUninstallRequest {
+                server_id: server_id.to_string()
+            }
+        } else {
+            // Otherwise, return error of missing server_id
+            return Err(ToolError::ExecutionError("Missing server_id parameter".to_string()));
+        };
+        match self.mcp_core.uninstall_server(uninstall_request).await {
+            Ok(response) => {
+                // Update the tools cache after successful uninstallation
+                self.update_tools_cache().await;
+                // Spawn the broadcast notification as a separate task
+                tokio::spawn(async {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    broadcast_tools_list_changed().await;
+                });
+                Ok(json!({
+                    "success": true,
+                    "message": response.message
+                }))
+            },
+            Err(error) => Err(ToolError::ExecutionError(error)),
+        }
+    }
+
+    /// Handle configure_server tool
     async fn handle_configure_server(&self, args: Value) -> Result<Value, ToolError> {
         // Convert the args into the format expected by the HTTP handler
-        let configure_request = if let Some(tool_id) = args.get("tool_id").and_then(|v| v.as_str()) {
+        let configure_request = if let Some(server_id) = args.get("server_id").and_then(|v| v.as_str()) {
             serde_json::json!({
-                "tool_id": tool_id,
+                "tool_id": server_id,
                 "config": args.get("config").unwrap_or(&Value::Null)
             })
         } else {
@@ -283,6 +314,10 @@ impl MCPDockmasterRouter {
             return self.handle_configure_server(args).await;
         }
         
+        if tool_name == TOOL_UNINSTALL_SERVER {
+            return self.handle_uninstall_server(args).await;
+        }
+
         // For non-built-in tools, find the appropriate server that has this tool
         let mcp_state = self.mcp_core.mcp_state.read().await;
         let server_tools = mcp_state.server_tools.read().await;
@@ -400,6 +435,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
             tools.push(get_register_server_tool());
             tools.push(get_search_server_tool());
             tools.push(get_configure_server_tool());
+            tools.push(get_uninstall_server_tool());
         }
         
         // Log what we're returning
@@ -419,6 +455,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
                     tools_vec.push(get_register_server_tool());
                     tools_vec.push(get_search_server_tool());
                     tools_vec.push(get_configure_server_tool());
+                    tools_vec.push(get_uninstall_server_tool());
 
                     // Add user-installed tools
                     for tool_info in server_tools {
