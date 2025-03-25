@@ -23,6 +23,7 @@ use super::tools::{
     TOOL_SEARCH_SERVER, get_search_server_tool,
     TOOL_CONFIGURE_SERVER, get_configure_server_tool,
     TOOL_UNINSTALL_SERVER, get_uninstall_server_tool,
+    TOOL_LIST_INSTALLED_SERVERS, get_list_installed_servers_tool,
 };
 
 use super::notifications::broadcast_tools_list_changed;
@@ -65,6 +66,7 @@ impl MCPDockmasterRouter {
                     get_search_server_tool(),
                     get_configure_server_tool(),
                     get_uninstall_server_tool(),
+                    get_list_installed_servers_tool(),
                 ];
                 // Add user-installed tools
                 for tool_info in response.tools {
@@ -297,74 +299,77 @@ impl MCPDockmasterRouter {
         }))
     }
 
+    /// Handle list_installed_servers tool
+    async fn handle_list_installed_servers(&self, _args: Value) -> Result<Value, ToolError> {
+        // Get the installed servers from MCPCore
+        let result = self.mcp_core.list_servers().await;
+        
+        // Return the installed servers as JSON
+        Ok(json!({
+            "servers": result
+        }))
+    }
+
     /// Execute a tool by finding the appropriate server and forwarding the call
     async fn execute_tool(&self, tool_name: &str, args: Value) -> Result<Value, ToolError> {
-        // Handle built-in tools first
-        if tool_name == TOOL_REGISTER_SERVER {
-            return self.handle_register_server(args).await;
-        }
+        match tool_name {
+            TOOL_REGISTER_SERVER => self.handle_register_server(args).await,
+            TOOL_SEARCH_SERVER => self.handle_search_server(args).await,
+            TOOL_CONFIGURE_SERVER => self.handle_configure_server(args).await,
+            TOOL_UNINSTALL_SERVER => self.handle_uninstall_server(args).await,
+            TOOL_LIST_INSTALLED_SERVERS => self.handle_list_installed_servers(args).await,
+            _ => {
+                // For non-built-in tools, find the appropriate server that has this tool
+                let mcp_state = self.mcp_core.mcp_state.read().await;
+                let server_tools = mcp_state.server_tools.read().await;
 
-        if tool_name == TOOL_SEARCH_SERVER {
-            return self.handle_search_server(args).await;
-        }
-        
-        if tool_name == TOOL_CONFIGURE_SERVER {
-            return self.handle_configure_server(args).await;
-        }
-        
-        if tool_name == TOOL_UNINSTALL_SERVER {
-            return self.handle_uninstall_server(args).await;
-        }
+                // Find which server has the requested tool
+                let mut server_id = None;
 
-        // For non-built-in tools, find the appropriate server that has this tool
-        let mcp_state = self.mcp_core.mcp_state.read().await;
-        let server_tools = mcp_state.server_tools.read().await;
+                for (sid, tools) in &*server_tools {
+                    for tool in tools {
+                        if tool.id == tool_name {
+                            server_id = Some(sid.clone());
+                            break;
+                        }
 
-        // Find which server has the requested tool
-        let mut server_id = None;
+                        // Also check by name if id doesn't match
+                        if tool.name == tool_name {
+                            server_id = Some(sid.clone());
+                            break;
+                        }
+                    }
 
-        for (sid, tools) in &*server_tools {
-            for tool in tools {
-                if tool.id == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
+                    if server_id.is_some() {
+                        break;
+                    }
                 }
 
-                // Also check by name if id doesn't match
-                if tool.name == tool_name {
-                    server_id = Some(sid.clone());
-                    break;
-                }
-            }
+                // Drop the locks before proceeding
+                drop(server_tools);
+                drop(mcp_state);
 
-            if server_id.is_some() {
-                break;
-            }
-        }
+                match server_id {
+                    Some(server_id) => {
+                        let request = ToolExecutionRequest {
+                            tool_id: format!("{}:{}", server_id, tool_name),
+                            parameters: args,
+                        };
 
-        // Drop the locks before proceeding
-        drop(server_tools);
-        drop(mcp_state);
-
-        match server_id {
-            Some(server_id) => {
-                let request = ToolExecutionRequest {
-                    tool_id: format!("{}:{}", server_id, tool_name),
-                    parameters: args,
-                };
-
-                match self.mcp_core.execute_proxy_tool(request).await {
-                    Ok(response) => {
-                        if response.success {
-                            Ok(response.result.unwrap_or(json!(null)))
-                        } else {
-                            Err(ToolError::ExecutionError(response.error.unwrap_or_else(|| "Unknown error".to_string())))
+                        match self.mcp_core.execute_proxy_tool(request).await {
+                            Ok(response) => {
+                                if response.success {
+                                    Ok(response.result.unwrap_or(json!(null)))
+                                } else {
+                                    Err(ToolError::ExecutionError(response.error.unwrap_or_else(|| "Unknown error".to_string())))
+                                }
+                            },
+                            Err(e) => Err(ToolError::ExecutionError(format!("Failed to execute tool: {}", e))),
                         }
                     },
-                    Err(e) => Err(ToolError::ExecutionError(format!("Failed to execute tool: {}", e))),
+                    None => Err(ToolError::NotFound(format!("Tool '{}' not found", tool_name))),
                 }
-            },
-            None => Err(ToolError::NotFound(format!("Tool '{}' not found", tool_name))),
+            }
         }
     }
     
@@ -434,6 +439,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
             tools.push(get_search_server_tool());
             tools.push(get_configure_server_tool());
             tools.push(get_uninstall_server_tool());
+            tools.push(get_list_installed_servers_tool());
         }
         
         // Log what we're returning
@@ -453,6 +459,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
                         get_search_server_tool(),
                         get_configure_server_tool(),
                         get_uninstall_server_tool(),
+                        get_list_installed_servers_tool(),
                     ];
 
                     // Add user-installed tools

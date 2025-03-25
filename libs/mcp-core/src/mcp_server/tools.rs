@@ -2,10 +2,25 @@ use mcp_sdk_core::Tool;
 use serde_json::json;
 
 /// Constants for tool names
-pub const TOOL_REGISTER_SERVER: &str = "register_server";
-pub const TOOL_SEARCH_SERVER: &str = "search_server";
-pub const TOOL_CONFIGURE_SERVER: &str = "configure_server";
-pub const TOOL_UNINSTALL_SERVER: &str = "uninstall_server";
+pub const TOOL_REGISTER_SERVER: &str = "mcp_register_server";
+pub const TOOL_SEARCH_SERVER: &str = "mcp_search_server";
+pub const TOOL_CONFIGURE_SERVER: &str = "mcp_configure_server";
+pub const TOOL_UNINSTALL_SERVER: &str = "mcp_uninstall_server";
+pub const TOOL_LIST_INSTALLED_SERVERS: &str = "mcp_list_installed_servers";
+
+/// Get the list installed servers tool definition
+pub fn get_list_installed_servers_tool() -> Tool {
+    Tool {
+        name: TOOL_LIST_INSTALLED_SERVERS.to_string(),
+        description: "List all installed servers".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {},
+            "required": []
+        }),
+    }
+}
+
 /// Get the register_server tool definition
 pub fn get_register_server_tool() -> Tool {
     Tool {
