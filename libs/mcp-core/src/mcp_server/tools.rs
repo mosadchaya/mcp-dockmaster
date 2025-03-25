@@ -69,7 +69,7 @@ pub fn get_configure_server_tool() -> Tool {
                 },
                 "config": {
                     "type": "object",
-                    "description": "Configuration for the server"
+                    "description": "Configuration for the server, it's not neccesary to nest the environment variables inside an env object, just pass the key and value"
                 }
             },
             "required": ["server_id", "config"]
