@@ -4,16 +4,24 @@ use axum::{
 };
 use log::{error, info};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
 use crate::core::mcp_core::MCPCore;
 use crate::http_server::handlers::{handle_mcp_request, health_check, sse_handler, sse_post_handler};
-use crate::mcp_server::{MCPDockmasterRouter};
+use crate::mcp_server::mcp_router::MCPDockmasterRouter;
 
 pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), String> {
     // Create our MCP router that will handle RPC requests
-    let mcp_router = MCPDockmasterRouter::new(mcp_core.clone());
-    mcp_router.update_tools_cache().await;
+    let mcp_router = MCPDockmasterRouter::new(mcp_core.clone()).await;
+    
+    // Update the tools cache
+    if let Err(e) = mcp_router.update_tools_cache("initialization").await {
+        error!("Failed to update tools cache after initialization: {}", e);
+    }
+    
+    // Wrap the router in an Arc for sharing
+    let mcp_router = Arc::new(mcp_router);
 
     // Set up the HTTP routes
     let app = Router::new()
@@ -22,7 +30,7 @@ pub async fn start_http_server(mcp_core: MCPCore, port: u16) -> Result<(), Strin
         .route("/mcp/sse", get(sse_handler).post(sse_post_handler))
         .route("/mcp-proxy", post(handle_mcp_request))
         .route("/mcp", post(handle_mcp_request))
-        .layer(Extension(mcp_core.clone()))
+        .layer(Extension(mcp_core))
         .layer(Extension(mcp_router))
         .layer(CorsLayer::permissive());
 

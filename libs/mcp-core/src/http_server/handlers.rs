@@ -31,7 +31,13 @@ use futures::StreamExt;
 use uuid::Uuid;
 
 use mcp_sdk_server::router::RouterService;
-use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
+use crate::mcp_server::tools::{
+    TOOL_REGISTER_SERVER, get_register_server_tool,
+    TOOL_SEARCH_SERVER, get_search_server_tool,
+    TOOL_CONFIGURE_SERVER, get_configure_server_tool,
+    TOOL_UNINSTALL_SERVER, get_uninstall_server_tool,
+    TOOL_LIST_INSTALLED_SERVERS, get_list_installed_servers_tool
+};
 
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
@@ -112,7 +118,7 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn handle_mcp_request(
     Extension(mcp_core): Extension<MCPCore>,
-    Extension(mcp_router): Extension<crate::mcp_server::MCPDockmasterRouter>,
+    Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
@@ -247,35 +253,142 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
     // Get the installed tools from MCPCore
     let result = mcp_core.list_all_server_tools().await;
 
+    // Check if tools are hidden
+    let mcp_state = mcp_core.mcp_state.read().await;
+    let are_tools_hidden = mcp_state.are_tools_hidden.read().await;
+    
     // Create a list of built-in tools converted to ServerToolInfo format
-    let register_server_tool = get_register_server_tool();
-    let built_in_tools = vec![
-        ServerToolInfo {
-            id: register_server_tool.name.clone(),
-            name: TOOL_REGISTER_SERVER.to_string(),
-            description: register_server_tool.description.clone(),
-            server_id: "builtin".to_string(),
-            proxy_id: None,
-            is_active: true,
-            input_schema: Some(InputSchema {
-                r#type: "object".to_string(),
-                properties: HashMap::from_iter(
-                    serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                        register_server_tool.input_schema.get("properties")
-                            .cloned()
-                            .unwrap_or_else(|| json!({}))
-                    ).unwrap_or_default()
-                ),
-                required: register_server_tool.input_schema.get("required")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter()
-                        .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                        .collect())
-                    .unwrap_or_default(),
-                ..Default::default()
-            }),
-        }
-    ];
+    let built_in_tools = if *are_tools_hidden {
+        vec![] // Return empty array if tools are hidden
+    } else {
+        vec![
+            ServerToolInfo {
+                id: TOOL_REGISTER_SERVER.to_string(),
+                name: TOOL_REGISTER_SERVER.to_string(),
+                description: get_register_server_tool().description.clone(),
+                server_id: "builtin".to_string(),
+                proxy_id: None,
+                is_active: true,
+                input_schema: Some(InputSchema {
+                    r#type: "object".to_string(),
+                    properties: HashMap::from_iter(
+                        serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                            get_register_server_tool().input_schema.get("properties")
+                                .cloned()
+                                .unwrap_or_else(|| json!({}))
+                        ).unwrap_or_default()
+                    ),
+                    required: get_register_server_tool().input_schema.get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                            .collect())
+                        .unwrap_or_default(),
+                    ..Default::default()
+                }),
+            },
+            ServerToolInfo {
+                id: TOOL_SEARCH_SERVER.to_string(),
+                name: TOOL_SEARCH_SERVER.to_string(),
+                description: get_search_server_tool().description.clone(),
+                server_id: "builtin".to_string(),
+                proxy_id: None,
+                is_active: true,
+                input_schema: Some(InputSchema {
+                    r#type: "object".to_string(),
+                    properties: HashMap::from_iter(
+                        serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                            get_search_server_tool().input_schema.get("properties")
+                                .cloned()
+                                .unwrap_or_else(|| json!({}))
+                        ).unwrap_or_default()
+                    ),
+                    required: get_search_server_tool().input_schema.get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                            .collect())
+                        .unwrap_or_default(),
+                    ..Default::default()
+                }),
+            },
+            ServerToolInfo {
+                id: TOOL_CONFIGURE_SERVER.to_string(),
+                name: TOOL_CONFIGURE_SERVER.to_string(),
+                description: get_configure_server_tool().description.clone(),
+                server_id: "builtin".to_string(),
+                proxy_id: None,
+                is_active: true,
+                input_schema: Some(InputSchema {
+                    r#type: "object".to_string(),
+                    properties: HashMap::from_iter(
+                        serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                            get_configure_server_tool().input_schema.get("properties")
+                                .cloned()
+                                .unwrap_or_else(|| json!({}))
+                        ).unwrap_or_default()
+                    ),
+                    required: get_configure_server_tool().input_schema.get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                            .collect())
+                        .unwrap_or_default(),
+                    ..Default::default()
+                }),
+            },
+            ServerToolInfo {
+                id: TOOL_UNINSTALL_SERVER.to_string(),
+                name: TOOL_UNINSTALL_SERVER.to_string(),
+                description: get_uninstall_server_tool().description.clone(),
+                server_id: "builtin".to_string(),
+                proxy_id: None,
+                is_active: true,
+                input_schema: Some(InputSchema {
+                    r#type: "object".to_string(),
+                    properties: HashMap::from_iter(
+                        serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                            get_uninstall_server_tool().input_schema.get("properties")
+                                .cloned()
+                                .unwrap_or_else(|| json!({}))
+                        ).unwrap_or_default()
+                    ),
+                    required: get_uninstall_server_tool().input_schema.get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                            .collect())
+                        .unwrap_or_default(),
+                    ..Default::default()
+                }),
+            },
+            ServerToolInfo {
+                id: TOOL_LIST_INSTALLED_SERVERS.to_string(),
+                name: TOOL_LIST_INSTALLED_SERVERS.to_string(),
+                description: get_list_installed_servers_tool().description.clone(),
+                server_id: "builtin".to_string(),
+                proxy_id: None,
+                is_active: true,
+                input_schema: Some(InputSchema {
+                    r#type: "object".to_string(),
+                    properties: HashMap::from_iter(
+                        serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                            get_list_installed_servers_tool().input_schema.get("properties")
+                                .cloned()
+                                .unwrap_or_else(|| json!({}))
+                        ).unwrap_or_default()
+                    ),
+                    required: get_list_installed_servers_tool().input_schema.get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                            .collect())
+                        .unwrap_or_default(),
+                    ..Default::default()
+                }),
+            }
+        ]
+    };
 
     match result {
         Ok(tools) => {
@@ -734,7 +847,7 @@ async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
 /// SSE endpoint handler with bidirectional communication
 pub async fn sse_handler(
     Extension(_mcp_core): Extension<MCPCore>,
-    Extension(router): Extension<MCPDockmasterRouter>,
+    Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let session_id = Uuid::new_v4().to_string();
     info!("New SSE connection established: {}", session_id);
@@ -760,10 +873,11 @@ pub async fn sse_handler(
     // Spawn a task to handle incoming messages from the client
     {
         let session_id = session_id.clone();
-        let router_clone = router.clone();
+        let router_clone = mcp_router.clone();
         
         tokio::spawn(async move {
-            let router_service = RouterService(router_clone);
+            // Dereference the Arc to get the actual router
+            let router_service = RouterService((*router_clone).clone());
             let server = Server::new(router_service);
             let byte_transport = ByteTransport::new(c2s_read, s2c_write);
             

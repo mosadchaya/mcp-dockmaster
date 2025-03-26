@@ -2,6 +2,7 @@ pub mod mcp_router;
 pub mod session_manager;
 pub mod tools;
 pub mod notifications;
+pub mod mcp_tools_service;
 
 pub use self::mcp_router::MCPDockmasterRouter;
 pub use self::session_manager::SESSION_MANAGER;

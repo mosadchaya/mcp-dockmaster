@@ -15,6 +15,7 @@ use log::{error, info};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use toml::Table;
 
 use super::mcp_core::MCPCore;
@@ -310,6 +311,12 @@ impl McpCoreProxyExt for MCPCore {
                 success: false,
                 message: e,
             });
+        }
+        // Update the tools cache
+        let tools_service = MCPToolsService::get_instance().await;
+        if let Err(e) =  tools_service.expect("REASON").update_cache().await {
+            error!("Failed to update tools cache after updating tool status: {}", e);
+            return Err(e);
         }
 
         // Return success

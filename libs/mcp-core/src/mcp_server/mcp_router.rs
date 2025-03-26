@@ -8,22 +8,22 @@ use mcp_sdk_core::{
 };
 use mcp_sdk_server::router::CapabilitiesBuilder;
 use serde_json::{json, Value};
-use tokio::sync::RwLock;
 use log::{info, error};
 
 use crate::{
     core::mcp_core::MCPCore,
     core::mcp_core_proxy_ext::McpCoreProxyExt,
-    models::types::{ServerToolsResponse, ToolExecutionRequest, ToolUninstallRequest},
+    models::types::{ToolExecutionRequest, ToolUninstallRequest},
     registry::registry_search::{RegistrySearch, SearchError},
+    mcp_server::mcp_tools_service::MCPToolsService,
 };
 
 use super::tools::{
-    TOOL_REGISTER_SERVER, get_register_server_tool,
-    TOOL_SEARCH_SERVER, get_search_server_tool,
-    TOOL_CONFIGURE_SERVER, get_configure_server_tool,
-    TOOL_UNINSTALL_SERVER, get_uninstall_server_tool,
-    TOOL_LIST_INSTALLED_SERVERS, get_list_installed_servers_tool,
+    TOOL_REGISTER_SERVER,
+    TOOL_SEARCH_SERVER,
+    TOOL_CONFIGURE_SERVER,
+    TOOL_UNINSTALL_SERVER,
+    TOOL_LIST_INSTALLED_SERVERS,
 };
 
 use super::notifications::broadcast_tools_list_changed;
@@ -34,103 +34,37 @@ use super::notifications::broadcast_tools_list_changed;
 pub struct MCPDockmasterRouter {
     mcp_core: MCPCore,
     server_name: String,
-    tools_cache: Arc<RwLock<Vec<Tool>>>,
+    tools_service: Arc<MCPToolsService>,
 }
 
 impl MCPDockmasterRouter {
     /// Create a new MCP router for the Dockmaster server
-    pub fn new(mcp_core: MCPCore) -> Self {
+    pub async fn new(mcp_core: MCPCore) -> Self {
+        let tools_service = MCPToolsService::initialize(mcp_core.clone()).await;
         Self {
             mcp_core,
             server_name: "mcp-dockmaster-server".to_string(),
-            tools_cache: Arc::new(RwLock::new(Vec::new())),
+            tools_service,
         }
     }
 
-    /// Get all server tools
-    async fn list_all_tools(&self) -> Result<Vec<Tool>, ToolError> {
-        // Check the cache first
-        {
-            let cache = self.tools_cache.read().await;
-            if !cache.is_empty() {
-                return Ok(cache.clone());
-            }
+    /// Update the tools cache and broadcast a notification
+    pub async fn update_tools_cache(&self, operation: &str) -> Result<(), String> {
+        // Update the tools cache
+        if let Err(e) = self.tools_service.update_cache().await {
+            error!("Failed to update tools cache after {}: {}", operation, e);
+            return Err(e);
         }
 
-        // Get user-installed tools from MCPCore
-        match self.get_server_tools().await {
-            Ok(response) => {
-                // Add built-in tools
-                let mut tools = vec![
-                    get_register_server_tool(),
-                    get_search_server_tool(),
-                    get_configure_server_tool(),
-                    get_uninstall_server_tool(),
-                    get_list_installed_servers_tool(),
-                ];
-                // Add user-installed tools
-                for tool_info in response.tools {
-                    // Convert ServerToolInfo to Tool
-                    if let Some(input_schema) = tool_info.input_schema {
-                        // Convert InputSchema to serde_json::Value
-                        let schema_value = json!({
-                            "type": input_schema.r#type,
-                            "properties": input_schema.properties,
-                            "required": input_schema.required,
-                        });
-                        
-                        let tool = Tool {
-                            name: tool_info.name,
-                            description: tool_info.description,
-                            input_schema: schema_value,
-                        };
-                        
-                        tools.push(tool);
-                    } else {
-                        // Create a tool with an empty schema
-                        let tool = Tool {
-                            name: tool_info.name,
-                            description: tool_info.description,
-                            input_schema: json!({
-                                "type": "object",
-                                "properties": {},
-                                "required": []
-                            }),
-                        };
-                        
-                        tools.push(tool);
-                    }
-                }
-                
-                // Update the cache
-                {
-                    let mut cache = self.tools_cache.write().await;
-                    *cache = tools.clone();
-                }
-                
-                Ok(tools)
-            },
-            Err(error) => Err(ToolError::NotFound(format!("Failed to list tools: {}", error.message))),
-        }
-    }
-    
-    /// Get server tools using MCPCore
-    async fn get_server_tools(&self) -> Result<ServerToolsResponse, crate::models::types::ErrorResponse> {
-        // Get the installed tools from MCPCore
-        let result = self.mcp_core.list_all_server_tools().await;
+        // Spawn the broadcast notification as a separate task
+        tokio::spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            broadcast_tools_list_changed().await;
+        });
 
-        match result {
-            Ok(tools) => {
-                // Use the existing ServerToolsResponse struct
-                Ok(ServerToolsResponse { tools })
-            },
-            Err(e) => Err(crate::models::types::ErrorResponse {
-                code: -32000,
-                message: format!("Failed to list tools: {}", e),
-            }),
-        }
+        Ok(())
     }
-    
+
     /// Handle register_server tool
     async fn handle_register_server(&self, args: Value) -> Result<Value, ToolError> {
         // Convert the args into the format expected by the HTTP handler
@@ -151,13 +85,9 @@ impl MCPDockmasterRouter {
         ).await {
             Ok(response) => {
                 // Update the tools cache after successful registration
-                self.update_tools_cache().await;
-                
-                // Spawn the broadcast notification as a separate task
-                tokio::spawn(async {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    broadcast_tools_list_changed().await;
-                });
+                if let Err(e) = self.update_tools_cache("registration").await {
+                    error!("Failed to update tools cache after registration: {}", e);
+                }
                 
                 Ok(json!({
                     "success": true,
@@ -183,12 +113,9 @@ impl MCPDockmasterRouter {
         match self.mcp_core.uninstall_server(uninstall_request).await {
             Ok(response) => {
                 // Update the tools cache after successful uninstallation
-                self.update_tools_cache().await;
-                // Spawn the broadcast notification as a separate task
-                tokio::spawn(async {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    broadcast_tools_list_changed().await;
-                });
+                if let Err(e) = self.update_tools_cache("uninstallation").await {
+                    error!("Failed to update tools cache after uninstallation: {}", e);
+                }
                 Ok(json!({
                     "success": true,
                     "message": response.message
@@ -217,12 +144,10 @@ impl MCPDockmasterRouter {
             configure_request
         ).await {
             Ok(response) => {
-                // Spawn the broadcast notification as a separate task
-                self.update_tools_cache().await;
-                tokio::spawn(async {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    broadcast_tools_list_changed().await;
-                });
+                // Update the tools cache after successful configuration
+                if let Err(e) = self.update_tools_cache("configuration").await {
+                    error!("Failed to update tools cache after configuration: {}", e);
+                }
                 Ok(response)
             }
             Err(error) => Err(ToolError::ExecutionError(error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string())),
@@ -372,24 +297,6 @@ impl MCPDockmasterRouter {
             }
         }
     }
-    
-    /// Update the tools cache with the latest tools from all servers
-    pub async fn update_tools_cache(&self) {
-        // Update the tools cache
-        match self.list_all_tools().await {
-            Ok(tools) => {
-                let mut cache = self.tools_cache.write().await;
-                *cache = tools.clone();
-                log::info!("Tools cache updated with {} tools", cache.len());
-            },
-            Err(e) => {
-                log::error!("Failed to update tools cache: {}", e);
-                // Clear the cache to force refresh on next request
-                let mut cache = self.tools_cache.write().await;
-                cache.clear();
-            }
-        }
-    }
 }
 
 impl mcp_sdk_server::Router for MCPDockmasterRouter {
@@ -411,103 +318,7 @@ impl mcp_sdk_server::Router for MCPDockmasterRouter {
     }
 
     fn list_tools(&self) -> Vec<Tool> {
-        // This is synchronous, so we need to use a synchronous approach instead of block_on
-        // Start with an empty list of tools
-        let mut tools = Vec::new();
-        
-        // Get cached tools if available (using a std::sync Mutex instead of an async lock)
-        let cache_handle = self.tools_cache.clone();
-        
-        // Try to read from the existing cache (non-blocking)
-        let cache_found = if let Ok(cache) = cache_handle.try_read() {
-            if !cache.is_empty() {
-                log::info!("Found {} tools in cache", cache.len());
-                // Add all cached tools
-                tools = cache.clone();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-        
-        // If we didn't find any cached tools, add the register_server tool
-        if !cache_found {
-            log::info!("No tools in cache, adding register_server tool");
-            tools.push(get_register_server_tool());
-            tools.push(get_search_server_tool());
-            tools.push(get_configure_server_tool());
-            tools.push(get_uninstall_server_tool());
-            tools.push(get_list_installed_servers_tool());
-        }
-        
-        // Log what we're returning
-        log::info!("Returning {} tools from list_tools", tools.len());
-        
-        // Trigger an async task to update the cache for future calls
-        let mcp_core = self.mcp_core.clone();
-        let cache_clone = cache_handle.clone();
-        
-        // Spawn a task to update the cache for future requests
-        tokio::spawn(async move {
-            match mcp_core.list_all_server_tools().await {
-                Ok(server_tools) => {
-                    // Add built-in tools
-                    let mut tools_vec = vec![
-                        get_register_server_tool(),
-                        get_search_server_tool(),
-                        get_configure_server_tool(),
-                        get_uninstall_server_tool(),
-                        get_list_installed_servers_tool(),
-                    ];
-
-                    // Add user-installed tools
-                    for tool_info in server_tools {
-                        // Convert ServerToolInfo to Tool
-                        if let Some(input_schema) = tool_info.input_schema {
-                            // Convert InputSchema to serde_json::Value
-                            let schema_value = json!({
-                                "type": input_schema.r#type,
-                                "properties": input_schema.properties,
-                                "required": input_schema.required,
-                            });
-                            
-                            let tool = Tool {
-                                name: tool_info.name,
-                                description: tool_info.description,
-                                input_schema: schema_value,
-                            };
-                            
-                            tools_vec.push(tool);
-                        } else {
-                            // Create a tool with an empty schema
-                            let tool = Tool {
-                                name: tool_info.name,
-                                description: tool_info.description,
-                                input_schema: json!({
-                                    "type": "object",
-                                    "properties": {},
-                                    "required": []
-                                }),
-                            };
-                            
-                            tools_vec.push(tool);
-                        }
-                    }
-                    
-                    // Update the cache
-                    let mut cache = cache_clone.write().await;
-                    *cache = tools_vec;
-                    log::info!("Tools cache updated with {} tools", cache.len());
-                },
-                Err(e) => {
-                    log::error!("Failed to update tools cache: {}", e);
-                }
-            }
-        });
-        
-        tools
+        self.tools_service.list_tools()
     }
 
     fn call_tool(
