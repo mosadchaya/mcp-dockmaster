@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+use crate::mcp_server::mcp_tools_service::MCPToolsService;
 
 /// Type alias for a transport that uses StdioTransportHandle
 pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
@@ -341,6 +342,13 @@ impl MCPState {
             "Tools visibility set to: {}",
             if hidden { "hidden" } else { "visible" }
         );
+
+        // Update the tools service cache state
+        if let Some(tools_service) = MCPToolsService::get_instance().await {
+            if let Err(e) = tools_service.set_tools_hidden(hidden).await {
+                error!("Failed to update tools service visibility state: {}", e);
+            }
+        }
 
         // Persist the state to the database
         let registry = self.tool_registry.read().await;

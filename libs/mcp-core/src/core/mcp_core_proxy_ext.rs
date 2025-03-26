@@ -15,6 +15,7 @@ use log::{error, info};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use toml::Table;
 
 use super::mcp_core::MCPCore;
@@ -311,6 +312,12 @@ impl McpCoreProxyExt for MCPCore {
                 message: e,
             });
         }
+        // Update the tools cache
+        let tools_service = MCPToolsService::get_instance().await;
+        if let Err(e) =  tools_service.expect("REASON").update_cache().await {
+            error!("Failed to update tools cache after updating tool status: {}", e);
+            return Err(e);
+        }
 
         // Return success
         Ok(ToolUpdateResponse {
@@ -497,7 +504,7 @@ impl McpCoreProxyExt for MCPCore {
         }
     }
 
-    /// Initialize the MCP server and start background services
+    /// Initialize and start background mcp services
     async fn init_mcp_server(&self) -> Result<()> {
         info!("Starting background initialization of MCP services");
 
@@ -514,6 +521,8 @@ impl McpCoreProxyExt for MCPCore {
                 return Err(anyhow::anyhow!("Failed to get tools from database: {}", e));
             }
         };
+        
+        info!("MCP state initialized, preparing to restart enabled tools");
 
         // Update the state with the new registry
         // Create a vector of futures for parallel execution
