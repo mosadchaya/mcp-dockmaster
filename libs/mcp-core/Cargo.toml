@@ -44,6 +44,5 @@ name = "mcp_core"
 path = "src/lib.rs"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full", "test-util"] }
 serial_test = "3.0.0"
 tempfile = "3.19.0"
