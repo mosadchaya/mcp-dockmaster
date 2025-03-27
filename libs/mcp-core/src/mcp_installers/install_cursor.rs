@@ -42,7 +42,7 @@ pub fn is_cursor_installed(app_name: &str) -> Result<bool, CursorError> {
         .map_err(|e| {
         error!(
             "cannot install: Failed to read Cursor MCP global config: {}",
-            e.to_string()
+            e
         );
         CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;
@@ -57,7 +57,7 @@ pub fn is_cursor_installed(app_name: &str) -> Result<bool, CursorError> {
             serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
                 error!(
                     "cannot install: Failed to parse Cursor MCP global config: {}",
-                    e.to_string()
+                    e
                 );
                 CursorError::InvalidJson(e.to_string())
             })?
@@ -73,7 +73,7 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
         File::create(&cursor_mcp_global_config_path).map_err(|e| {
             error!(
                 "cannot install: Failed to create Cursor MCP global config: {}",
-                e.to_string()
+                e
             );
             CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
         })?;
@@ -82,7 +82,7 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
         std::fs::read_to_string(&cursor_mcp_global_config_path).map_err(|e| {
             error!(
                 "cannot install: Failed to read Cursor MCP global config: {}",
-                e.to_string()
+                e
             );
             CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
         })?
@@ -99,7 +99,7 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
             serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
                 error!(
                     "cannot install: Failed to parse Cursor MCP global config: {}",
-                    e.to_string()
+                    e
                 );
                 CursorError::InvalidJson(e.to_string())
             })?
@@ -127,7 +127,7 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
     .map_err(|e| {
         error!(
             "cannot install: Failed to write Cursor MCP global config: {}",
-            e.to_string()
+            e
         );
         CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;

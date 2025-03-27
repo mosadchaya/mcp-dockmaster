@@ -35,7 +35,7 @@ pub fn get_envs() -> HashMap<String, String> {
                 let shell_env_delimiter = stdout.split("_SHELL_ENV_DELIMITER_").nth(1);
 
                 if shell_env_delimiter.is_none() {
-                    error!("shell env delimiter not found: {}", stdout.to_string());
+                    error!("shell env delimiter not found: {}", stdout);
                     return HashMap::new();
                 }
 
@@ -62,7 +62,7 @@ pub fn get_envs() -> HashMap<String, String> {
         Err(e) => {
             error!(
                 "error executing default shell to grab environment variables: {}",
-                e.to_string()
+                e
             );
             HashMap::new()
         }
