@@ -1,20 +1,17 @@
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
+use log::{error, info};
 use mcp_sdk_core::Tool;
 use serde_json::json;
 use tokio::sync::RwLock;
-use log::{info, error};
 
 use super::tools::{
-    get_register_server_tool,
-    get_search_server_tool,
-    get_configure_server_tool,
-    get_uninstall_server_tool,
-    get_list_installed_servers_tool,
+    get_configure_server_tool, get_list_installed_servers_tool, get_register_server_tool,
+    get_search_server_tool, get_uninstall_server_tool,
 };
 
-use std::sync::Arc;
 use lazy_static::lazy_static;
+use std::sync::Arc;
 
 lazy_static! {
     static ref INSTANCE: RwLock<Option<Arc<MCPToolsService>>> = RwLock::new(None);
@@ -34,7 +31,7 @@ impl MCPToolsService {
             are_tools_hidden: Arc::new(RwLock::new(false)),
         }
     }
-    
+
     pub async fn initialize(mcp_core: MCPCore) -> Arc<Self> {
         let mut instance = INSTANCE.write().await;
         if instance.is_none() {
@@ -42,7 +39,7 @@ impl MCPToolsService {
         }
         instance.as_ref().unwrap().clone()
     }
-    
+
     pub async fn get_instance() -> Option<Arc<Self>> {
         let instance = INSTANCE.read().await;
         instance.clone()
@@ -52,7 +49,10 @@ impl MCPToolsService {
     pub async fn set_tools_hidden(&self, hidden: bool) -> Result<(), String> {
         let mut are_tools_hidden = self.are_tools_hidden.write().await;
         *are_tools_hidden = hidden;
-        info!("Tools visibility set to: {}", if hidden { "hidden" } else { "visible" });
+        info!(
+            "Tools visibility set to: {}",
+            if hidden { "hidden" } else { "visible" }
+        );
         Ok(())
     }
 
@@ -74,10 +74,10 @@ impl MCPToolsService {
 
         // Start with an empty list of tools
         let mut tools = Vec::new();
-        
+
         // Get cached tools if available
         let cache_handle = self.tools_cache.clone();
-        
+
         // Try to read from the existing cache (non-blocking)
         let cache_found = if let Ok(cache) = cache_handle.try_read() {
             if !cache.is_empty() {
@@ -91,7 +91,7 @@ impl MCPToolsService {
         } else {
             false
         };
-        
+
         // If we didn't find any cached tools, add the built-in tools
         if !cache_found {
             info!("No tools in cache, adding built-in tools");
@@ -101,21 +101,21 @@ impl MCPToolsService {
             tools.push(get_uninstall_server_tool());
             tools.push(get_list_installed_servers_tool());
         }
-        
+
         // Log what we're returning
         info!("Returning {} tools from list_tools", tools.len());
-        
+
         // Trigger an async task to update the cache for future calls
         let mcp_core = self.mcp_core.clone();
         let cache_clone = self.tools_cache.clone();
-        
+
         // Spawn a task to update the cache for future requests
         tokio::spawn(async move {
             if let Err(e) = update_cache_internal(mcp_core, cache_clone).await {
                 error!("Failed to update tools cache: {}", e);
             }
         });
-        
+
         tools
     }
 
@@ -140,7 +140,10 @@ impl MCPToolsService {
 }
 
 /// Internal function to update the cache
-async fn update_cache_internal(mcp_core: MCPCore, cache: Arc<RwLock<Vec<Tool>>>) -> Result<(), String> {
+async fn update_cache_internal(
+    mcp_core: MCPCore,
+    cache: Arc<RwLock<Vec<Tool>>>,
+) -> Result<(), String> {
     // Get user-installed tools from MCPCore
     match mcp_core.list_all_server_tools().await {
         Ok(server_tools) => {
@@ -163,13 +166,13 @@ async fn update_cache_internal(mcp_core: MCPCore, cache: Arc<RwLock<Vec<Tool>>>)
                         "properties": input_schema.properties,
                         "required": input_schema.required,
                     });
-                    
+
                     let tool = Tool {
                         name: tool_info.name,
                         description: tool_info.description,
                         input_schema: schema_value,
                     };
-                    
+
                     tools_vec.push(tool);
                 } else {
                     // Create a tool with an empty schema
@@ -182,17 +185,17 @@ async fn update_cache_internal(mcp_core: MCPCore, cache: Arc<RwLock<Vec<Tool>>>)
                             "required": []
                         }),
                     };
-                    
+
                     tools_vec.push(tool);
                 }
             }
-            
+
             // Update the cache
             let mut cache = cache.write().await;
             *cache = tools_vec;
             info!("Tools cache updated with {} tools", cache.len());
             Ok(())
-        },
+        }
         Err(e) => {
             error!("Failed to update tools cache: {}", e);
             // Clear the cache to force refresh on next request

@@ -124,10 +124,23 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
 
     info!("database path: {}", database_path.display());
 
+    let app_id = app_handle.config().identifier.clone();
+    let app_id_suffix = app_id
+        .split(".")
+        .find(|s| *s == "local")
+        .unwrap_or("")
+        .to_string();
+    let mut app_name = String::from("mcp-dockmaster");
+    if !app_id_suffix.is_empty() {
+        app_name = format!("{app_name}.{app_id_suffix}");
+    }
+
+    info!("app name: {}", app_name);
+
     let mcp_core = MCPCore::new(
         database_path.clone(),
         proxy_server_sidecar_path.to_path_buf(),
-        app_handle.config().identifier.clone(),
+        app_name,
     );
     app_handle.manage(MCPCoreOptions {
         database_path,
