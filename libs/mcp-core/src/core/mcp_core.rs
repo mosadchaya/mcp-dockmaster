@@ -108,10 +108,13 @@ impl MCPCore {
             error!("Failed to apply database migrations: {}", e);
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
-        
+
         // Update registry cache before starting the server
         info!("Updating registry cache before server initialization");
-        match crate::registry::registry_cache::RegistryCache::instance().update_registry_cache().await {
+        match crate::registry::registry_cache::RegistryCache::instance()
+            .update_registry_cache()
+            .await
+        {
             Ok(_) => info!("Registry cache successfully updated"),
             Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
         }

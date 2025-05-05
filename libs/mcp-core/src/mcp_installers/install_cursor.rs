@@ -13,6 +13,7 @@ struct CursorMcpGlobalConfig {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(untagged)]
 enum McpServer {
     Command(CommandMcpServer),
     Sse(SseMcpServer),
