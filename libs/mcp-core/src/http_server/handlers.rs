@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
@@ -13,31 +13,29 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
-    ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
-    ToolExecutionRequest, InputSchemaProperty
+    Distribution, ErrorResponse, InputSchema, InputSchemaProperty, RegistryToolsResponse,
+    ServerConfiguration, ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo,
+    ServerToolsResponse, ToolExecutionRequest,
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
 use mcp_sdk_server::Router;
 
 use axum::{
-    response::sse::{Event, Sse},
     extract::Query,
+    response::sse::{Event, Sse},
 };
 use futures::stream::Stream;
+use futures::StreamExt;
 use std::convert::Infallible;
 use tokio::io::{self, AsyncWriteExt};
-use futures::StreamExt;
 use uuid::Uuid;
 
-use mcp_sdk_server::router::RouterService;
 use crate::mcp_server::tools::{
-    TOOL_REGISTER_SERVER, get_register_server_tool,
-    TOOL_SEARCH_SERVER, get_search_server_tool,
-    TOOL_CONFIGURE_SERVER, get_configure_server_tool,
-    TOOL_UNINSTALL_SERVER, get_uninstall_server_tool,
-    TOOL_LIST_INSTALLED_SERVERS, get_list_installed_servers_tool
+    get_configure_server_tool, get_list_installed_servers_tool, get_register_server_tool,
+    get_search_server_tool, get_uninstall_server_tool, TOOL_CONFIGURE_SERVER,
+    TOOL_LIST_INSTALLED_SERVERS, TOOL_REGISTER_SERVER, TOOL_SEARCH_SERVER, TOOL_UNINSTALL_SERVER,
 };
+use mcp_sdk_server::router::RouterService;
 
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
@@ -46,7 +44,6 @@ use crate::mcp_server::mcp_router::MCPDockmasterRouter;
 use crate::mcp_server::session_manager::SESSION_MANAGER;
 use mcp_sdk_server::{ByteTransport, Server};
 use tokio_util::codec::FramedRead;
-
 
 /// JSON-RPC request structure
 #[derive(Deserialize, Debug)]
@@ -130,7 +127,7 @@ pub async fn handle_mcp_request(
             let capabilities = mcp_router.capabilities();
             let name = mcp_router.name();
             let instructions = mcp_router.instructions();
-            
+
             // Return the initialization response
             Ok(json!({
                 "protocolVersion": "2024-11-05",
@@ -141,7 +138,7 @@ pub async fn handle_mcp_request(
                 "instructions": instructions,
                 "capabilities": capabilities
             }))
-        },
+        }
         "tools/list" => match handle_list_tools(mcp_core).await {
             Ok(response) => Ok(serde_json::to_value(response).unwrap()),
             Err(error) => Err(serde_json::to_value(error).unwrap()),
@@ -156,7 +153,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters"
                 }))
             }
-        },
+        }
         "prompts/list" => handle_list_prompts().await,
         "resources/list" => handle_list_resources().await,
         "resources/read" => {
@@ -168,7 +165,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for resource reading"
                 }))
             }
-        },
+        }
         "prompts/get" => {
             if let Some(params) = request.params {
                 handle_get_prompt(params).await
@@ -178,7 +175,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for prompt retrieval"
                 }))
             }
-        },
+        }
         "registry/install" => {
             if let Some(params) = request.params {
                 match handle_register_tool(mcp_core, params).await {
@@ -191,7 +188,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for tool installation"
                 }))
             }
-        },
+        }
         "registry/import" => {
             if let Some(params) = request.params {
                 handle_import_server_from_url(mcp_core, params).await
@@ -201,7 +198,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for server import"
                 }))
             }
-        },
+        }
         "registry/list" => handle_list_all_tools(mcp_core).await,
         "server/config" => {
             if let Some(params) = request.params {
@@ -212,7 +209,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for server config"
                 }))
             }
-        },
+        }
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method '{}' not found", request.method)
@@ -256,7 +253,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
     // Check if tools are hidden
     let mcp_state = mcp_core.mcp_state.read().await;
     let are_tools_hidden = mcp_state.are_tools_hidden.read().await;
-    
+
     // Create a list of built-in tools converted to ServerToolInfo format
     let built_in_tools = if *are_tools_hidden {
         vec![] // Return empty array if tools are hidden
@@ -273,16 +270,23 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     r#type: "object".to_string(),
                     properties: HashMap::from_iter(
                         serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                            get_register_server_tool().input_schema.get("properties")
+                            get_register_server_tool()
+                                .input_schema
+                                .get("properties")
                                 .cloned()
-                                .unwrap_or_else(|| json!({}))
-                        ).unwrap_or_default()
+                                .unwrap_or_else(|| json!({})),
+                        )
+                        .unwrap_or_default(),
                     ),
-                    required: get_register_server_tool().input_schema.get("required")
+                    required: get_register_server_tool()
+                        .input_schema
+                        .get("required")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                     ..Default::default()
                 }),
@@ -298,16 +302,23 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     r#type: "object".to_string(),
                     properties: HashMap::from_iter(
                         serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                            get_search_server_tool().input_schema.get("properties")
+                            get_search_server_tool()
+                                .input_schema
+                                .get("properties")
                                 .cloned()
-                                .unwrap_or_else(|| json!({}))
-                        ).unwrap_or_default()
+                                .unwrap_or_else(|| json!({})),
+                        )
+                        .unwrap_or_default(),
                     ),
-                    required: get_search_server_tool().input_schema.get("required")
+                    required: get_search_server_tool()
+                        .input_schema
+                        .get("required")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                     ..Default::default()
                 }),
@@ -323,16 +334,23 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     r#type: "object".to_string(),
                     properties: HashMap::from_iter(
                         serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                            get_configure_server_tool().input_schema.get("properties")
+                            get_configure_server_tool()
+                                .input_schema
+                                .get("properties")
                                 .cloned()
-                                .unwrap_or_else(|| json!({}))
-                        ).unwrap_or_default()
+                                .unwrap_or_else(|| json!({})),
+                        )
+                        .unwrap_or_default(),
                     ),
-                    required: get_configure_server_tool().input_schema.get("required")
+                    required: get_configure_server_tool()
+                        .input_schema
+                        .get("required")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                     ..Default::default()
                 }),
@@ -348,16 +366,23 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     r#type: "object".to_string(),
                     properties: HashMap::from_iter(
                         serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                            get_uninstall_server_tool().input_schema.get("properties")
+                            get_uninstall_server_tool()
+                                .input_schema
+                                .get("properties")
                                 .cloned()
-                                .unwrap_or_else(|| json!({}))
-                        ).unwrap_or_default()
+                                .unwrap_or_else(|| json!({})),
+                        )
+                        .unwrap_or_default(),
                     ),
-                    required: get_uninstall_server_tool().input_schema.get("required")
+                    required: get_uninstall_server_tool()
+                        .input_schema
+                        .get("required")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                     ..Default::default()
                 }),
@@ -373,20 +398,27 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     r#type: "object".to_string(),
                     properties: HashMap::from_iter(
                         serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
-                            get_list_installed_servers_tool().input_schema.get("properties")
+                            get_list_installed_servers_tool()
+                                .input_schema
+                                .get("properties")
                                 .cloned()
-                                .unwrap_or_else(|| json!({}))
-                        ).unwrap_or_default()
+                                .unwrap_or_else(|| json!({})),
+                        )
+                        .unwrap_or_default(),
                     ),
-                    required: get_list_installed_servers_tool().input_schema.get("required")
+                    required: get_list_installed_servers_tool()
+                        .input_schema
+                        .get("required")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                     ..Default::default()
                 }),
-            }
+            },
         ]
     };
 
@@ -394,7 +426,7 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
         Ok(tools) => {
             // Add built-in tools first, then user-installed tools
             let mut all_tools = built_in_tools;
-            
+
             // Add the user-installed tools
             let tools_with_defaults: Vec<ServerToolInfo> = tools
                 .into_iter()
@@ -411,12 +443,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     tool
                 })
                 .collect();
-            
+
             all_tools.extend(tools_with_defaults);
 
-            Ok(ServerToolsResponse {
-                tools: all_tools,
-            })
+            Ok(ServerToolsResponse { tools: all_tools })
         }
         Err(e) => Err(ErrorResponse {
             code: -32000,
@@ -547,10 +577,7 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         if let (Some(data), Some(timestamp)) = (&cache.data, cache.timestamp) {
             if timestamp.elapsed() < CACHE_DURATION {
                 // Cache is still valid
-                match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
-                    Ok(response) => Some(response),
-                    Err(_) => None,
-                }
+                serde_json::from_value::<RegistryToolsResponse>(data.clone()).ok()
             } else {
                 None
             }
@@ -851,63 +878,61 @@ pub async fn sse_handler(
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let session_id = Uuid::new_v4().to_string();
     info!("New SSE connection established: {}", session_id);
-    
+
     const BUFFER_SIZE: usize = 1 << 12; // 4KB
-    // Create channels for command and response
+                                        // Create channels for command and response
     let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
     let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
     // Create a separate channel for notifications
     let (notification_read, notification_write) = io::simplex(BUFFER_SIZE);
-    
+
     // Wrap writers in Arc<Mutex>
     let command_writer = Arc::new(TokioMutex::new(c2s_write));
     let notification_writer = Arc::new(TokioMutex::new(notification_write));
-    
+
     // Register both channels
-    SESSION_MANAGER.register_session(
-        session_id.clone(),
-        command_writer,
-        notification_writer
-    ).await;
-    
+    SESSION_MANAGER
+        .register_session(session_id.clone(), command_writer, notification_writer)
+        .await;
+
     // Spawn a task to handle incoming messages from the client
     {
         let session_id = session_id.clone();
         let router_clone = mcp_router.clone();
-        
+
         tokio::spawn(async move {
             // Dereference the Arc to get the actual router
             let router_service = RouterService((*router_clone).clone());
             let server = Server::new(router_service);
             let byte_transport = ByteTransport::new(c2s_read, s2c_write);
-            
+
             let result = server.run(byte_transport).await;
-            
+
             if let Err(e) = &result {
                 log::error!("Server run error for session {}: {:?}", session_id, e);
             }
-            
+
             SESSION_MANAGER.remove_session(&session_id).await;
-            
+
             result
         });
     }
-    
+
     // Create an initial event with the session ID
     let initial_event = futures::stream::once(futures::future::ok(
         Event::default()
             .event("endpoint")
-            .data(format!("?sessionId={session_id}"))
+            .data(format!("?sessionId={session_id}")),
     ));
-    
+
     // Create streams for both s2c and notification channels
     let message_stream = create_message_stream(s2c_read);
     let notification_stream = create_message_stream(notification_read);
-    
+
     // Merge all streams together
-    let combined_stream = initial_event
-        .chain(futures::stream::select(message_stream, notification_stream));
-    
+    let combined_stream =
+        initial_event.chain(futures::stream::select(message_stream, notification_stream));
+
     Sse::new(combined_stream)
 }
 
@@ -925,7 +950,7 @@ pub async fn sse_post_handler(
 ) -> (StatusCode, &'static str) {
     let session_id = &params.session_id;
     info!("Received POST request for session {}", session_id);
-    
+
     let writer = {
         let sessions = SESSION_MANAGER.sessions.lock().await;
         match sessions.get(session_id) {
@@ -936,15 +961,15 @@ pub async fn sse_post_handler(
             }
         }
     };
-    
+
     // Convert the body to a byte stream
     const BODY_BYTES_LIMIT: usize = 1 << 22; // 4MB
     let mut body = body.into_data_stream();
     let mut size = 0;
-    
+
     // Lock the writer for the entire request
     let mut writer = writer.lock().await;
-    
+
     // Forward each chunk to the session's channel
     while let Some(chunk) = body.next().await {
         match chunk {
@@ -954,10 +979,13 @@ pub async fn sse_post_handler(
                     log::error!("Payload too large for session {}", session_id);
                     return (StatusCode::PAYLOAD_TOO_LARGE, "Payload too large");
                 }
-                
+
                 if let Err(e) = writer.write_all(&chunk).await {
                     log::error!("Failed to write to session {}: {}", session_id, e);
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed to write to session",
+                    );
                 }
             }
             Err(_) => {
@@ -966,19 +994,22 @@ pub async fn sse_post_handler(
             }
         }
     }
-    
+
     // Add a newline to separate messages
     if let Err(e) = writer.write_u8(b'\n').await {
         log::error!("Failed to write newline to session {}: {}", session_id, e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to write to session",
+        );
     }
-    
+
     // Flush the writer to ensure the data is sent
     if let Err(e) = writer.flush().await {
         log::error!("Failed to flush session {}: {}", session_id, e);
         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to flush session");
     }
-    
+
     // Return a success response
     (StatusCode::ACCEPTED, "")
 }
@@ -989,25 +1020,27 @@ fn create_message_stream(
 ) -> impl Stream<Item = Result<Event, Infallible>> {
     futures::stream::unfold(read_half, |read_half| async move {
         let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
-        
+
         if let Some(result) = framed.next().await {
             let read_half = framed.into_inner();
             match result {
                 Ok(bytes) => {
                     let event = match std::str::from_utf8(&bytes) {
-                        Ok(message) => {
-                            Event::default().event("message").data(message)
-                        },
+                        Ok(message) => Event::default().event("message").data(message),
                         Err(e) => {
                             log::error!("Error parsing UTF-8: {}", e);
-                            Event::default().event("error").data(format!("UTF-8 error: {}", e))
+                            Event::default()
+                                .event("error")
+                                .data(format!("UTF-8 error: {}", e))
                         }
                     };
                     Some((Ok::<_, Infallible>(event), read_half))
-                },
+                }
                 Err(e) => {
                     log::error!("Error reading frame: {}", e);
-                    let event = Event::default().event("error").data(format!("Frame error: {}", e));
+                    let event = Event::default()
+                        .event("error")
+                        .data(format!("Frame error: {}", e));
                     Some((Ok::<_, Infallible>(event), read_half))
                 }
             }
