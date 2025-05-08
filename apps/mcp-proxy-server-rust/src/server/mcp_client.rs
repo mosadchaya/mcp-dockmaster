@@ -1,96 +1,36 @@
 use anyhow::Result;
-use mcp_client::McpService;
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::sse::SseTransportHandle;
-use mcp_client::transport::{SseTransport, Transport};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-use tower::timeout::Timeout;
-use tracing::{debug, info};
+use rmcp::{
+    RoleClient, ServiceExt,
+    model::{ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam},
+    service::RunningService,
+    transport::SseTransport,
+};
 
-type McpClientInstance = McpClient<Timeout<McpService<SseTransportHandle>>>;
+pub async fn get_mcp_client(
+    server_url: &str,
+) -> Result<RunningService<RoleClient, InitializeRequestParam>> {
+    let transport = SseTransport::start(server_url).await?;
+    let client_info = ClientInfo {
+        protocol_version: Default::default(),
+        capabilities: ClientCapabilities::default(),
+        client_info: Implementation {
+            name: "dockmaster-mcp-proxy-server-client".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+        },
+    };
+    let client = client_info.serve(transport).await.inspect_err(|e| {
+        tracing::error!("client error: {:?}", e);
+    })?;
 
-pub struct McpClientProxy {
-    server_url: String,
-    client: Option<Arc<McpClientInstance>>,
-}
-
-impl Clone for McpClientProxy {
-    fn clone(&self) -> Self {
-        Self {
-            server_url: self.server_url.clone(),
-            client: self.client.clone(),
-        }
+    if cfg!(debug_assertions) {
+        tracing::debug!("MCP client initialized with server URL: {}", server_url);
+        tracing::debug!("MCP client peer info: {:?}", client.peer_info());
+        tracing::debug!("MCP client tools: {:?}", client.list_tools(None).await?);
+        tracing::debug!(
+            "MCP client resources: {:?}",
+            client.list_resources(None).await?
+        );
+        tracing::debug!("MCP client prompts: {:?}", client.list_prompts(None).await?);
     }
-}
-
-impl Default for McpClientProxy {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl McpClientProxy {
-    pub fn new() -> Self {
-        let port = std::env::var("DOCKMASTER_HTTP_SERVER_PORT")
-            .unwrap_or_else(|_| "11011".to_string())
-            .parse::<u16>()
-            .unwrap_or(11011);
-        let server_url = format!("http://localhost:{}/mcp/sse", port);
-
-        McpClientProxy {
-            server_url: server_url.to_string(),
-            client: None,
-        }
-    }
-
-    pub async fn init(&mut self) -> Result<()> {
-        // Create the base transport
-        let transport = SseTransport::new(&self.server_url, HashMap::new());
-
-        // Start transport
-        let handle = transport.start().await?;
-
-        // Create the service with timeout middleware
-        let service = McpService::with_timeout(handle, Duration::from_secs(300));
-
-        // Create client
-        let mut client = McpClient::new(service);
-        debug!("Client created\n");
-
-        // Initialize
-        let server_info = client
-            .initialize(
-                ClientInfo {
-                    name: "mcp-proxy-server-rust".into(),
-                    version: env!("CARGO_PKG_VERSION").into(),
-                },
-                ClientCapabilities::default(),
-            )
-            .await?;
-        info!("Connected to server: {server_info:?}\n");
-
-        // Sleep for 100ms to allow the server to start - surprisingly this is required!
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // List tools
-        let tools = client.list_tools(None).await?;
-        debug!("Available tools: {tools:?}\n");
-
-        // List resources
-        let resources = client.list_resources(None).await?;
-        debug!("Available resources: {resources:?}\n");
-
-        // List prompts
-        let prompts = client.list_prompts(None).await?;
-        debug!("Available prompts: {prompts:?}\n");
-
-        self.client = Some(Arc::new(client));
-        Ok(())
-    }
-
-    pub fn get_client(&self) -> Option<Arc<McpClientInstance>> {
-        self.client.clone()
-    }
+    Ok(client)
 }

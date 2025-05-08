@@ -133,22 +133,6 @@ impl DockmasterRouter {
 }
 
 impl mcp_server::Router for DockmasterRouter {
-    fn name(&self) -> String {
-        "dockmaster".to_string()
-    }
-
-    fn instructions(&self) -> String {
-        "This server is a proxy to the MCP Dockmaster Application.".to_string()
-    }
-
-    fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new()
-            .with_tools(true)
-            .with_prompts(true)
-            .with_resources(true, true)
-            .build()
-    }
-
     fn list_tools(&self) -> Vec<Tool> {
         // Use a synchronous lock to get the cached tools
         self.tools_cache

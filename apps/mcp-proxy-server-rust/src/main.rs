@@ -1,7 +1,5 @@
 use anyhow::Result;
 use clap::Parser;
-use mcp_server::router::RouterService;
-use mcp_server::{ByteTransport, Server};
 use tokio::io::{stdin, stdout};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
@@ -34,16 +32,9 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
-    // Create transport
-    let transport = ByteTransport::new(stdin(), stdout());
-
-    // Create an instance of our router
-    let mut dockmaster_router = server::router::DockmasterRouter::new();
-    dockmaster_router.initialize().await;
-    let router = RouterService(dockmaster_router);
-
-    // Create the server
-    let server = Server::new(router);
+    let mcp_client = server::mcp_client::get_mcp_client("http://localhost:11011/mcp/sse")
+        .await
+        .unwrap();
 
     tracing::info!("Ready to handle requests...");
     Ok(server.run(transport).await?)
