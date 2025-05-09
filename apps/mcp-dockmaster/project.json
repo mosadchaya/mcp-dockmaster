@@ -7,7 +7,7 @@
       "dependsOn": ["mcp-proxy-server:build"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "copyfiles -u 3 \"dist/apps/mcp-proxy-server/*\" \"apps/mcp-dockmaster/src-tauri/sidecars/\""
+        "command": "copyfiles -u 3 \"apps/mcp-proxy-server/target/debug/mcp-proxy-server\" \"apps/mcp-dockmaster/src-tauri/sidecars/\""
       }
     },
     "build": {
