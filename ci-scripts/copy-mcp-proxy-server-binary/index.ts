@@ -9,7 +9,7 @@ if (buildTypeIndex !== -1 && buildTypeIndex < Deno.args.length - 1) {
 console.log(`Using build type: ${buildType}`);
 
 // Get target triple from environment or use default
-const targetTriple = Deno.env.get("TARGET_TRIPLE") || "x86_64-pc-windows-msvc";
+const targetTriple = Deno.build.target;
 
 // Paths
 const workspaceRoot = new URL("../../", import.meta.url).pathname.replace(
