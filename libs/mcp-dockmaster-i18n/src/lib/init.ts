@@ -56,7 +56,7 @@ const initI18n = async () => {
         escapeValue: false,
       },
       debug: true,
-    }, (err, t) => {
+    }, (err) => {
       if (err) {
         console.error('[i18n] Initialization failed:', err);
       } else {
