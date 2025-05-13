@@ -1,6 +1,6 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { I18nProvider } from '@mcp-dockmaster/i18n';
+import { I18nProvider, useTranslation } from '@mcp-dockmaster/i18n';
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
@@ -63,6 +63,7 @@ function NavItem({
 }
 
 function AppSidebar() {
+  const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState<string | null>(null);
   useEffect(() => {
     getVersion().then((version) => {
@@ -71,21 +72,21 @@ function AppSidebar() {
     });
   }, []);
   const items = [
-    { id: "home", label: "Home", icon: HomeIcon, to: "/" },
+    { id: "home", label: t('navigation.home'), icon: HomeIcon, to: "/" },
     {
       id: "installed",
-      label: "Servers Installed",
+      label: t('navigation.servers_installed'),
       icon: ServersIcon,
       to: "/installed",
     },
     {
       id: "registry",
-      label: "MCP Server Registry",
+      label: t('navigation.mcp_server_registry'),
       icon: RegistryIcon,
       to: "/registry",
     },
-    { id: "about", label: "About", icon: AboutIcon, to: "/about" },
-    { id: "feedback", label: "Feedback", icon: MessageSquare, to: "/feedback" },
+    { id: "about", label: t('navigation.about'), icon: AboutIcon, to: "/about" },
+    { id: "feedback", label: t('navigation.feedback'), icon: MessageSquare, to: "/feedback" },
   ];
 
   return (
@@ -109,7 +110,7 @@ function AppSidebar() {
       <SidebarSeparator />
       <SidebarFooter>
         <div className="text-sidebar-foreground/70 text-center text-xs">
-          App Version: {appVersion}
+          {t('navigation.app_version')} {appVersion}
         </div>
       </SidebarFooter>
       <SidebarRail />
