@@ -1,0 +1,74 @@
+export const defaultTranslations = {
+  "common": {
+    "welcome": "Welcome",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete"
+  },
+  "navigation": {
+    "home": "Home",
+    "settings": "Settings",
+    "profile": "Profile",
+    "logout": "Logout"
+  },
+  "errors": {
+    "required": "This field is required",
+    "invalid_email": "Please enter a valid email address",
+    "network_error": "Network error. Please check your connection",
+    "server_error": "Server error. Please try again later"
+  },
+  "validation": {
+    "min_length": "Must be at least {{count}} characters",
+    "max_length": "Must be at most {{count}} characters",
+    "password_mismatch": "Passwords do not match"
+  },
+  "home": {
+    "title": "Welcome to MCP Dockmaster",
+    "refresh": "Refresh",
+    "checking": "Checking...",
+    "what_is_mcp": "What is MCP?",
+    "install_error": "Failed to open installation page for {{toolName}}",
+    "install_success": "{{mcpClientApp}} installed successfully! Please restart {{mcpClientApp}} to apply the changes.",
+    "restart_success": "{{mcpClientApp}} restarted successfully!",
+    "restart_error": "Failed to restart {{mcpClientApp}}",
+    "mcp_description": "MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs.",
+    "getting_started": "Getting Started",
+    "environment": {
+      "title": "Environment Details",
+      "description": "Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.",
+      "installed": "Installed and running",
+      "not_installed": "Not installed or not running",
+      "active": "Active",
+      "inactive": "Inactive",
+      "install": "Install"
+    },
+    "integration": {
+      "title": "Integration Details",
+      "description": "Add Dockmaster to Cursor, Claude Desktop, or any other MCP client.",
+      "add_to_cursor": "Add to Cursor",
+      "add_to_claude": "Add to Claude Desktop",
+      "add_to_other": "Add to other MCP client",
+      "other": "Other Apps",
+      "inactive": "Inactive",
+      "active": "Active",
+      "other_description": "Add MCP Dockmaster to any other app that supports MCP Servers of type command:"
+    },
+    "registry": {
+      "title": "Registry Details",
+      "description": "Browse available MCPs from the registry to extend your AI applications with various capabilities.",
+      "view_registry": "View Registry",
+    },
+    "restart": {
+      "title": "Restart Options",
+      "description": "Restart your MCP clients to apply the changes and start using your MCPs.",
+      "running": "Running",
+      "not_running": "Not Running",
+      "restart": "Restart"
+    }
+  }
+};
+
+export default defaultTranslations; 

@@ -1,5 +1,6 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nProvider } from '@mcp-dockmaster/i18n';
 
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
@@ -120,27 +121,29 @@ export const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={0}>
-        <InitMcpOverlay>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <SidebarTrigger className="absolute top-2 left-2" />
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/installed" element={<InstalledServers />} />
-                <Route path="/registry" element={<Registry />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/feedback" element={<Feedback />} />
-                <Route element={<Navigate replace to={"/"} />} path="*" />
-              </Routes>
-            </SidebarInset>
-          </SidebarProvider>
-        </InitMcpOverlay>
-      </TooltipProvider>
-      <Toaster position="top-right" theme="light" />
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={0}>
+          <InitMcpOverlay>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <SidebarTrigger className="absolute top-2 left-2" />
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/installed" element={<InstalledServers />} />
+                  <Route path="/registry" element={<Registry />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/feedback" element={<Feedback />} />
+                  <Route element={<Navigate replace to={"/"} />} path="*" />
+                </Routes>
+              </SidebarInset>
+            </SidebarProvider>
+          </InitMcpOverlay>
+        </TooltipProvider>
+        <Toaster position="top-right" theme="light" />
+      </QueryClientProvider>
+    </I18nProvider>
   );
 };
 

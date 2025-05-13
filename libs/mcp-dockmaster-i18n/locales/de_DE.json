@@ -1,0 +1,72 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "error": "Ein Fehler ist aufgetreten",
+    "loading": "Laden...",
+    "retry": "Erneut versuchen",
+    "save": "Speichern",
+    "welcome": "Willkommen"
+  },
+  "errors": {
+    "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+    "network_error": "Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung",
+    "required": "Dieses Feld ist erforderlich",
+    "server_error": "Serverfehler. Bitte versuchen Sie es später erneut"
+  },
+  "home": {
+    "checking": "Überprüfen...",
+    "environment": {
+      "active": "Aktiv",
+      "description": "Stellen Sie sicher, dass Sie Node.js, Python und Docker installiert haben, um MCPs auszuführen.",
+      "inactive": "Inaktiv",
+      "install": "Installieren",
+      "installed": "Installiert und läuft",
+      "not_installed": "Nicht installiert oder läuft nicht",
+      "title": "Umgebungsdetails"
+    },
+    "getting_started": "Erste Schritte",
+    "install_error": "Fehler beim Öffnen der Installationsseite für {{toolName}}",
+    "install_success": "{{mcpClientApp}} wurde erfolgreich installiert! Bitte starten Sie {{mcpClientApp}} neu, um die Änderungen anzuwenden.",
+    "integration": {
+      "active": "Aktiv",
+      "add_to_claude": "Zu Claude Desktop hinzufügen",
+      "add_to_cursor": "Zum Cursor hinzufügen",
+      "add_to_other": "Zu anderem MCP-Client hinzufügen",
+      "description": "Fügen Sie Dockmaster zu Cursor, Claude Desktop oder einem anderen MCP-Client hinzu.",
+      "inactive": "Inaktiv",
+      "other": "Andere Apps",
+      "other_description": "Fügen Sie MCP Dockmaster zu jeder anderen App hinzu, die MCP-Server vom Typ Befehl unterstützt:",
+      "title": "Integrationsdetails"
+    },
+    "mcp_description": "MCP ist ein Open-Source-Standard von Anthropic, der KI-Anwendungen wie Claude Desktop oder Cursor hilft, einfach auf Daten von Plattformen wie Slack und Google Drive zuzugreifen, mit anderen Anwendungen zu interagieren und sich mit APIs zu verbinden.",
+    "refresh": "Aktualisieren",
+    "registry": {
+      "description": "Durchsuchen Sie die verfügbaren MCPs im Register, um Ihre KI-Anwendungen mit verschiedenen Funktionen zu erweitern.",
+      "title": "Registrierungsdetails",
+      "view_registry": "Register anzeigen"
+    },
+    "restart": {
+      "description": "Starten Sie Ihre MCP-Clients neu, um die Änderungen anzuwenden und Ihre MCPs zu verwenden.",
+      "not_running": "Läuft nicht",
+      "restart": "Neustarten",
+      "running": "Läuft",
+      "title": "Neustartoptionen"
+    },
+    "restart_error": "Fehler beim Neustarten von {{mcpClientApp}}",
+    "restart_success": "{{mcpClientApp}} wurde erfolgreich neu gestartet!",
+    "title": "Willkommen bei MCP Dockmaster",
+    "what_is_mcp": "Was ist MCP?"
+  },
+  "navigation": {
+    "home": "Startseite",
+    "logout": "Abmelden",
+    "profile": "Profil",
+    "settings": "Einstellungen"
+  },
+  "validation": {
+    "max_length": "Darf höchstens {{count}} Zeichen lang sein",
+    "min_length": "Muss mindestens {{count}} Zeichen lang sein",
+    "password_mismatch": "Die Passwörter stimmen nicht überein"
+  }
+}

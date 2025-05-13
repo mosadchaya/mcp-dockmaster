@@ -1,7 +1,8 @@
 {
   "name": "mcp-dockmaster",
-  "projectType": "application",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/mcp-dockmaster/src",
+  "projectType": "application",
   "targets": {
     "copy-proxy-server-sidecar": {
       "dependsOn": ["mcp-proxy-server:build"],
@@ -16,18 +17,18 @@
       }
     },
     "build": {
-      "dependsOn": ["copy-proxy-server-sidecar"],
-      "executor": "nx:run-commands",
+      "executor": "@nx/vite:build",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
       "options": {
-        "command": "npx tauri build",
-        "cwd": "apps/mcp-dockmaster"
+        "outputPath": "dist/apps/mcp-dockmaster"
       },
       "configurations": {
-        "local": {
-          "args": ["--config", "./src-tauri/tauri.conf.local.json"]
+        "development": {
+          "mode": "development"
         },
         "production": {
-          "args": []
+          "mode": "production"
         }
       }
     },
@@ -39,10 +40,26 @@
       }
     },
     "serve": {
-      "dependsOn": ["copy-proxy-server-sidecar"],
+      "executor": "@nx/vite:dev-server",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "mcp-dockmaster:build"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "mcp-dockmaster:build:development",
+          "hmr": true
+        },
+        "production": {
+          "buildTarget": "mcp-dockmaster:build:production",
+          "hmr": false
+        }
+      }
+    },
+    "serve-tauri": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri dev --config \"./src-tauri/tauri.conf.local.json\"",
+        "command": "npx tauri dev",
         "cwd": "apps/mcp-dockmaster"
       }
     },
@@ -54,5 +71,6 @@
       }
     }
   },
+  "dependencies": ["mcp-dockmaster-i18n"],
   "tags": []
 }

@@ -1,0 +1,72 @@
+{
+  "common": {
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "error": "エラーが発生しました",
+    "loading": "読み込み中...",
+    "retry": "再試行",
+    "save": "保存",
+    "welcome": "ようこそ"
+  },
+  "errors": {
+    "invalid_email": "有効なメールアドレスを入力してください",
+    "network_error": "ネットワークエラー。接続を確認してください",
+    "required": "このフィールドは必須です",
+    "server_error": "サーバーエラー。後でもう一度お試しください"
+  },
+  "home": {
+    "checking": "確認中...",
+    "environment": {
+      "active": "アクティブ",
+      "description": "MCPを実行するためにNode.js、Python、Dockerがインストールされていることを確認してください。",
+      "inactive": "非アクティブ",
+      "install": "インストール",
+      "installed": "インストール済みで実行中",
+      "not_installed": "インストールされていないか、実行されていません",
+      "title": "環境の詳細"
+    },
+    "getting_started": "はじめに",
+    "install_error": "{{toolName}}のインストールページを開けませんでした",
+    "install_success": "{{mcpClientApp}}が正常にインストールされました！変更を適用するには{{mcpClientApp}}を再起動してください。",
+    "integration": {
+      "active": "アクティブ",
+      "add_to_claude": "Claudeデスクトップに追加",
+      "add_to_cursor": "カーソルに追加",
+      "add_to_other": "他のMCPクライアントに追加",
+      "description": "DockmasterをCursor、Claude Desktop、または他のMCPクライアントに追加します。",
+      "inactive": "非アクティブ",
+      "other": "その他のアプリ",
+      "other_description": "コマンドタイプのMCPサーバーをサポートする他のアプリにMCP Dockmasterを追加します:",
+      "title": "統合の詳細"
+    },
+    "mcp_description": "MCPはAnthropicによるオープンソースの標準で、Claude DesktopやCursorなどのAIアプリがSlackやGoogle Driveなどのプラットフォームからデータに簡単にアクセスし、他のアプリケーションと対話し、APIに接続できるようにします。",
+    "refresh": "更新",
+    "registry": {
+      "description": "さまざまな機能を持つAIアプリケーションを拡張するために、レジストリから利用可能なMCPを閲覧します。",
+      "title": "レジストリの詳細",
+      "view_registry": "レジストリを表示"
+    },
+    "restart": {
+      "description": "変更を適用し、MCPを使用するためにMCPクライアントを再起動します。",
+      "not_running": "実行されていません",
+      "restart": "再起動",
+      "running": "実行中",
+      "title": "再起動オプション"
+    },
+    "restart_error": "{{mcpClientApp}}の再起動に失敗しました",
+    "restart_success": "{{mcpClientApp}}が正常に再起動しました！",
+    "title": "MCP Dockmasterへようこそ",
+    "what_is_mcp": "MCPとは？"
+  },
+  "navigation": {
+    "home": "ホーム",
+    "logout": "ログアウト",
+    "profile": "プロフィール",
+    "settings": "設定"
+  },
+  "validation": {
+    "max_length": "最大で{{count}}文字以下である必要があります",
+    "min_length": "最低でも{{count}}文字以上である必要があります",
+    "password_mismatch": "パスワードが一致しません"
+  }
+}
