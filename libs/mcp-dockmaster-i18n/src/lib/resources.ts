@@ -1,7 +1,7 @@
-import translation from './default';
+import { defaultTranslations } from './defaultTranslations';
 
 const resources = {
-  translation,
+  translation: defaultTranslations,
 } as const;
 
 export default resources;

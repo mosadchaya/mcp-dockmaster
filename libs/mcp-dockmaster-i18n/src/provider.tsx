@@ -1,19 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useTranslation, Trans as I18nTrans } from 'react-i18next';
-import { I18nContextValue, I18nProviderProps, Language } from './types';
+import { I18nContextValue, I18nProviderProps, Locale } from './types';
 import { initializeI18n, switchLanguage } from './config';
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export const I18nProvider: React.FC<I18nProviderProps> = ({ children, config }) => {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('en');
+  const [currentLanguage, setCurrentLanguage] = useState<Locale>('en_US');
   const { t } = useTranslation();
 
   useEffect(() => {
     initializeI18n(config);
   }, [config]);
 
-  const handleLanguageChange = (lang: Language) => {
+  const handleLanguageChange = (lang: Locale) => {
     switchLanguage(lang);
     setCurrentLanguage(lang);
   };

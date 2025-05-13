@@ -2,7 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import resourcesToBackend from 'i18next-resources-to-backend';
-import { I18nConfig, Language } from './types';
+import { I18nConfig } from './types';
 
 export const defaultConfig: I18nConfig = {
   defaultLanguage: 'en_US',
@@ -41,10 +41,10 @@ export const initializeI18n = (config: Partial<I18nConfig> = {}) => {
   return i18n;
 };
 
-export const switchLanguage = (language: Language) => {
+export const switchLanguage = (language: string) => {
   i18n.changeLanguage(language);
 };
 
-export const getCurrentLanguage = (): Language => {
-  return (i18n.language as Language) || defaultConfig.defaultLanguage;
-}; 
+export const getCurrentLanguage = () => {
+  return (i18n.language) || defaultConfig.defaultLanguage;
+};
