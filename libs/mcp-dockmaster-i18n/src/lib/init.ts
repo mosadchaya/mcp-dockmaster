@@ -3,16 +3,8 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Locales constant might be removed or updated if it was specific to the old structure
-// import { Locales } from './constants'; 
 
-const supportedLocales = [
-  'en', 'en_US', 
-  'es', 'es_ES', 
-  'fr', 'fr_FR', 
-  'de', 'de_DE', 
-  'ja', 'ja_JP', 
-  'zh', 'zh_CN'
-];
+import { allowedLocales } from './constants';
 
 const initI18n = async () => {
   console.log('[i18n] Initializing...');
@@ -44,7 +36,7 @@ const initI18n = async () => {
     .init({
       resources,
       fallbackLng: 'en_US',
-      supportedLngs: supportedLocales,
+      supportedLngs: allowedLocales,
       defaultNS: 'translation',
       fallbackNS: 'translation',
       ns: ['translation'],
@@ -91,7 +83,7 @@ export const t = (key: string, options?: any) => {
 
 export * from './useTranslation';
 
-export type LocaleMode = typeof supportedLocales[number] | 'auto';
+export type LocaleMode = typeof allowedLocales[number] | 'auto';
 
 export const switchLanguage = (locale: LocaleMode) => {
   const lang = locale === 'auto' ? navigator.language : locale;

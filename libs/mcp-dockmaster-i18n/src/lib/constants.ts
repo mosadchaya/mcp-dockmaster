@@ -1,45 +1,46 @@
-export const locales = ['en-US', 'es-ES', 'ja-JP', 'zh-CN', 'id-ID', 'tr-TR'] as const;
+import { Locale } from "../types";
 
-export type Locales = (typeof locales)[number];
+export const allowedLocales: Locale[] = ['en_US', 'es_ES', 'fr_FR', 'de_DE', 'ja_JP', 'zh_CN'] as const;
+
 
 export const normalizeLocale = (locale?: string): string => {
-  if (!locale) return 'en-US';
+  if (!locale) return 'en_US';
 
-  for (const l of locales) {
+  for (const l of allowedLocales) {
     if (l?.startsWith(locale)) return l;
   }
 
-  return 'en-US';
+  return 'en_US';
 };
 
 type LocaleOptions = {
   label: string;
-  value: Locales;
+  value: Locale;
 }[];
 
 export const localeOptions: LocaleOptions = [
   {
     label: 'English',
-    value: 'en-US',
+    value: 'en_US',
   },
   {
     label: '简体中文',
-    value: 'zh-CN',
+    value: 'zh_CN',
   },
   {
     label: '日本語',
-    value: 'ja-JP',
+    value: 'ja_JP',
   },
   {
     label: 'Bahasa Indonesia',
-    value: 'id-ID',
+    value: 'id_ID',
   },
   {
     label: 'Español',
-    value: 'es-ES',
+    value: 'es_ES',
   },
   {
     label: 'Türkiye',
-    value: 'tr-TR',
+    value: 'tr_TR',
   },
 ] as LocaleOptions;

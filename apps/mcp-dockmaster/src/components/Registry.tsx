@@ -598,13 +598,13 @@ const Registry: React.FC = () => {
   };
   
   const importServerFromGitHub = async () => {
-    if (!githubUrl.trim()) {
+    if (!githubUrl?.trim()) {
       setImportError(t('registry.import_modal.error_empty_url'));
       return;
     }
     
     // Simple validation for GitHub URL
-    if (!githubUrl.startsWith("https://github.com/")) {
+    if (!githubUrl?.startsWith("https://github.com/")) {
       setImportError(t('registry.import_modal.error_invalid_url'));
       return;
     }
