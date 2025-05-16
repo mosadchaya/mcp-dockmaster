@@ -71,6 +71,5 @@
       }
     }
   },
-  "dependencies": ["mcp-dockmaster-i18n"],
   "tags": []
 }
