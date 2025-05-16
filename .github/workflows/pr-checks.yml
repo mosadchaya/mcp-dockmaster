@@ -65,15 +65,12 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Lint
-        working-directory: apps/mcp-dockmaster/src-tauri
         run: npx nx run-many -t lint --verbose
 
       - name: Build
-        working-directory: apps/mcp-dockmaster/src-tauri
         run: |
           npx nx run-many -t build --verbose --exclude=mcp-dockmaster
-          npx nx build mcp-dockmaster --configuration=local --verbose --skip-nx-cache
+          npx nx build mcp-dockmaster --configuration=local --verbose
 
       - name: Test
-        working-directory: apps/mcp-dockmaster/src-tauri
         run: npx nx run-many -t test --verbose
