@@ -13,6 +13,7 @@ import "./Registry.css";
 import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
 import { isProcessRunning } from "../lib/process";
+import { useTranslation } from "@mcp-dockmaster/i18n";
 
 // Import runner icons
 // @ts-ignore
@@ -46,6 +47,7 @@ import {
 } from "./ui/dialog";
 
 const Registry: React.FC = () => {
+  const { t } = useTranslation();
   const [availableServers, setAvailableServers] = useState<RegistryServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
@@ -85,7 +87,7 @@ const Registry: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       await loadAvailableServers();
-      loadCategories();
+      await loadCategories();
     };
     init();
 
@@ -93,14 +95,14 @@ const Registry: React.FC = () => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
         await loadAvailableServers();
-        loadCategories();
+        await loadCategories();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", async () => {
       await loadAvailableServers();
-      loadCategories();
+      await loadCategories();
     });
 
     return () => {
@@ -205,7 +207,9 @@ const Registry: React.FC = () => {
       // Count featured items from current availableServers state
       const featuredCount = availableServers.filter(server => server.featured).length;
       // Add Featured as first category if there are featured items
-      const allCategories = [["Featured", featuredCount], ...categoriesData];
+      const allCategories: [string, number][] = featuredCount > 0 
+        ? [[t('registry.featured_category'), featuredCount], ...categoriesData] 
+        : categoriesData;
       setCategories(allCategories);
     } catch (error) {
       console.error("Failed to load categories:", error);
@@ -258,29 +262,29 @@ const Registry: React.FC = () => {
     if (showClaude || showCursor) {
       let title = "";
       if (showClaude && showCursor) {
-        title = `Restart Claude and Cursor`;
+        title = t('registry.confirm_dialog.restart_both_title');
       } else if (showClaude) {
-        title = `Restart Claude`;
+        title = t('registry.confirm_dialog.restart_claude_title');
       } else if (showCursor) {
-        title = `Restart Cursor`;
+        title = t('registry.confirm_dialog.restart_cursor_title');
       }
       setConfirmDialogConfig({
         title,
-        explanation: "Claude and Cursor need to restart so their interfaces can reload the updated list of tools provided by the Model Context Protocol (MCP).",
+        explanation: t('registry.confirm_dialog.restart_explanation'),
         showClaude,
         showCursor,
         onRestartClaude: async () => {
           await restartProcess(processName[0]);
-          toast.success(`Claude restarted successfully!`);
+          toast.success(t('registry.confirm_dialog.restart_claude_success'));
         },
         onRestartCursor: async () => {
           await restartProcess(processName[1]);
-          toast.success(`Cursor restarted successfully!`);
+          toast.success(t('registry.confirm_dialog.restart_cursor_success'));
         },
         onRestartBoth: async () => {
           await restartProcess(processName[0]);
           await restartProcess(processName[1]);
-          toast.success(`Claude and Cursor restarted successfully!`);
+          toast.success(t('registry.confirm_dialog.restart_both_success'));
         },
       });
       setShowConfirmDialog(true);
@@ -594,14 +598,14 @@ const Registry: React.FC = () => {
   };
   
   const importServerFromGitHub = async () => {
-    if (!githubUrl.trim()) {
-      setImportError("Please enter a GitHub URL");
+    if (!githubUrl?.trim()) {
+      setImportError(t('registry.import_modal.error_empty_url'));
       return;
     }
     
     // Simple validation for GitHub URL
-    if (!githubUrl.startsWith("https://github.com/")) {
-      setImportError("Please enter a valid GitHub repository URL");
+    if (!githubUrl?.startsWith("https://github.com/")) {
+      setImportError(t('registry.import_modal.error_invalid_url'));
       return;
     }
     
@@ -615,11 +619,11 @@ const Registry: React.FC = () => {
         closeGitHubImportModal();
         loadAvailableServers(); // Refresh the server list
       } else {
-        setImportError(response.message || "Failed to import server");
+        setImportError(response.message || t('registry.import_modal.import_generic_error'));
       }
     } catch (error) {
       console.error("Error importing server:", error);
-      setImportError("Failed to import server: " + (error instanceof Error ? error.message : String(error)));
+      setImportError(t('registry.import_modal.import_error', { message: (error instanceof Error ? error.message : String(error)) }));
     } finally {
       setImportingServer(false);
     }
@@ -631,24 +635,22 @@ const Registry: React.FC = () => {
       <Dialog open={isGitHubImportModalOpen} onOpenChange={setIsGitHubImportModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Import MCP Server from GitHub</DialogTitle>
+            <DialogTitle>{t('registry.import_modal.title')}</DialogTitle>
             <DialogDescription>
-              Enter a GitHub repository URL to import a new MCP server.
-              The repository should contain a package.json (for Node.js) or pyproject.toml (for Python) file.
+              {t('registry.import_modal.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
             <p className="text-amber-800 text-sm">
-              <strong>Note:</strong> We will attempt to extract required environment variables from the repositorys README.md file.
-              Please note that this process may not identify all required variables correctly.
+              <strong>{t('registry.import_modal.note_title')}</strong> {t('registry.import_modal.note_description')}
             </p>
           </div>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="github-url">GitHub Repository URL</Label>
+              <Label htmlFor="github-url">{t('registry.import_modal.url_label')}</Label>
               <Input
                 id="github-url"
-                placeholder="https://github.com/owner/repo"
+                placeholder={t('registry.import_modal.url_placeholder')}
                 value={githubUrl}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGithubUrl(e.target.value)}
                 disabled={importingServer}
@@ -660,10 +662,10 @@ const Registry: React.FC = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeGitHubImportModal} disabled={importingServer}>
-              Cancel
+              {t('registry.import_modal.cancel_button')}
             </Button>
             <Button onClick={importServerFromGitHub} disabled={!githubUrl.trim() || importingServer}>
-              {importingServer ? "Importing..." : "Import"}
+              {importingServer ? t('registry.import_modal.importing_button') : t('registry.import_modal.import_button')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -689,11 +691,11 @@ const Registry: React.FC = () => {
       <Dialog open={showEnvVarsDialog} onOpenChange={setShowEnvVarsDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Configure Environment Variables</DialogTitle>
+            <DialogTitle>{t('registry.env_vars_dialog.title')}</DialogTitle>
             <DialogDescription>
               {requiredEnvVarsCount > 0 
-                ? `${currentServerForEnvVars.name} requires ${requiredEnvVarsCount} environment variable(s) to be configured before installation.`
-                : `Configure optional environment variables for ${currentServerForEnvVars.name}.`
+                ? t('registry.env_vars_dialog.description_required', { serverName: currentServerForEnvVars.name, count: requiredEnvVarsCount })
+                : t('registry.env_vars_dialog.description_optional', { serverName: currentServerForEnvVars.name })
               }
             </DialogDescription>
           </DialogHeader>
@@ -703,7 +705,7 @@ const Registry: React.FC = () => {
                 {/* Required ENV variables section */}
                 {requiredEnvVarsCount > 0 && (
                   <div className="mb-2">
-                    <h3 className="text-sm font-medium mb-2">Required Environment Variables</h3>
+                    <h3 className="text-sm font-medium mb-2">{t('registry.env_vars_dialog.required_title')}</h3>
                     {Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
                       // Only show required ENV variables in this section
                       if (typeof value !== 'object' || !value.required) return null;
@@ -715,7 +717,7 @@ const Registry: React.FC = () => {
                         <div key={key} className="grid grid-cols-4 items-start gap-4 mb-3">
                           <Label className="text-right text-xs pt-1" htmlFor={`env-${key}`}>
                             {key}
-                            <span className="text-red-500 ml-1">*</span>
+                            <span className="text-red-500 ml-1">{t('registry.env_vars_dialog.required_marker')}</span>
                           </Label>
                           <div className="col-span-3 space-y-1">
                             <Input
@@ -739,7 +741,7 @@ const Registry: React.FC = () => {
                   ([_, value]) => typeof value === 'object' && !value.required
                 ) && (
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Optional Environment Variables</h3>
+                    <h3 className="text-sm font-medium mb-2">{t('registry.env_vars_dialog.optional_title')}</h3>
                     {Object.entries(currentServerForEnvVars.config.env).map(([key, value]) => {
                       // Only show optional ENV variables in this section
                       if (typeof value !== 'object' || value.required) return null;
@@ -773,7 +775,7 @@ const Registry: React.FC = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEnvVarsDialog(false)}>
-              Cancel
+              {t('registry.env_vars_dialog.cancel_button')}
             </Button>
             <Button 
               onClick={() => {
@@ -787,7 +789,7 @@ const Registry: React.FC = () => {
                        (!envVarValues[key] || envVarValues[key].trim() === '');
               })}
             >
-              Install
+              {t('registry.env_vars_dialog.install_button')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -802,39 +804,39 @@ const Registry: React.FC = () => {
       <Dialog open={detailsPopupVisible} onOpenChange={closeDetailsPopup}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{currentServerDetails.name}</DialogTitle>
+            <DialogTitle>{t('registry.details_popup.title', { serverName: currentServerDetails.name })}</DialogTitle>
             <DialogDescription>
-              Server details and information
+              {t('registry.details_popup.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             {/* Basic Information */}
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">Basic Information</h3>
+              <h3 className="text-sm font-medium">{t('registry.details_popup.basic_info_title')}</h3>
               <div className="rounded-md border p-3 space-y-2">
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Description</Label>
+                  <Label className="text-right text-xs pt-1">{t('registry.details_popup.description_label')}</Label>
                   <div className="col-span-3 text-sm">
                     {currentServerDetails.description}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">ID</Label>
+                  <Label className="text-right text-xs pt-1">{t('registry.details_popup.id_label')}</Label>
                   <div className="col-span-3 text-sm font-mono">{currentServerDetails.id}</div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Runtime</Label>
+                  <Label className="text-right text-xs pt-1">{t('registry.details_popup.runtime_label')}</Label>
                   <div className="col-span-3 text-sm">{currentServerDetails.runtime}</div>
                 </div>
                 {currentServerDetails.license && (
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">License</Label>
+                    <Label className="text-right text-xs pt-1">{t('registry.details_popup.license_label')}</Label>
                     <div className="col-span-3 text-sm">{currentServerDetails.license}</div>
                   </div>
                 )}
                 {currentServerDetails.categories && currentServerDetails.categories.length > 0 && (
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Categories</Label>
+                    <Label className="text-right text-xs pt-1">{t('registry.details_popup.categories_label')}</Label>
                     <div className="col-span-3 flex flex-wrap gap-1">
                       {currentServerDetails.categories.map((category) => (
                         <Badge key={category} variant="outline" className="text-xs">
@@ -849,7 +851,7 @@ const Registry: React.FC = () => {
             {/* Tools */}
             {currentServerDetails.tools && currentServerDetails.tools.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Tools</h3>
+                <h3 className="text-sm font-medium">{t('registry.details_popup.tools_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   {currentServerDetails.tools.map((tool) => (
                     <div key={tool.signature}>
@@ -871,15 +873,15 @@ const Registry: React.FC = () => {
             {/* Publisher Information */}
             {currentServerDetails.publisher && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Publisher</h3>
+                <h3 className="text-sm font-medium">{t('registry.details_popup.publisher_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Name</Label>
+                    <Label className="text-right text-xs pt-1">{t('registry.details_popup.name_label')}</Label>
                     <div className="col-span-3 text-sm">{currentServerDetails.publisher.name}</div>
                   </div>
                   {currentServerDetails.publisher.url && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">URL</Label>
+                      <Label className="text-right text-xs pt-1">{t('registry.details_popup.url_label')}</Label>
                       <div className="col-span-3">
                         <a 
                           href={currentServerDetails.publisher.url} 
@@ -899,17 +901,17 @@ const Registry: React.FC = () => {
             {/* Configuration */}
             {currentServerDetails.config && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Configuration</h3>
+                <h3 className="text-sm font-medium">{t('registry.details_popup.config_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   {currentServerDetails.config.command && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Command</Label>
+                      <Label className="text-right text-xs pt-1">{t('registry.details_popup.command_label')}</Label>
                       <div className="col-span-3 text-sm font-mono">{currentServerDetails.config.command}</div>
                     </div>
                   )}
                   {currentServerDetails.config.args && currentServerDetails.config.args.length > 0 && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Arguments</Label>
+                      <Label className="text-right text-xs pt-1">{t('registry.details_popup.args_label')}</Label>
                       <div className="col-span-3 text-sm font-mono">
                         {currentServerDetails.config.args.map((arg, index) => (
                           <div key={index}>{arg}</div>
@@ -919,7 +921,7 @@ const Registry: React.FC = () => {
                   )}
                   {currentServerDetails.config.env && Object.keys(currentServerDetails.config.env).length > 0 && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Environment Variables</Label>
+                      <Label className="text-right text-xs pt-1">{t('registry.details_popup.env_vars_label')}</Label>
                       <div className="col-span-3 space-y-2">
                         {Object.entries(currentServerDetails.config.env).map(([key, value]) => (
                           <div key={key} className="text-sm">
@@ -927,7 +929,7 @@ const Registry: React.FC = () => {
                             {typeof value === 'object' && value.description ? (
                               <div className="text-muted-foreground text-xs">{value.description}</div>
                             ) : (
-                              <div className="text-muted-foreground text-xs">Value: {String(value)}</div>
+                              <div className="text-muted-foreground text-xs">{t('registry.details_popup.value_label', { value: String(value) })}</div>
                             )}
                           </div>
                         ))}
@@ -941,14 +943,14 @@ const Registry: React.FC = () => {
             {/* Distribution */}
             {currentServerDetails.distribution && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Distribution</h3>
+                <h3 className="text-sm font-medium">{t('registry.details_popup.distribution_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Type</Label>
+                    <Label className="text-right text-xs pt-1">{t('registry.details_popup.type_label')}</Label>
                     <div className="col-span-3 text-sm">{currentServerDetails.distribution.type}</div>
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Package</Label>
+                    <Label className="text-right text-xs pt-1">{t('registry.details_popup.package_label')}</Label>
                     <div className="col-span-3 text-sm font-mono">{currentServerDetails.distribution.package}</div>
                   </div>
                 </div>
@@ -957,7 +959,7 @@ const Registry: React.FC = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDetailsPopup}>
-              Close
+              {t('registry.details_popup.close_button')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -978,13 +980,13 @@ const Registry: React.FC = () => {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold tracking-tight">MCP Server Registry</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('registry.title')}</h1>
           <Button variant="outline" onClick={openGitHubImportModal}>
-            Import From Github
+            {t('registry.import_button')}
           </Button>
         </div>
         <p className="text-muted-foreground text-sm">
-          Discover and install AI applications and MCP tools.
+          {t('registry.description')}
         </p>
       </div>
 
@@ -998,15 +1000,14 @@ const Registry: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-background text-foreground placeholder:text-muted-foreground size-full rounded-lg border py-2 pr-4 pl-10 focus:ring-1 focus:ring-neutral-900/60 focus:outline-none"
-            placeholder="Search for tools..."
+            placeholder={t('registry.search_placeholder')}
             aria-label="Search for tools"
           />
         </div>
 
         {searchTerm && (
           <div className="text-muted-foreground text-sm">
-            Found {filteredTools.length} result
-            {filteredTools.length !== 1 ? "s" : ""}
+            {t(filteredTools.length === 1 ? 'registry.search_results_found' : 'registry.search_results_found_plural', { count: filteredTools.length })}
           </div>
         )}
 
@@ -1036,7 +1037,7 @@ const Registry: React.FC = () => {
               className="whitespace-nowrap"
               onClick={() => setShowAllCategories(!showAllCategories)}
             >
-              {showAllCategories ? "Show Less" : "Show All Categories"}
+              {showAllCategories ? t('registry.show_less') : t('registry.show_all_categories')}
               {showAllCategories ? (
                 <ChevronLeft className="ml-1 h-4 w-4" />
               ) : (
@@ -1057,7 +1058,7 @@ const Registry: React.FC = () => {
         <>
           {filteredTools.length === 0 ? (
             <div className="text-muted-foreground py-10 text-center text-sm">
-              <p>No tools found matching your search criteria.</p>
+              <p>{t('registry.no_results')}</p>
             </div>
           ) : (
             <div
@@ -1109,14 +1110,14 @@ const Registry: React.FC = () => {
                                 <button 
                                   className="ml-1 text-muted-foreground hover:text-blue-500 focus:outline-none cursor-pointer"
                                   onClick={(e) => openDetailsPopup(tool, e)}
-                                  title="View server details"
+                                  title={t('registry.view_details_tooltip')}
                                 >
                                   <Info size={14} className="inline-block" />
                                 </button>
                               </CardTitle>
                               {tool.installed && (
                                 <Badge variant="outline" className="ml-auto">
-                                  Installed
+                                  {t('registry.installed_badge')}
                                 </Badge>
                               )}
                             </div>
@@ -1130,17 +1131,17 @@ const Registry: React.FC = () => {
                         <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
                             <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                              <span>By </span> {tool.publisher.name}
+                              <span>{t('registry.by_publisher')} </span> {tool.publisher.name}
                               {tool.featured && (
                                 <Badge variant="outline" className="ml-2">
-                                  Featured
+                                  {t('registry.featured_category')}
                                 </Badge>
                               )}
                             </div>
                           )}
                           {!tool.publisher && tool.featured && (
                             <Badge variant="outline">
-                              Featured
+                              {t('registry.featured_category')}
                             </Badge>
                           )}
 
@@ -1152,8 +1153,8 @@ const Registry: React.FC = () => {
                               type="button"
                             >
                               {uninstalling === tool.id
-                                ? "Uninstalling..."
-                                : "Uninstall"}
+                                ? t('registry.uninstalling_button')
+                                : t('registry.uninstall_button')}
                             </Button>
                           ) : (
                             <Button
@@ -1167,10 +1168,10 @@ const Registry: React.FC = () => {
                               }
                             >
                               {tool.installed
-                                ? "Installed"
+                                ? t('registry.installed_badge') // Should technically not happen if button is disabled
                                 : installing === tool.id
-                                  ? "Installing..."
-                                  : "Install"}
+                                  ? t('registry.installing_button')
+                                  : t('registry.install_button')}
                             </Button>
                           )}
                         </CardFooter>
@@ -1189,10 +1190,12 @@ const Registry: React.FC = () => {
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Action</DialogTitle>
+            <DialogTitle>{confirmDialogConfig?.title || t('registry.confirm_dialog.title')}</DialogTitle>
             <DialogDescription>
-              {confirmDialogConfig?.title || "Are you sure you want to proceed with this action?"}
-              {confirmDialogConfig?.explanation && (
+              {/* Use explanation if provided, otherwise default */} 
+              {confirmDialogConfig?.explanation ? confirmDialogConfig.explanation : t('registry.confirm_dialog.default_description')}
+              {/* Display explanation separately if it exists, to avoid duplication if title already contains it */} 
+              {confirmDialogConfig?.explanation && confirmDialogConfig?.title !== confirmDialogConfig.explanation && (
                 <p className="mt-2 text-sm text-muted-foreground">
                   {confirmDialogConfig.explanation}
                 </p>
@@ -1201,7 +1204,7 @@ const Registry: React.FC = () => {
           </DialogHeader>
           <DialogFooter className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              I&apos;ll do it manually
+              {t('registry.confirm_dialog.manual_button')}
             </Button>
             {confirmDialogConfig?.showClaude && (
               <Button
@@ -1210,7 +1213,7 @@ const Registry: React.FC = () => {
                   confirmDialogConfig?.onRestartClaude?.();
                 }}
               >
-                Restart Claude
+                {t('registry.confirm_dialog.restart_claude_button')}
               </Button>
             )}
             {confirmDialogConfig?.showCursor && (
@@ -1220,7 +1223,7 @@ const Registry: React.FC = () => {
                   confirmDialogConfig?.onRestartCursor?.();
                 }}
               >
-                Restart Cursor
+                {t('registry.confirm_dialog.restart_cursor_button')}
               </Button>
             )}
             {confirmDialogConfig?.showClaude && confirmDialogConfig?.showCursor && (
@@ -1230,7 +1233,7 @@ const Registry: React.FC = () => {
                   confirmDialogConfig?.onRestartBoth?.();
                 }}
               >
-                Restart Both
+                {t('registry.confirm_dialog.restart_both_button')}
               </Button>
             )}
             {confirmDialogConfig?.onConfirm && (
@@ -1240,7 +1243,7 @@ const Registry: React.FC = () => {
                   confirmDialogConfig?.onConfirm?.();
                 }}
               >
-                Confirm
+                {t('registry.confirm_dialog.confirm_button')}
               </Button>
             )}
           </DialogFooter>

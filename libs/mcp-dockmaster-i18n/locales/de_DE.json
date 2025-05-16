@@ -1,0 +1,197 @@
+{
+  "about": {
+    "github": {
+      "learn_more": " um mehr zu erfahren, beizutragen oder Probleme zu melden.",
+      "link_text": "GitHub-Repository",
+      "title": "GitHub-Repository",
+      "visit": "Besuchen Sie unser "
+    },
+    "overview": {
+      "description": "MCP Dockmaster ist ein einfaches Tool, das Ihnen hilft, KI-Anwendungen mithilfe von MCP (Model Context Protocol) einfach zu installieren, zu verwalten und zu überwachen. MCP ist ein Open-Source-Standard, der von Anthropic erstellt wurde und es KI-Apps wie Claude Desktop oder Cursor ermöglicht, nahtlos auf Daten von Plattformen wie Slack oder Google Drive zuzugreifen, mit anderen Anwendungen zu interagieren und sich mit APIs zu verbinden.",
+      "title": "Übersicht"
+    },
+    "purpose": {
+      "description": "MCP Dockmaster vereinfacht die Verwaltung von MCP-kompatiblen Anwendungen und bietet eine benutzerfreundliche Oberfläche, die Komplexität beseitigt. Wir glauben, dass jeder einfachen Zugang zu leistungsstarken KI-Tools haben sollte, unabhängig von seiner technischen Erfahrung.",
+      "title": "Unser Zweck"
+    },
+    "title": "Über MCP Dockmaster",
+    "what_you_can_do": {
+      "item1": "MCP-kompatible Apps schnell installieren und verwalten",
+      "item2": "Ihre Apps von einem zentralen Ort aus anzeigen und steuern",
+      "item3": "Neue KI-Tools durch unsere kuratierte App-Auswahl entdecken",
+      "item4": "Integrationen vereinfachen und Ihren Arbeitsablauf optimieren",
+      "title": "Was Sie tun können"
+    }
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "error": "Ein Fehler ist aufgetreten",
+    "loading": "Laden...",
+    "retry": "Erneut versuchen",
+    "save": "Speichern",
+    "welcome": "Willkommen"
+  },
+  "errors": {
+    "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+    "network_error": "Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung",
+    "required": "Dieses Feld ist erforderlich",
+    "restart": "Neustart",
+    "server_error": "Serverfehler. Bitte versuchen Sie es später erneut"
+  },
+  "feedback": {
+    "contact_description": "Wie können wir Sie erreichen, wenn wir Fragen haben?",
+    "contact_label": "Kontaktinformationen",
+    "contact_placeholder": "E-Mail oder Telefonnummer",
+    "description": "Wir schätzen Ihr Feedback! Bitte teilen Sie uns Ihre Gedanken zu MCP Dockmaster mit und wie wir Ihre Erfahrung verbessern können.",
+    "error_message": "Die Formularübermittlung ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "feedback_label": "Ihr Feedback",
+    "feedback_placeholder": "Bitte teilen Sie Ihre Gedanken, Vorschläge oder Fragen mit...",
+    "send_button": "Feedback senden",
+    "success_message": "Vielen Dank für Ihr Feedback! Wir werden uns bald bei Ihnen melden.",
+    "title": "Feedback"
+  },
+  "home": {
+    "checking": "Überprüfen...",
+    "environment": {
+      "active": "Aktiv",
+      "description": "Stellen Sie sicher, dass Sie Node.js, Python und Docker installiert haben, um MCPs auszuführen.",
+      "inactive": "Inaktiv",
+      "install": "Installieren",
+      "installed": "Installiert und läuft",
+      "not_installed": "Nicht installiert oder läuft nicht",
+      "title": "Umgebungsdetails"
+    },
+    "getting_started": "Erste Schritte",
+    "install_error": "Fehler beim Öffnen der Installationsseite für {{toolName}}",
+    "install_success": "{{mcpClientApp}} wurde erfolgreich installiert! Bitte starten Sie {{mcpClientApp}} neu, um die Änderungen anzuwenden.",
+    "integration": {
+      "active": "Aktiv",
+      "add_to_claude": "Zu Claude Desktop hinzufügen",
+      "add_to_cursor": "Zum Cursor hinzufügen",
+      "add_to_other": "Zu anderem MCP-Client hinzufügen",
+      "description": "Fügen Sie Dockmaster zu Cursor, Claude Desktop oder einem anderen MCP-Client hinzu.",
+      "inactive": "Inaktiv",
+      "other": "Andere Apps",
+      "other_description": "Fügen Sie MCP Dockmaster zu jeder anderen App hinzu, die MCP-Server vom Typ Befehl unterstützt:",
+      "title": "Integrationsdetails"
+    },
+    "mcp_description": "MCP ist ein Open-Source-Standard von Anthropic, der KI-Anwendungen wie Claude Desktop oder Cursor hilft, einfach auf Daten von Plattformen wie Slack und Google Drive zuzugreifen, mit anderen Anwendungen zu interagieren und sich mit APIs zu verbinden.",
+    "refresh": "Aktualisieren",
+    "registry": {
+      "description": "Durchsuchen Sie die verfügbaren MCPs im Register, um Ihre KI-Anwendungen mit verschiedenen Funktionen zu erweitern.",
+      "title": "Registrierungsdetails",
+      "view_registry": "Register anzeigen"
+    },
+    "restart": {
+      "description": "Starten Sie Ihre MCP-Clients neu, um die Änderungen anzuwenden und Ihre MCPs zu verwenden.",
+      "not_running": "Läuft nicht",
+      "restart": "Neustarten",
+      "running": "Läuft",
+      "title": "Neustartoptionen"
+    },
+    "restart_error": "Fehler beim Neustarten von {{mcpClientApp}}",
+    "restart_success": "{{mcpClientApp}} wurde erfolgreich neu gestartet!",
+    "title": "Willkommen bei MCP Dockmaster",
+    "what_is_mcp": "Was ist MCP?"
+  },
+  "navigation": {
+    "about": "Über",
+    "app_version": "App-Version:",
+    "feedback": "Feedback",
+    "home": "Startseite",
+    "logout": "Abmelden",
+    "mcp_server_registry": "MCP-Server-Registry",
+    "profile": "Profil",
+    "servers_installed": "Installierte Server",
+    "settings": "Einstellungen"
+  },
+  "registry": {
+    "by_publisher": "Von",
+    "confirm_dialog": {
+      "confirm_button": "Bestätigen",
+      "default_description": "Sind Sie sicher, dass Sie mit dieser Aktion fortfahren möchten?",
+      "manual_button": "Ich mache es manuell",
+      "restart_both_button": "Beide neu starten",
+      "restart_both_success": "Claude und Cursor wurden erfolgreich neu gestartet!",
+      "restart_both_title": "Claude und Cursor neu starten",
+      "restart_claude_button": "Claude neu starten",
+      "restart_claude_success": "Claude wurde erfolgreich neu gestartet!",
+      "restart_claude_title": "Claude neu starten",
+      "restart_cursor_button": "Cursor neu starten",
+      "restart_cursor_success": "Cursor wurde erfolgreich neu gestartet!",
+      "restart_cursor_title": "Cursor neu starten",
+      "restart_explanation": "Claude und Cursor müssen neu gestartet werden, damit ihre Schnittstellen die aktualisierte Liste der vom Model Context Protocol (MCP) bereitgestellten Tools neu laden können.",
+      "title": "Aktion bestätigen"
+    },
+    "description": "Entdecken und installieren Sie KI-Anwendungen und MCP-Tools.",
+    "details_popup": {
+      "args_label": "Argumente",
+      "basic_info_title": "Grundlegende Informationen",
+      "categories_label": "Kategorien",
+      "close_button": "Schließen",
+      "command_label": "Befehl",
+      "config_title": "Konfiguration",
+      "description": "Serverdetails und Informationen",
+      "description_label": "Beschreibung",
+      "distribution_title": "Verteilung",
+      "env_vars_label": "Umgebungsvariablen",
+      "id_label": "ID",
+      "license_label": "Lizenz",
+      "name_label": "Name",
+      "package_label": "Paket",
+      "publisher_title": "Herausgeber",
+      "runtime_label": "Laufzeit",
+      "title": "{{serverName}}",
+      "tools_title": "Tools",
+      "type_label": "Typ",
+      "url_label": "URL",
+      "value_label": "Wert: {{value}}"
+    },
+    "env_vars_dialog": {
+      "cancel_button": "Abbrechen",
+      "description_optional": "Konfigurieren Sie optionale Umgebungsvariablen für {{serverName}}.",
+      "description_required": "{{serverName}} benötigt {{count}} Umgebungsvariable(n), die vor der Installation konfiguriert werden müssen.",
+      "install_button": "Installieren",
+      "optional_title": "Optionale Umgebungsvariablen",
+      "required_marker": "*",
+      "required_title": "Erforderliche Umgebungsvariablen",
+      "title": "Umgebungsvariablen konfigurieren"
+    },
+    "featured_category": "Empfohlen",
+    "import_button": "Von GitHub importieren",
+    "import_modal": {
+      "cancel_button": "Abbrechen",
+      "description": "Geben Sie eine GitHub-Repository-URL ein, um einen neuen MCP-Server zu importieren. Das Repository sollte eine package.json (für Node.js) oder pyproject.toml (für Python) Datei enthalten.",
+      "error_empty_url": "Bitte geben Sie eine GitHub-URL ein",
+      "error_invalid_url": "Bitte geben Sie eine gültige GitHub-Repository-URL ein",
+      "import_button": "Importieren",
+      "import_error": "Fehler beim Importieren des Servers: {{message}}",
+      "import_generic_error": "Fehler beim Importieren des Servers",
+      "importing_button": "Wird importiert...",
+      "note_description": "Wir werden versuchen, erforderliche Umgebungsvariablen aus der README.md-Datei des Repositories zu extrahieren. Bitte beachten Sie, dass dieser Prozess möglicherweise nicht alle erforderlichen Variablen korrekt identifiziert.",
+      "note_title": "Hinweis:",
+      "title": "MCP-Server von GitHub importieren",
+      "url_label": "GitHub-Repository-URL",
+      "url_placeholder": "https://github.com/owner/repo"
+    },
+    "install_button": "Installieren",
+    "installed_badge": "Installiert",
+    "installing_button": "Wird installiert...",
+    "no_results": "Keine Tools gefunden, die Ihren Suchkriterien entsprechen.",
+    "search_placeholder": "Nach Tools suchen...",
+    "search_results_found": "Gefunden {{count}} Ergebnis",
+    "search_results_found_plural": "Gefunden {{count}} Ergebnisse",
+    "show_all_categories": "Alle Kategorien anzeigen",
+    "show_less": "Weniger anzeigen",
+    "title": "MCP-Server-Registry",
+    "uninstall_button": "Deinstallieren",
+    "uninstalling_button": "Wird deinstalliert...",
+    "view_details_tooltip": "Serverdetails anzeigen"
+  },
+  "validation": {
+    "max_length": "Darf höchstens {{count}} Zeichen lang sein",
+    "min_length": "Muss mindestens {{count}} Zeichen lang sein",
+    "password_mismatch": "Die Passwörter stimmen nicht überein"
+  }
+}

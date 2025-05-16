@@ -112,4 +112,8 @@ This command optimizes the build process by only running tasks for projects that
 ## Learn More
 
 - [NX Documentation](https://nx.dev) 
-The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.                                  
+The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.
+
+## Running the App
+
+npx nx run mcp-dockmaster:serve-tauri

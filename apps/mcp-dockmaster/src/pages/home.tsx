@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useTranslation } from "@mcp-dockmaster/i18n";
 
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
@@ -55,6 +56,7 @@ interface MCPClientStatus {
 }
 
 const Home: React.FC = () => {
+  const { t } = useTranslation();
   const installUrls = {
     "Node.js": "https://nodejs.org/",
     "UV (Python)": "https://github.com/astral-sh/uv",
@@ -217,7 +219,7 @@ const Home: React.FC = () => {
       }
     } catch (error) {
       console.error(`Failed to open install URL for ${toolName}:`, error);
-      toast.error(`Failed to open installation page for ${toolName}`);
+      toast.error(t('home.install_error', { toolName }));
     }
   };
 
@@ -304,11 +306,11 @@ const Home: React.FC = () => {
           await mcpClientApp.app.install();
           await checkInstalled();
           toast.success(
-            `${mcpClientApp.app.name} installed successfully! Please restart ${mcpClientApp.app.name} to apply the changes.`,
+            t('home.install_success', { mcpClientApp: mcpClientApp.app.name }),
           );
         } catch (error) {
           console.error(`Failed to install ${mcpClientAppId}:`, error);
-          toast.error(`Failed to install ${mcpClientAppId}`);
+          toast.error(t('home.install_error', { mcpClientApp: mcpClientApp.app.name }));
         }
       },
     });
@@ -320,7 +322,7 @@ const Home: React.FC = () => {
       <div className="flex flex-col space-y-1.5">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome to MCP Dockmaster
+            {t('home.title')}
           </h1>
           <Button
             disabled={isChecking}
@@ -334,17 +336,14 @@ const Home: React.FC = () => {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {isChecking ? "Checking..." : "Refresh"}
+            {isChecking ? t('home.checking') : t('home.refresh')}
           </Button>
         </div>
       </div>
       <div className="space-y-4">
         <div className="space-y-2">
           <p className="text-muted-foreground text-sm">
-            <strong>What is MCP?</strong> MCP is an open-source standard from
-            Anthropic that helps AI apps like Claude Desktop or Cursor easily
-            access data from platforms such as Slack and Google Drive, interact
-            with other applications, and connect to APIs.
+            <strong>{t('home.what_is_mcp')}</strong> {t('home.mcp_description')}
           </p>
         </div>
       </div>
@@ -352,7 +351,7 @@ const Home: React.FC = () => {
       <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Getting Started</h2>
+            <h2 className="text-lg font-medium">{t('home.getting_started')}</h2>
           </div>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
@@ -362,8 +361,7 @@ const Home: React.FC = () => {
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <p className="text-muted-foreground text-sm">
-                    Make sure that you have Node.js, Python, and Docker
-                    installed so you can run MCPs.
+                    {t('home.environment.description')}
                   </p>
                   {prerequisites.every((p) => p.installed) ? (
                     <Badge className="ml-2 bg-green-500 text-white hover:bg-green-600">
@@ -390,7 +388,7 @@ const Home: React.FC = () => {
                       size="sm"
                       className="flex h-7 items-center gap-1 px-2"
                     >
-                      <span className="text-xs">Environment Details</span>
+                      <span className="text-xs">{t('home.environment.title')}</span>
                       {isEnvDetailsOpen ? (
                         <ChevronDown className="h-3 w-3" />
                       ) : (
@@ -423,15 +421,15 @@ const Home: React.FC = () => {
                               <p className="font-medium">{prerequisite.name}</p>
                               <p className="text-muted-foreground text-sm">
                                 {prerequisite.installed
-                                  ? "Installed and running"
-                                  : "Not installed or not running"}
+                                  ? t('home.environment.installed')
+                                  : t('home.environment.not_installed')}
                               </p>
                             </div>
                           </div>
                           {prerequisite.loading ? (
                             <div className="mt-3 flex items-center gap-2">
                               <span className="loading-indicator">
-                                Checking...
+                                {t('home.checking')}
                               </span>
                               <Loader2 className="h-4 w-4 animate-spin" />
                             </div>
@@ -440,14 +438,14 @@ const Home: React.FC = () => {
                               <span className="status-indicator">
                                 {prerequisite.installed ? (
                                   <Badge className="bg-green-500 text-white hover:bg-green-600">
-                                    Active
+                                    {t('home.environment.active')}
                                   </Badge>
                                 ) : (
                                   <Badge
                                     variant="outline"
                                     className="border-red-500 bg-red-500/10 text-red-500"
                                   >
-                                    Inactive
+                                    {t('home.environment.inactive')}
                                   </Badge>
                                 )}
                               </span>
@@ -465,7 +463,7 @@ const Home: React.FC = () => {
                                     )
                                   }
                                 >
-                                  Install
+                                  {t('home.environment.install')}
                                 </Button>
                               )}
                             </div>
@@ -484,8 +482,7 @@ const Home: React.FC = () => {
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <p className="text-muted-foreground text-sm">
-                    Add Dockmaster to Cursor, Claude Desktop, or any other MCP
-                    client.
+                    {t('home.integration.description')}
                   </p>
                   {Object.values(mcpClientApps).some(
                     (c) => c.status.installed,
@@ -514,7 +511,7 @@ const Home: React.FC = () => {
                       size="sm"
                       className="flex h-7 items-center gap-1 px-2"
                     >
-                      <span className="text-xs">Integration Details</span>
+                      <span className="text-xs">{t('home.integration.title')}</span>
                       {isIntegrationOpen ? (
                         <ChevronDown className="h-3 w-3" />
                       ) : (
@@ -561,14 +558,14 @@ const Home: React.FC = () => {
                             <span className="status-indicator">
                               {client.status.installed ? (
                                 <Badge className="bg-green-500 text-white hover:bg-green-600">
-                                  Active
+                                  {t('home.integration.active')}
                                 </Badge>
                               ) : (
                                 <Badge
                                   variant="outline"
                                   className="border-red-500 bg-red-500/10 text-red-500"
                                 >
-                                  Inactive
+                                  {t('home.integration.inactive')}
                                 </Badge>
                               )}
                             </span>
@@ -580,7 +577,7 @@ const Home: React.FC = () => {
                                   handleInstallClick(client.app.id)
                                 }
                               >
-                                Install
+                                {t('home.integration.install')}
                               </Button>
                             </div>
                           </div>
@@ -605,13 +602,12 @@ const Home: React.FC = () => {
                             <AppWindowIcon className="h-5 w-5" />
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">Other Apps</p>
+                            <p className="font-medium">{t('home.integration.other')}</p>
                           </div>
                         </div>
                         <div className="mt-3 flex flex-col items-center gap-2 text-center">
                           <p className="text-muted-foreground text-sm">
-                            Add MCP Dockmaster to any other app that supports
-                            MCP Servers of type command:
+                            {t('home.integration.other_description')}
                           </p>
                           <div className="w-full rounded-lg bg-gray-100 p-2 text-xs">
                             <code className="break-all">
@@ -632,7 +628,7 @@ const Home: React.FC = () => {
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <p className="text-muted-foreground text-sm">
-                    Install MCPs from the registry or a GitHub URL.
+                    {t('home.registry.description')}
                   </p>
                   {/* Check if at least one MCP server is installed */}
                   {mcpServers ? (
@@ -660,7 +656,7 @@ const Home: React.FC = () => {
                       size="sm"
                       className="flex h-7 items-center gap-1 px-2"
                     >
-                      <span className="text-xs">Registry Details</span>
+                      <span className="text-xs">{t('home.registry.title')}</span>
                       {isRegistryDetailsOpen ? (
                         <ChevronDown className="h-3 w-3" />
                       ) : (
@@ -670,8 +666,7 @@ const Home: React.FC = () => {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2">
                     <p className="text-muted-foreground text-sm">
-                      Browse available MCPs from the registry to extend your AI
-                      applications with various capabilities.
+                      {t('home.registry.description')}
                     </p>
                     <Button
                       size="sm"
@@ -681,7 +676,7 @@ const Home: React.FC = () => {
                         window.location.href = "/registry";
                       }}
                     >
-                      <span>View Registry</span>
+                      <span>{t('home.registry.view_registry')}</span>
                       <ExternalLink className="h-3 w-3" />
                     </Button>
                   </CollapsibleContent>
@@ -695,7 +690,7 @@ const Home: React.FC = () => {
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <p className="text-muted-foreground text-sm">
-                    Restart Claude Desktop and Cursor and you are good to go!
+                    {t('home.restart.description')}
                   </p>
                   {Object.values(mcpClientApps).every(
                     (c) => c.status.installed,
@@ -724,7 +719,7 @@ const Home: React.FC = () => {
                       size="sm"
                       className="flex h-7 items-center gap-1 px-2"
                     >
-                      <span className="text-xs">Restart Options</span>
+                      <span className="text-xs">{t('home.restart.title')}</span>
                       {isRestartOptionsOpen ? (
                         <ChevronDown className="h-3 w-3" />
                       ) : (
@@ -734,8 +729,7 @@ const Home: React.FC = () => {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2">
                     <p className="text-muted-foreground text-sm">
-                      Restart your MCP clients to apply the changes and start
-                      using your MCPs.
+                      {t('home.restart.description')}
                     </p>
                     <div className="mt-2 grid grid-cols-3 gap-4">
                       {Object.values(mcpClientApps).map((client) => (
@@ -764,14 +758,14 @@ const Home: React.FC = () => {
                             <span className="status-indicator">
                               {client.status.isRunning ? (
                                 <Badge className="bg-green-500 text-white hover:bg-green-600">
-                                  Running
+                                  {t('home.restart.running')}
                                 </Badge>
                               ) : (
                                 <Badge
                                   variant="outline"
                                   className="border-red-500 bg-red-500/10 text-red-500"
                                 >
-                                  Not Running
+                                  {t('home.restart.not_running')}
                                 </Badge>
                               )}
                             </span>
@@ -783,7 +777,7 @@ const Home: React.FC = () => {
                                 try {
                                   await restartProcess(client.app.processName);
                                   toast.success(
-                                    `${client.app.name} restarted successfully!`,
+                                    t('home.restart_success', { mcpClientApp: client.app.name }),
                                   );
                                   await checkInstalled();
                                 } catch (error) {
@@ -791,14 +785,12 @@ const Home: React.FC = () => {
                                     `Failed to restart ${client.app.name}:`,
                                     error,
                                   );
-                                  toast.error(
-                                    `Failed to restart ${client.app.name}`,
-                                  );
+                                  toast.error(t('home.restart_error', { mcpClientApp: client.app.name }));
                                 }
                               }}
                             >
                               <RefreshCw className="h-3 w-3" />
-                              <span>Restart</span>
+                              <span>{t('home.restart.restart')}</span>
                             </Button>
                           </div>
                         </div>

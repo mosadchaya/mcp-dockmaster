@@ -2,24 +2,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useTranslation } from "@mcp-dockmaster/i18n";
 
 const Feedback = () => {
+  const { t } = useTranslation();
   const [formSuccess, setFormSuccess] = useState(false);
 
   return (
     <div className="text-muted-foreground mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 text-sm">
       <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-        Feedback
+        {t('feedback.title')}
       </h1>
       <section className="feedback-section">
         <p className="mb-4">
-          We value your feedback! Please let us know your thoughts about MCP Dockmaster
-          and how we can improve your experience.
+          {t('feedback.description')}
         </p>
         
         {formSuccess ? (
           <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-4">
-            Thank you for your feedback! We'll get back to you soon.
+            {t('feedback.success_message')}
           </div>
         ) : (
           <form
@@ -47,41 +48,41 @@ const Feedback = () => {
                   } else {
                     // Handle error
                     console.error("Form submission failed");
-                    alert("Form submission failed. Please try again.");
+                    alert(t('feedback.error_message'));
                   }
                 })
                 .catch((error) => {
                   console.error("Form submission error:", error);
-                  alert("Form submission failed. Please try again.");
+                  alert(t('feedback.error_message'));
                 });
             }}
           >
             <div>
-              <label htmlFor="feedback" className="block text-sm font-medium mb-1">Your Feedback</label>
+              <label htmlFor="feedback" className="block text-sm font-medium mb-1">{t('feedback.feedback_label')}</label>
               <Textarea 
                 id="feedback" 
                 name="feedback" 
-                placeholder="Please share your thoughts, suggestions, or questions..." 
+                placeholder={t('feedback.feedback_placeholder')} 
                 required 
                 className="w-full"
               />
             </div>
             
             <div>
-              <label htmlFor="contact" className="block text-sm font-medium mb-1">Contact Information</label>
+              <label htmlFor="contact" className="block text-sm font-medium mb-1">{t('feedback.contact_label')}</label>
               <Input 
                 id="contact" 
                 name="contact" 
                 type="text" 
-                placeholder="Email or phone number" 
+                placeholder={t('feedback.contact_placeholder')} 
                 required 
                 className="w-full"
               />
-              <p className="text-xs text-gray-500 mt-1">How can we reach you if we have questions?</p>
+              <p className="text-xs text-gray-500 mt-1">{t('feedback.contact_description')}</p>
             </div>
             
             <Button type="submit">
-              Send Feedback
+              {t('feedback.send_button')}
             </Button>
           </form>
         )}

@@ -1,0 +1,36 @@
+{
+  "name": "mcp-dockmaster-i18n",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/mcp-dockmaster-i18n/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/mcp-dockmaster-i18n",
+        "main": "libs/mcp-dockmaster-i18n/src/index.ts",
+        "tsConfig": "libs/mcp-dockmaster-i18n/tsconfig.lib.json",
+        "assets": ["libs/mcp-dockmaster-i18n/*.md", "libs/mcp-dockmaster-i18n/locales/*.json"]
+      }
+    },
+    "generate-i18n": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/mcp-dockmaster-i18n",
+        "command": "npx tsx ./scripts/generate-i18n.ts"
+      }
+    },
+    "i18n": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": ".",
+        "commands": [
+          "npx tsx ./libs/mcp-dockmaster-i18n/scripts/generate-i18n.ts",
+          "(API_KEY_VALUE=$(cat .env | grep OPENAI_API_KEY | cut -d '=' -f2) && cd libs/mcp-dockmaster-i18n && export OPENAI_API_KEY=$API_KEY_VALUE && npx lobe-i18n -c ./.i18nrc.cjs)"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}
