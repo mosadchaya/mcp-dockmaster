@@ -1,21 +1,73 @@
-use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
+use crate::types::{
+    Distribution, RegistryToolsResponse, ServerConfiguration, ServerRegistrationRequest,
+    ServerRegistrationResponse, ToolUninstallRequest,
+};
+use crate::{core::mcp_core::MCPCore, types::ToolExecutionRequest};
 use log::{error, info};
-use mcp_sdk_core::Tool;
-use serde_json::json;
-use tokio::sync::RwLock;
+use rmcp::model::Tool;
+use rmcp::{Error as McpError, ServiceError};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use tokio::sync::{Mutex, RwLock};
+use tokio::time::Instant;
 
-use super::tools::{
-    get_configure_server_tool, get_list_installed_servers_tool, get_register_server_tool,
-    get_search_server_tool, get_uninstall_server_tool,
+use super::{
+    tools::{
+        get_configure_server_tool, get_list_installed_servers_tool, get_register_server_tool,
+        get_search_server_tool, get_uninstall_server_tool, TOOL_LIST_INSTALLED_SERVERS,
+        TOOL_UNINSTALL_SERVER,
+    },
+    TOOL_CONFIGURE_SERVER, TOOL_REGISTER_SERVER, TOOL_SEARCH_SERVER,
 };
 
 use lazy_static::lazy_static;
 use std::sync::Arc;
+use std::time::Duration;
+
+#[derive(Deserialize, Debug)]
+
+struct ToolRegistrationRequestByName {
+    id: String,
+    name: String,
+    description: String,
+    r#type: String,
+    configuration: Option<ServerConfiguration>,
+    distribution: Option<Distribution>,
+}
+#[derive(Deserialize, Debug)]
+
+struct ToolRegistrationRequestById {
+    tool_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)]
+#[serde(untagged)]
+enum ToolRegistrationRequest {
+    ByName(ToolRegistrationRequestByName),
+    ById(ToolRegistrationRequestById),
+}
+
+// Cache structure to store registry data and timestamp
+struct RegistryCache {
+    data: Option<Value>,
+    timestamp: Option<Instant>,
+}
+
+lazy_static! {
+    static ref REGISTRY_CACHE: Mutex<RegistryCache> = Mutex::new(RegistryCache {
+        data: None,
+        timestamp: None,
+    });
+}
 
 lazy_static! {
     static ref INSTANCE: RwLock<Option<Arc<MCPToolsService>>> = RwLock::new(None);
 }
+
+// Cache duration constant (1 minutes)
+const CACHE_DURATION: Duration = Duration::from_secs(60);
 
 pub struct MCPToolsService {
     mcp_core: MCPCore,
@@ -137,71 +189,81 @@ impl MCPToolsService {
             Ok(())
         }
     }
-}
 
-/// Internal function to update the cache
-async fn update_cache_internal(
-    mcp_core: MCPCore,
-    cache: Arc<RwLock<Vec<Tool>>>,
-) -> Result<(), String> {
-    // Get user-installed tools from MCPCore
-    match mcp_core.list_all_server_tools().await {
-        Ok(server_tools) => {
-            // Add built-in tools
-            let mut tools_vec = vec![
-                get_register_server_tool(),
-                get_search_server_tool(),
-                get_configure_server_tool(),
-                get_uninstall_server_tool(),
-                get_list_installed_servers_tool(),
-            ];
+    /// Execute a tool by finding the appropriate server and forwarding the call
+    pub async fn execute_tool(
+        &self,
+        tool_name: &str,
+        args: Value,
+    ) -> Result<Value, crate::MCPError> {
+        match tool_name {
+            TOOL_REGISTER_SERVER => handle_register_server(args).await,
+            TOOL_SEARCH_SERVER => self.handle_search_server(args).await,
+            TOOL_CONFIGURE_SERVER => self.handle_configure_server(args).await,
+            TOOL_UNINSTALL_SERVER => self.handle_uninstall_server(args).await,
+            TOOL_LIST_INSTALLED_SERVERS => self.handle_list_installed_servers(args).await,
+            _ => {
+                // For non-built-in tools, find the appropriate server that has this tool
+                let mcp_state = self.mcp_core.mcp_state.read().await;
+                let server_tools = mcp_state.server_tools.read().await;
 
-            // Add user-installed tools
-            for tool_info in server_tools {
-                // Convert ServerToolInfo to Tool
-                if let Some(input_schema) = tool_info.input_schema {
-                    // Convert InputSchema to serde_json::Value
-                    let schema_value = json!({
-                        "type": input_schema.r#type,
-                        "properties": input_schema.properties,
-                        "required": input_schema.required,
-                    });
+                // Find which server has the requested tool
+                let mut server_id = None;
 
-                    let tool = Tool {
-                        name: tool_info.name,
-                        description: tool_info.description,
-                        input_schema: schema_value,
-                    };
+                for (sid, tools) in &*server_tools {
+                    for tool in tools {
+                        if tool.id == tool_name {
+                            server_id = Some(sid.clone());
+                            break;
+                        }
 
-                    tools_vec.push(tool);
-                } else {
-                    // Create a tool with an empty schema
-                    let tool = Tool {
-                        name: tool_info.name,
-                        description: tool_info.description,
-                        input_schema: json!({
-                            "type": "object",
-                            "properties": {},
-                            "required": []
-                        }),
-                    };
+                        // Also check by name if id doesn't match
+                        if tool.name == tool_name {
+                            server_id = Some(sid.clone());
+                            break;
+                        }
+                    }
 
-                    tools_vec.push(tool);
+                    if server_id.is_some() {
+                        break;
+                    }
+                }
+
+                // Drop the locks before proceeding
+                drop(server_tools);
+                drop(mcp_state);
+
+                match server_id {
+                    Some(server_id) => {
+                        let request = ToolExecutionRequest {
+                            tool_id: format!("{}:{}", server_id, tool_name),
+                            parameters: args,
+                        };
+
+                        match self.mcp_core.execute_proxy_tool(request).await {
+                            Ok(response) => {
+                                if response.success {
+                                    Ok(response.result.unwrap_or(json!(null)))
+                                } else {
+                                    Err(crate::MCPError::ExecutionError(
+                                        response
+                                            .error
+                                            .unwrap_or_else(|| "Unknown error".to_string()),
+                                    ))
+                                }
+                            }
+                            Err(e) => Err(crate::MCPError::ExecutionError(format!(
+                                "Failed to execute tool: {}",
+                                e
+                            ))),
+                        }
+                    }
+                    None => Err(crate::MCPError::NotFound(format!(
+                        "Tool '{}' not found",
+                        tool_name
+                    ))),
                 }
             }
-
-            // Update the cache
-            let mut cache = cache.write().await;
-            *cache = tools_vec;
-            info!("Tools cache updated with {} tools", cache.len());
-            Ok(())
-        }
-        Err(e) => {
-            error!("Failed to update tools cache: {}", e);
-            // Clear the cache to force refresh on next request
-            let mut cache = cache.write().await;
-            cache.clear();
-            Err(e)
         }
     }
 }

@@ -1,26 +1,21 @@
+use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
 use crate::utils::command::CommandWrappedInShellBuilder;
 use crate::MCPError;
 use log::{error, info};
-use mcp_sdk_client::transport::stdio::StdioTransport;
-use mcp_sdk_client::transport::stdio::StdioTransportHandle;
-use mcp_sdk_client::{
-    ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport,
-};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use crate::mcp_server::mcp_tools_service::MCPToolsService;
 
-/// Type alias for a transport that uses StdioTransportHandle
-pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
+// /// Type alias for a transport that uses StdioTransportHandle
+// pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
 
-/// Type alias for McpClient trait objects
-pub type McpClientType = Arc<dyn McpClientTrait + Send + Sync>;
+// /// Type alias for McpClient trait objects
+// pub type McpClientType = Arc<dyn McpClientTrait + Send + Sync>;
 
 /// MCPState: the main service layer
 ///

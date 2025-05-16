@@ -1,14 +1,14 @@
 pub mod core;
 pub mod database;
 pub mod http_server;
+pub mod jsonrpc_frame_codec;
 pub mod mcp_installers;
+pub mod mcp_server;
 pub mod mcp_state;
 pub mod models;
 pub mod registry;
 pub mod schema;
 pub mod spawned_process;
-pub mod mcp_server;
-pub mod jsonrpc_frame_codec;
 
 // Re-export commonly used types and functions
 pub use error::{MCPError, MCPResult};
@@ -18,11 +18,6 @@ pub mod utils;
 
 // pub use registry::ToolRegistry;
 
-// Re-export ByteTransport from mcp-sdk-server
-pub use mcp_sdk_server::ByteTransport;
-
-// Re-export Tool from external mcp-core
-pub use mcp_sdk_core::{Tool, ToolCall};
 use std::sync::Once;
 
 static INIT: Once = Once::new();

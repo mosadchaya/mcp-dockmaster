@@ -13,12 +13,11 @@ use tokio::sync::Mutex;
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
-    Distribution, ErrorResponse, InputSchema, InputSchemaProperty, RegistryToolsResponse,
-    ServerConfiguration, ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo,
-    ServerToolsResponse, ToolExecutionRequest,
+    Distribution, InputSchema, InputSchemaProperty, RegistryToolsResponse, ServerConfiguration,
+    ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
+    ToolExecutionRequest,
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
-use mcp_sdk_server::Router;
 
 use axum::{
     extract::Query,
@@ -35,14 +34,11 @@ use crate::mcp_server::tools::{
     get_search_server_tool, get_uninstall_server_tool, TOOL_CONFIGURE_SERVER,
     TOOL_LIST_INSTALLED_SERVERS, TOOL_REGISTER_SERVER, TOOL_SEARCH_SERVER, TOOL_UNINSTALL_SERVER,
 };
-use mcp_sdk_server::router::RouterService;
 
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
 
-use crate::mcp_server::mcp_router::MCPDockmasterRouter;
 use crate::mcp_server::session_manager::SESSION_MANAGER;
-use mcp_sdk_server::{ByteTransport, Server};
 use tokio_util::codec::FramedRead;
 
 /// JSON-RPC request structure
@@ -113,140 +109,140 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "MCP Server is running!")
 }
 
-pub async fn handle_mcp_request(
-    Extension(mcp_core): Extension<MCPCore>,
-    Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
-    Json(request): Json<JsonRpcRequest>,
-) -> Json<JsonRpcResponse> {
-    info!("Received MCP request: method={}", request.method);
+// pub async fn handle_mcp_request(
+//     Extension(mcp_core): Extension<MCPCore>,
+//     Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
+//     Json(request): Json<JsonRpcRequest>,
+// ) -> Json<JsonRpcResponse> {
+//     info!("Received MCP request: method={}", request.method);
 
-    let result: Result<Value, Value> = match request.method.as_str() {
-        // Use our MCP router for the initialize method
-        "initialize" => {
-            // Use the router's capabilities for the response
-            let capabilities = mcp_router.capabilities();
-            let name = mcp_router.name();
-            let instructions = mcp_router.instructions();
+//     let result: Result<Value, Value> = match request.method.as_str() {
+//         // Use our MCP router for the initialize method
+//         "initialize" => {
+//             // Use the router's capabilities for the response
+//             let capabilities = mcp_router.capabilities();
+//             let name = mcp_router.name();
+//             let instructions = mcp_router.instructions();
 
-            // Return the initialization response
-            Ok(json!({
-                "protocolVersion": "2024-11-05",
-                "serverInfo": {
-                    "name": name,
-                    "version": "1.0.0"
-                },
-                "instructions": instructions,
-                "capabilities": capabilities
-            }))
-        }
-        "tools/list" => match handle_list_tools(mcp_core).await {
-            Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-            Err(error) => Err(serde_json::to_value(error).unwrap()),
-        },
-        "tools/hidden" => handle_tools_hidden(mcp_core).await,
-        "tools/call" => {
-            if let Some(params) = request.params {
-                handle_invoke_tool(mcp_core, params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Missing parameters"
-                }))
-            }
-        }
-        "prompts/list" => handle_list_prompts().await,
-        "resources/list" => handle_list_resources().await,
-        "resources/read" => {
-            if let Some(params) = request.params {
-                handle_read_resource(params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Invalid params - missing parameters for resource reading"
-                }))
-            }
-        }
-        "prompts/get" => {
-            if let Some(params) = request.params {
-                handle_get_prompt(params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Invalid params - missing parameters for prompt retrieval"
-                }))
-            }
-        }
-        "registry/install" => {
-            if let Some(params) = request.params {
-                match handle_register_tool(mcp_core, params).await {
-                    Ok(response) => Ok(serde_json::to_value(response).unwrap()),
-                    Err(error) => Err(serde_json::to_value(error).unwrap()),
-                }
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Missing parameters for tool installation"
-                }))
-            }
-        }
-        "registry/import" => {
-            if let Some(params) = request.params {
-                handle_import_server_from_url(mcp_core, params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Missing parameters for server import"
-                }))
-            }
-        }
-        "registry/list" => handle_list_all_tools(mcp_core).await,
-        "server/config" => {
-            if let Some(params) = request.params {
-                handle_get_server_config(mcp_core, params).await
-            } else {
-                Err(json!({
-                    "code": -32602,
-                    "message": "Invalid params - missing parameters for server config"
-                }))
-            }
-        }
-        _ => Err(json!({
-            "code": -32601,
-            "message": format!("Method '{}' not found", request.method)
-        })),
-    };
+//             // Return the initialization response
+//             Ok(json!({
+//                 "protocolVersion": "2024-11-05",
+//                 "serverInfo": {
+//                     "name": name,
+//                     "version": "1.0.0"
+//                 },
+//                 "instructions": instructions,
+//                 "capabilities": capabilities
+//             }))
+//         }
+//         "tools/list" => match handle_list_tools(mcp_core).await {
+//             Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+//             Err(error) => Err(serde_json::to_value(error).unwrap()),
+//         },
+//         "tools/hidden" => handle_tools_hidden(mcp_core).await,
+//         "tools/call" => {
+//             if let Some(params) = request.params {
+//                 handle_invoke_tool(mcp_core, params).await
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Missing parameters"
+//                 }))
+//             }
+//         }
+//         "prompts/list" => handle_list_prompts().await,
+//         "resources/list" => handle_list_resources().await,
+//         "resources/read" => {
+//             if let Some(params) = request.params {
+//                 handle_read_resource(params).await
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Invalid params - missing parameters for resource reading"
+//                 }))
+//             }
+//         }
+//         "prompts/get" => {
+//             if let Some(params) = request.params {
+//                 handle_get_prompt(params).await
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Invalid params - missing parameters for prompt retrieval"
+//                 }))
+//             }
+//         }
+//         "registry/install" => {
+//             if let Some(params) = request.params {
+//                 match handle_register_tool(mcp_core, params).await {
+//                     Ok(response) => Ok(serde_json::to_value(response).unwrap()),
+//                     Err(error) => Err(serde_json::to_value(error).unwrap()),
+//                 }
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Missing parameters for tool installation"
+//                 }))
+//             }
+//         }
+//         "registry/import" => {
+//             if let Some(params) = request.params {
+//                 handle_import_server_from_url(mcp_core, params).await
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Missing parameters for server import"
+//                 }))
+//             }
+//         }
+//         "registry/list" => handle_list_all_tools(mcp_core).await,
+//         "server/config" => {
+//             if let Some(params) = request.params {
+//                 handle_get_server_config(mcp_core, params).await
+//             } else {
+//                 Err(json!({
+//                     "code": -32602,
+//                     "message": "Invalid params - missing parameters for server config"
+//                 }))
+//             }
+//         }
+//         _ => Err(json!({
+//             "code": -32601,
+//             "message": format!("Method '{}' not found", request.method)
+//         })),
+//     };
 
-    match result {
-        Ok(result) => Json(JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id: request.id,
-            result: Some(result),
-            error: None,
-        }),
-        Err(error) => {
-            let error_obj = error.as_object().unwrap();
-            Json(JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: error_obj
-                        .get("code")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(-32000) as i32,
-                    message: error_obj
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown error")
-                        .to_string(),
-                    data: None,
-                }),
-            })
-        }
-    }
-}
+//     match result {
+//         Ok(result) => Json(JsonRpcResponse {
+//             jsonrpc: "2.0".to_string(),
+//             id: request.id,
+//             result: Some(result),
+//             error: None,
+//         }),
+//         Err(error) => {
+//             let error_obj = error.as_object().unwrap();
+//             Json(JsonRpcResponse {
+//                 jsonrpc: "2.0".to_string(),
+//                 id: request.id,
+//                 result: None,
+//                 error: Some(JsonRpcError {
+//                     code: error_obj
+//                         .get("code")
+//                         .and_then(|v| v.as_i64())
+//                         .unwrap_or(-32000) as i32,
+//                     message: error_obj
+//                         .get("message")
+//                         .and_then(|v| v.as_str())
+//                         .unwrap_or("Unknown error")
+//                         .to_string(),
+//                     data: None,
+//                 }),
+//             })
+//         }
+//     }
+// }
 
-async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
+async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, rmcp::Error> {
     // Get the installed tools from MCPCore
     let result = mcp_core.list_all_server_tools().await;
 
@@ -262,7 +258,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
             ServerToolInfo {
                 id: TOOL_REGISTER_SERVER.to_string(),
                 name: TOOL_REGISTER_SERVER.to_string(),
-                description: get_register_server_tool().description.clone(),
+                description: get_register_server_tool()
+                    .description
+                    .unwrap_or_default()
+                    .to_string(),
                 server_id: "builtin".to_string(),
                 proxy_id: None,
                 is_active: true,
@@ -294,7 +293,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
             ServerToolInfo {
                 id: TOOL_SEARCH_SERVER.to_string(),
                 name: TOOL_SEARCH_SERVER.to_string(),
-                description: get_search_server_tool().description.clone(),
+                description: get_search_server_tool()
+                    .description
+                    .unwrap_or_default()
+                    .to_string(),
                 server_id: "builtin".to_string(),
                 proxy_id: None,
                 is_active: true,
@@ -326,7 +328,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
             ServerToolInfo {
                 id: TOOL_CONFIGURE_SERVER.to_string(),
                 name: TOOL_CONFIGURE_SERVER.to_string(),
-                description: get_configure_server_tool().description.clone(),
+                description: get_configure_server_tool()
+                    .description
+                    .unwrap_or_default()
+                    .to_string(),
                 server_id: "builtin".to_string(),
                 proxy_id: None,
                 is_active: true,
@@ -358,7 +363,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
             ServerToolInfo {
                 id: TOOL_UNINSTALL_SERVER.to_string(),
                 name: TOOL_UNINSTALL_SERVER.to_string(),
-                description: get_uninstall_server_tool().description.clone(),
+                description: get_uninstall_server_tool()
+                    .description
+                    .unwrap_or_default()
+                    .to_string(),
                 server_id: "builtin".to_string(),
                 proxy_id: None,
                 is_active: true,
@@ -390,7 +398,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
             ServerToolInfo {
                 id: TOOL_LIST_INSTALLED_SERVERS.to_string(),
                 name: TOOL_LIST_INSTALLED_SERVERS.to_string(),
-                description: get_list_installed_servers_tool().description.clone(),
+                description: get_list_installed_servers_tool()
+                    .description
+                    .unwrap_or_default()
+                    .to_string(),
                 server_id: "builtin".to_string(),
                 proxy_id: None,
                 is_active: true,
@@ -448,10 +459,10 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
 
             Ok(ServerToolsResponse { tools: all_tools })
         }
-        Err(e) => Err(ErrorResponse {
-            code: -32000,
-            message: format!("Failed to list tools: {}", e),
-        }),
+        Err(e) => Err(rmcp::Error::internal_error(
+            format!("Failed to list tools: {}", e),
+            None,
+        )),
     }
 }
 
@@ -482,19 +493,20 @@ enum ToolRegistrationRequest {
 pub async fn handle_register_tool(
     mcp_core: MCPCore,
     params: Value,
-) -> Result<ServerRegistrationResponse, ErrorResponse> {
+) -> Result<ServerRegistrationResponse, rmcp::Error> {
     println!("[INSTALLATION] handle_register_tool: params {:?}", params);
+    let params_clone = params.clone();
     let params = match serde_json::from_value(params) {
         Ok(params) => params,
         Err(error) => {
             println!("[INSTALLATION] handle_register_tool: error {:?}", error);
-            return Err(ErrorResponse {
-                code: -32602,
-                message: format!(
+            return Err(rmcp::Error::invalid_params(
+                format!(
                     "Invalid params - missing parameters for tool registration: {}",
                     error
                 ),
-            });
+                Some(params_clone),
+            ));
         }
     };
 
@@ -543,10 +555,10 @@ pub async fn handle_register_tool(
                 .iter()
                 .find(|tool| tool.id.as_str() == tool_id);
             if tool.is_none() {
-                return Err(ErrorResponse {
-                    code: -32000,
-                    message: format!("Tool {} not found", tool_id),
-                });
+                return Err(rmcp::Error::invalid_params(
+                    format!("Tool {} not found", tool_id),
+                    Some(serde_json::Value::String(tool_id)),
+                ));
             }
             let tool = tool.unwrap();
             println!("Building tool from registry: {:?}", tool);
@@ -570,7 +582,7 @@ pub async fn handle_register_tool(
     }
 }
 
-pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
+pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, rmcp::Error> {
     // Check if we have a valid cache
     let use_cache = {
         let cache = REGISTRY_CACHE.lock().await;
@@ -611,21 +623,17 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, ErrorRe
         .header("User-Agent", "MCP-Core/1.0")
         .send()
         .await
-        .map_err(|e| ErrorResponse {
-            code: -32000,
-            message: format!("Failed to fetch tools from registry: {}", e),
+        .map_err(|e| {
+            rmcp::Error::internal_error(format!("Failed to fetch tools from registry: {}", e), None)
         })?;
 
-    let raw = response.json().await.map_err(|e| ErrorResponse {
-        code: -32000,
-        message: format!("Failed to parse tools from registry: {}", e),
+    let raw = response.json().await.map_err(|e| {
+        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
     })?;
 
-    let tool_wrapper: RegistryToolsResponse =
-        serde_json::from_value(raw).map_err(|e| ErrorResponse {
-            code: -32000,
-            message: format!("Failed to parse tools from registry: {}", e),
-        })?;
+    let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw).map_err(|e| {
+        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
+    })?;
 
     println!("[TOOLS] found # tools {:?}", tool_wrapper.tools.len());
 
@@ -871,70 +879,70 @@ async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
     Ok(json!({ "hidden": hidden }))
 }
 
-/// SSE endpoint handler with bidirectional communication
-pub async fn sse_handler(
-    Extension(_mcp_core): Extension<MCPCore>,
-    Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let session_id = Uuid::new_v4().to_string();
-    info!("New SSE connection established: {}", session_id);
+// /// SSE endpoint handler with bidirectional communication
+// pub async fn sse_handler(
+//     Extension(_mcp_core): Extension<MCPCore>,
+//     Extension(mcp_router): Extension<Arc<MCPDockmasterRouter>>,
+// ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+//     let session_id = Uuid::new_v4().to_string();
+//     info!("New SSE connection established: {}", session_id);
 
-    const BUFFER_SIZE: usize = 1 << 12; // 4KB
-                                        // Create channels for command and response
-    let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
-    let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
-    // Create a separate channel for notifications
-    let (notification_read, notification_write) = io::simplex(BUFFER_SIZE);
+//     const BUFFER_SIZE: usize = 1 << 12; // 4KB
+//                                         // Create channels for command and response
+//     let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
+//     let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
+//     // Create a separate channel for notifications
+//     let (notification_read, notification_write) = io::simplex(BUFFER_SIZE);
 
-    // Wrap writers in Arc<Mutex>
-    let command_writer = Arc::new(TokioMutex::new(c2s_write));
-    let notification_writer = Arc::new(TokioMutex::new(notification_write));
+//     // Wrap writers in Arc<Mutex>
+//     let command_writer = Arc::new(TokioMutex::new(c2s_write));
+//     let notification_writer = Arc::new(TokioMutex::new(notification_write));
 
-    // Register both channels
-    SESSION_MANAGER
-        .register_session(session_id.clone(), command_writer, notification_writer)
-        .await;
+//     // Register both channels
+//     SESSION_MANAGER
+//         .register_session(session_id.clone(), command_writer, notification_writer)
+//         .await;
 
-    // Spawn a task to handle incoming messages from the client
-    {
-        let session_id = session_id.clone();
-        let router_clone = mcp_router.clone();
+//     // Spawn a task to handle incoming messages from the client
+//     {
+//         let session_id = session_id.clone();
+//         let router_clone = mcp_router.clone();
 
-        tokio::spawn(async move {
-            // Dereference the Arc to get the actual router
-            let router_service = RouterService((*router_clone).clone());
-            let server = Server::new(router_service);
-            let byte_transport = ByteTransport::new(c2s_read, s2c_write);
+//         tokio::spawn(async move {
+//             // Dereference the Arc to get the actual router
+//             let router_service = RouterService((*router_clone).clone());
+//             let server = Server::new(router_service);
+//             let byte_transport = ByteTransport::new(c2s_read, s2c_write);
 
-            let result = server.run(byte_transport).await;
+//             let result = server.run(byte_transport).await;
 
-            if let Err(e) = &result {
-                log::error!("Server run error for session {}: {:?}", session_id, e);
-            }
+//             if let Err(e) = &result {
+//                 log::error!("Server run error for session {}: {:?}", session_id, e);
+//             }
 
-            SESSION_MANAGER.remove_session(&session_id).await;
+//             SESSION_MANAGER.remove_session(&session_id).await;
 
-            result
-        });
-    }
+//             result
+//         });
+//     }
 
-    // Create an initial event with the session ID
-    let initial_event = futures::stream::once(futures::future::ok(
-        Event::default()
-            .event("endpoint")
-            .data(format!("?sessionId={session_id}")),
-    ));
+//     // Create an initial event with the session ID
+//     let initial_event = futures::stream::once(futures::future::ok(
+//         Event::default()
+//             .event("endpoint")
+//             .data(format!("?sessionId={session_id}")),
+//     ));
 
-    // Create streams for both s2c and notification channels
-    let message_stream = create_message_stream(s2c_read);
-    let notification_stream = create_message_stream(notification_read);
+//     // Create streams for both s2c and notification channels
+//     let message_stream = create_message_stream(s2c_read);
+//     let notification_stream = create_message_stream(notification_read);
 
-    // Merge all streams together
-    let combined_stream =
-        initial_event.chain(futures::stream::select(message_stream, notification_stream));
+//     // Merge all streams together
+//     let combined_stream =
+//         initial_event.chain(futures::stream::select(message_stream, notification_stream));
 
-    Sse::new(combined_stream)
-}
+//     Sse::new(combined_stream)
+// }
 
 /// Query parameter struct for session ID
 #[derive(Debug, Deserialize)]
