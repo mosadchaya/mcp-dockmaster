@@ -11,7 +11,6 @@ pub mod schema;
 pub mod spawned_process;
 
 // Re-export commonly used types and functions
-pub use error::{MCPError, MCPResult};
 pub use models::*;
 pub use spawned_process::SpawnedProcess;
 pub mod utils;

@@ -49,7 +49,7 @@ impl ServerHandler for McpServer {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         Ok(ListToolsResult {
-            tools: self.tools_service.list_tools(),
+            tools: self.mcp_core.list_tools().await,
             next_cursor: None,
         })
     }

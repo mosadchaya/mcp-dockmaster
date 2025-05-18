@@ -49,25 +49,6 @@ enum ToolRegistrationRequest {
     ById(ToolRegistrationRequestById),
 }
 
-// Cache structure to store registry data and timestamp
-struct RegistryCache {
-    data: Option<Value>,
-    timestamp: Option<Instant>,
-}
-
-lazy_static! {
-    static ref REGISTRY_CACHE: Mutex<RegistryCache> = Mutex::new(RegistryCache {
-        data: None,
-        timestamp: None,
-    });
-}
-
-lazy_static! {
-    static ref INSTANCE: RwLock<Option<Arc<MCPToolsService>>> = RwLock::new(None);
-}
-
-// Cache duration constant (1 minutes)
-const CACHE_DURATION: Duration = Duration::from_secs(60);
 
 pub struct MCPToolsService {
     mcp_core: MCPCore,
@@ -75,119 +56,21 @@ pub struct MCPToolsService {
     are_tools_hidden: Arc<RwLock<bool>>,
 }
 
-impl MCPToolsService {
-    pub fn new(mcp_core: MCPCore) -> Self {
-        Self {
-            mcp_core,
-            tools_cache: Arc::new(RwLock::new(Vec::new())),
-            are_tools_hidden: Arc::new(RwLock::new(false)),
-        }
-    }
-
-    pub async fn initialize(mcp_core: MCPCore) -> Arc<Self> {
-        let mut instance = INSTANCE.write().await;
-        if instance.is_none() {
-            *instance = Some(Arc::new(Self::new(mcp_core)));
-        }
-        instance.as_ref().unwrap().clone()
-    }
-
-    pub async fn get_instance() -> Option<Arc<Self>> {
-        let instance = INSTANCE.read().await;
-        instance.clone()
-    }
-
-    /// Set the tools visibility state
-    pub async fn set_tools_hidden(&self, hidden: bool) -> Result<(), String> {
-        let mut are_tools_hidden = self.are_tools_hidden.write().await;
-        *are_tools_hidden = hidden;
-        info!(
-            "Tools visibility set to: {}",
-            if hidden { "hidden" } else { "visible" }
-        );
-        Ok(())
-    }
-
+impl MCPToolsService for McpServer {
     /// Get the list of tools synchronously from cache
     pub fn list_tools(&self) -> Vec<Tool> {
-        // Check if tools should be hidden using the cached state
-        let are_tools_hidden = if let Ok(hidden) = self.are_tools_hidden.try_read() {
-            *hidden
-        } else {
-            // If we can't read the state, assume tools are visible
-            false
-        };
-
-        // If tools are hidden, return empty list
-        if are_tools_hidden {
-            info!("Tools are hidden, returning empty list");
-            return Vec::new();
-        }
-
-        // Start with an empty list of tools
-        let mut tools = Vec::new();
-
-        // Get cached tools if available
-        let cache_handle = self.tools_cache.clone();
-
-        // Try to read from the existing cache (non-blocking)
-        let cache_found = if let Ok(cache) = cache_handle.try_read() {
-            if !cache.is_empty() {
-                info!("Found {} tools in cache", cache.len());
-                // Add all cached tools
-                tools = cache.clone();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        // If we didn't find any cached tools, add the built-in tools
-        if !cache_found {
-            info!("No tools in cache, adding built-in tools");
-            tools.push(get_register_server_tool());
-            tools.push(get_search_server_tool());
-            tools.push(get_configure_server_tool());
-            tools.push(get_uninstall_server_tool());
-            tools.push(get_list_installed_servers_tool());
-        }
-
-        // Log what we're returning
-        info!("Returning {} tools from list_tools", tools.len());
-
-        // Trigger an async task to update the cache for future calls
-        let mcp_core = self.mcp_core.clone();
-        let cache_clone = self.tools_cache.clone();
-
-        // Spawn a task to update the cache for future requests
-        tokio::spawn(async move {
-            if let Err(e) = update_cache_internal(mcp_core, cache_clone).await {
-                error!("Failed to update tools cache: {}", e);
-            }
-        });
-
+        let tools = self.mcp_core.list_tools().await;
         tools
     }
 
-    /// Update the tools cache with the latest tools from all servers
-    pub async fn update_cache(&self) -> Result<(), String> {
-        // Update the visibility state from MCPCore
-        let mcp_state = self.mcp_core.mcp_state.read().await;
-        let are_tools_hidden = mcp_state.are_tools_hidden.read().await;
-        let mut cached_hidden = self.are_tools_hidden.write().await;
-        *cached_hidden = *are_tools_hidden;
+    async fn handle_list_installed_servers(&self, _args: Value) -> Result<Value, crate::MCPError> {
+        // Get the installed servers from MCPCore
+        let result = self.mcp_core.list_servers().await;
 
-        // Only update the tools cache if tools are visible
-        if !*are_tools_hidden {
-            update_cache_internal(self.mcp_core.clone(), self.tools_cache.clone()).await
-        } else {
-            // If tools are hidden, clear the cache
-            let mut cache = self.tools_cache.write().await;
-            cache.clear();
-            Ok(())
-        }
+        // Return the installed servers as JSON
+        Ok(json!({
+            "servers": result
+        }))
     }
 
     /// Execute a tool by finding the appropriate server and forwarding the call
@@ -265,5 +148,134 @@ impl MCPToolsService {
                 }
             }
         }
+    }
+
+    async fn handle_configure_server(&self, args: Value) -> Result<Value, crate::MCPError> {
+        // Convert the args into the format expected by the HTTP handler
+        let configure_request =
+            if let Some(server_id) = args.get("server_id").and_then(|v| v.as_str()) {
+                serde_json::json!({
+                    "tool_id": server_id,
+                    "config": args.get("config").unwrap_or(&Value::Null)
+                })
+            } else {
+                // Otherwise, expect direct registration parameters
+                args
+            };
+
+        // Use the HTTP handler's logic through MCPCore
+        match crate::http_server::handlers::handle_get_server_config(
+            self.mcp_core.clone(),
+            configure_request,
+        )
+        .await
+        {
+            Ok(response) => {
+                // Update the tools cache after successful configuration
+                if let Err(e) = self.update_tools_cache("configuration").await {
+                    error!("Failed to update tools cache after configuration: {}", e);
+                }
+                Ok(response)
+            }
+            Err(error) => Err(ToolError::ExecutionError(
+                error
+                    .get("message")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("Unknown error")
+                    .to_string(),
+            )),
+        }
+    }
+
+    /// Handle search_server tool
+    async fn handle_search_server(&self, args: Value) -> Result<Value, crate::MCPError> {
+        // Extract the query parameter from the args
+        let query = match args.get("query").and_then(|q| q.as_str()) {
+            Some(q) => q,
+            None => {
+                return Err(ToolError::ExecutionError(
+                    "Missing or invalid 'query' parameter".to_string(),
+                ))
+            }
+        };
+
+        // Create a new RegistrySearch instance
+        let mut registry_search = match RegistrySearch::new().await {
+            Ok(search) => search,
+            Err(e) => match e {
+                SearchError::CacheError(msg) => {
+                    error!("Cache error during registry search: {}", msg);
+                    return Err(crate::MCPError::ExecutionError(format!(
+                        "Registry cache error: {}",
+                        msg
+                    )));
+                }
+                SearchError::IndexError(msg) => {
+                    error!("Index error during registry search: {}", msg);
+                    return Err(crate::MCPError::ExecutionError(format!(
+                        "Registry index error: {}",
+                        msg
+                    )));
+                }
+                SearchError::QueryError(msg) => {
+                    error!("Query error during registry search: {}", msg);
+                    return Err(crate::MCPError::ExecutionError(format!(
+                        "Query error: {}",
+                        msg
+                    )));
+                }
+            },
+        };
+
+        // Execute the search
+        let search_results = match registry_search.search(query) {
+            Ok(results) => results,
+            Err(e) => match e {
+                SearchError::QueryError(msg) => {
+                    return Err(crate::MCPError::ExecutionError(format!(
+                        "Invalid query: {}",
+                        msg
+                    )));
+                }
+                _ => {
+                    return Err(crate::MCPError::ExecutionError(format!(
+                        "Search execution error: {:?}",
+                        e
+                    )));
+                }
+            },
+        };
+
+        // Limit results to top 10 for better UI display
+        let top_results = search_results.into_iter().take(10).collect::<Vec<_>>();
+
+        // Transform results into a format suitable for JSON response
+        let formatted_results = top_results
+            .into_iter()
+            .map(|(tool, score)| {
+                json!({
+                    "id": tool.id,
+                    "name": tool.name,
+                    "description": tool.description,
+                    "short_description": tool.short_description,
+                    "publisher": tool.publisher,
+                    "is_official": tool.is_official,
+                    "source_url": tool.source_url,
+                    "distribution": tool.distribution,
+                    "license": tool.license,
+                    "runtime": tool.runtime,
+                    "categories": tool.categories,
+                    "tags": tool.tags,
+                    "score": score
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // Return the results as JSON
+        Ok(json!({
+            "results": formatted_results,
+            "count": formatted_results.len(),
+            "query": query
+        }))
     }
 }

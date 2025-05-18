@@ -129,7 +129,6 @@ impl MCPCore {
         }
 
         info!("Creating MCP server...");
-        let tools_service = MCPToolsService::initialize(self.clone()).await;
         let transport = stdio();
         let mcp_server = McpServer::new(self.clone(), tools_service)
             .serve(transport)
