@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -151,7 +151,7 @@ pub struct ServerRegistrationResponse {
 #[derive(Deserialize)]
 pub struct ToolExecutionRequest {
     pub tool_id: String,
-    pub parameters: Value,
+    pub parameters: Option<Map<String, Value>>,
 }
 
 /// MCP tool execution response
@@ -207,139 +207,6 @@ pub struct DiscoverServerToolsRequest {
 pub struct Distribution {
     pub r#type: String,
     pub package: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct InputSchemaProperty {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub description: String,
-
-    // Type can be a string or array of strings
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<Value>,
-
-    // Additional fields from the JSON example
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<Value>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub minimum: Option<f64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub maximum: Option<f64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "exclusiveMinimum")]
-    pub exclusive_minimum: Option<f64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "exclusiveMaximum")]
-    pub exclusive_maximum: Option<f64>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "additionalProperties")]
-    pub additional_properties: Option<bool>,
-
-    // Support for allOf arrays
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "allOf")]
-    pub all_of: Option<Vec<Value>>,
-
-    // Catch-all for any other properties
-    #[serde(flatten)]
-    #[serde(default)]
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub additional_fields: HashMap<String, Value>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct InputSchema {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub properties: HashMap<String, InputSchemaProperty>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub required: Vec<String>,
-
-    #[serde(default)]
-    pub r#type: String,
-
-    // Additional fields from the JSON example - all made optional with default values
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "additionalProperties")]
-    pub additional_properties: Option<bool>,
-
-    #[serde(rename = "$schema")]
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<String>,
-
-    // Catch-all for any other properties - made optional with default value
-    #[serde(flatten)]
-    #[serde(default)]
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub additional_fields: HashMap<String, Value>,
-}
-
-impl Default for InputSchema {
-    fn default() -> Self {
-        Self {
-            properties: HashMap::new(),
-            required: Vec::new(),
-            r#type: "object".to_string(),
-            title: None,
-            description: None,
-            additional_properties: None,
-            schema: None,
-            additional_fields: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ServerToolInfo {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    #[serde(default)]
-    #[serde(rename = "inputSchema")]
-    pub input_schema: Option<InputSchema>,
-    pub server_id: String,
-    #[serde(default)]
-    pub proxy_id: Option<String>,
-    #[serde(default = "default_is_active")]
-    pub is_active: bool,
-}
-
-fn default_is_active() -> bool {
-    true
 }
 
 // Custom serializer for the Error variant to format as "Error: message"
@@ -411,38 +278,17 @@ pub struct ConfigUpdateRequest {
     pub config: HashMap<String, String>,
 }
 
-/// Response for server tools listing
-#[derive(Debug, Serialize)]
-pub struct ServerToolsResponse {
-    pub tools: Vec<ServerToolInfo>,
-}
-
-impl ServerToolInfo {
-    /// Create a new ServerToolInfo from a JSON value
-    pub fn from_value(value: Value, server_id: String) -> Result<ServerToolInfo, String> {
-        // Generate id from name before deserializing
-        let name = value
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or("missing name field")?;
-
-        let id = name
-            .to_lowercase()
-            .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { '_' })
-            .collect();
-
-        // Create mutable copy and insert the generated fields
-        let mut obj = value;
-
-        obj.as_object_mut()
-            .ok_or("value must be an object")?
-            .insert("id".to_string(), Value::String(id));
-        obj.as_object_mut()
-            .unwrap()
-            .insert("server_id".to_string(), Value::String(server_id));
-
-        // Now deserialize the complete object
-        serde_json::from_value(obj).map_err(|e| e.to_string())
-    }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ServerToolInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    #[serde(rename = "inputSchema")]
+    pub input_schema: Option<InputSchema>,
+    pub server_id: String,
+    #[serde(default)]
+    pub proxy_id: Option<String>,
+    #[serde(default = "default_is_active")]
+    pub is_active: bool,
 }

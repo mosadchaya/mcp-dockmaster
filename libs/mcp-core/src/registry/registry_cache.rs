@@ -95,12 +95,12 @@ impl RegistryCache {
 
         match result {
             Ok(response) => Ok(response),
-            Err(e) => Err(format!("Failed to fetch registry data: {}", e.message)),
+            Err(e) => Err(e),
         }
     }
 
     // Get registry tools from cache or fetch if needed (async version)
-    pub async fn get_registry_tools(&self) -> Result<RegistryToolsResponse, rmcp::Error> {
+    pub async fn get_registry_tools(&self) -> Result<RegistryToolsResponse, String> {
         // Check if we have a valid cache first (using read lock)
         {
             let cache_read = self.sync_cache.read().unwrap();
@@ -121,7 +121,7 @@ impl RegistryCache {
     }
 
     // Update the registry cache with fresh data
-    pub async fn update_registry_cache(&self) -> Result<RegistryToolsResponse, rmcp::Error> {
+    pub async fn update_registry_cache(&self) -> Result<RegistryToolsResponse, String> {
         // Lock to prevent multiple simultaneous fetches
         let _guard = self.async_cache.lock().await;
 
@@ -154,20 +154,15 @@ impl RegistryCache {
             .header("User-Agent", "MCP-Core/1.0")
             .send()
             .await
-            .map_err(|e| {
-                rmcp::Error::internal_error(
-                    format!("Failed to fetch tools from registry: {}", e),
-                    None,
-                )
-            })?;
+            .map_err(|e| format!("Failed to fetch tools from registry: {}", e))?;
 
-        let raw = response.json().await.map_err(|e| {
-            rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
-        })?;
+        let raw = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
 
-        let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw).map_err(|e| {
-            rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
-        })?;
+        let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw)
+            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
 
         info!("Fetched {} tools from registry", tool_wrapper.tools.len());
 

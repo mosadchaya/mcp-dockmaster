@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use log::{error, info, warn};
-use rmcp::transport::stdio;
 use rmcp::ServiceExt;
 use tokio::sync::RwLock;
 
@@ -9,10 +8,10 @@ use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::database::db_manager::DBManager;
 use crate::mcp_server::mcp_server::McpServer;
-use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
+use rmcp::transport::stdio;
 
 /// Errors that can occur during initialization
 #[derive(Debug)]
@@ -120,7 +119,7 @@ impl MCPCore {
             .await
         {
             Ok(_) => info!("Registry cache successfully updated"),
-            Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
+            Err(e) => warn!("Warning: Failed to update registry cache: {}", e),
         }
         info!("Initializing Background MCP servers");
         if let Err(e) = self.init_mcp_server().await {
@@ -130,7 +129,7 @@ impl MCPCore {
 
         info!("Creating MCP server...");
         let transport = stdio();
-        let mcp_server = McpServer::new(self.clone(), tools_service)
+        let mcp_server = McpServer::new(self.clone())
             .serve(transport)
             .await
             .map_err(|e| InitError::InitMcpServer(e.to_string()))?;

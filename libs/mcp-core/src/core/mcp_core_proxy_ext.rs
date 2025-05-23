@@ -1,9 +1,9 @@
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
-    ServerRegistrationResponse, ServerStatus, ServerToolInfo, ServerUninstallResponse,
-    ServerUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
-    ToolUninstallRequest, ToolUpdateResponse,
+    ServerRegistrationResponse, ServerStatus, ServerUninstallResponse, ServerUpdateRequest,
+    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest,
+    ToolUpdateResponse,
 };
 use crate::utils::github::{
     extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
@@ -13,9 +13,9 @@ use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
 use reqwest::Client;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use toml::Table;
 
 use super::mcp_core::MCPCore;
@@ -27,11 +27,11 @@ pub trait McpCoreProxyExt {
         tool: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
-    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>;
+    async fn list_all_server_tools(&self) -> Result<Vec<Tool>, String>;
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<Vec<ServerToolInfo>, String>;
+    ) -> Result<Vec<Tool>, String>;
     async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
@@ -165,15 +165,15 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all available tools from all running MCP servers
-    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> {
+    async fn list_all_server_tools(&self) -> Result<Vec<Tool>, String> {
         let mcp_state = self.mcp_state.read().await;
-        
+
         // Check if tools are hidden
         if mcp_state.are_tools_hidden().await {
             // Return empty list when tools are hidden
             return Ok(Vec::new());
         }
-        
+
         let server_tools = mcp_state.server_tools.read().await;
         let mut all_tools = Vec::new();
 
@@ -187,7 +187,7 @@ impl McpCoreProxyExt for MCPCore {
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<Vec<ServerToolInfo>, String> {
+    ) -> Result<Vec<Tool>, String> {
         let mcp_state = self.mcp_state.read().await;
         mcp_state.discover_server_tools(&request.server_id).await
     }
@@ -223,7 +223,10 @@ impl McpCoreProxyExt for MCPCore {
 
         let result = match mcp_client
             .client
-            .call_tool(tool_id, request.parameters.clone())
+            .call_tool(rmcp::model::CallToolRequestParam {
+                name: tool_id.to_string().into(),
+                arguments: request.parameters.clone(),
+            })
             .await
         {
             Ok(result) => result,
@@ -311,12 +314,6 @@ impl McpCoreProxyExt for MCPCore {
                 success: false,
                 message: e,
             });
-        }
-        // Update the tools cache
-        let tools_service = MCPToolsService::get_instance().await;
-        if let Err(e) =  tools_service.expect("REASON").update_cache().await {
-            error!("Failed to update tools cache after updating tool status: {}", e);
-            return Err(e);
         }
 
         // Return success
@@ -521,7 +518,7 @@ impl McpCoreProxyExt for MCPCore {
                 return Err(anyhow::anyhow!("Failed to get tools from database: {}", e));
             }
         };
-        
+
         info!("MCP state initialized, preparing to restart enabled tools");
 
         // Update the state with the new registry

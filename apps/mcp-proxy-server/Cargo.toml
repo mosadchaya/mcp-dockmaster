@@ -15,4 +15,4 @@ futures = "0.3"
 clap = { version = "4.5", features = ["derive"] }
 reqwest = { version = "0.12.15", features = ["json"] }
 tower = "0.4.13"
-rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "transport-sse", "transport-sse-server", "transport-io"] }
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "d0bbb22850cb7fb4d3fb3299f4e5bb6ed0ae7835", features = ["client", "server", "transport-sse-client", "transport-sse-server", "transport-child-process"] }
