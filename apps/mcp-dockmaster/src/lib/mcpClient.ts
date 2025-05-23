@@ -111,9 +111,10 @@ export interface ServerToolInfo {
   id: string;
   name: string;
   description: string;
-  inputSchema?: InputSchema;
-  server_id: string;
-  proxy_id?: string;
+  inputSchema?: InputSchema; // Assuming InputSchema is the correct target structure
+  serverId: string;
+  proxyId?: string;
+  isActive: boolean;
 }
 
 export interface ServerRegistrationResponse {

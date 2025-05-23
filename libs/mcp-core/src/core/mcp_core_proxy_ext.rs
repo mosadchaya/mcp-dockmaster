@@ -13,7 +13,8 @@ use async_trait::async_trait;
 use futures::future;
 use log::{error, info};
 use reqwest::Client;
-use rmcp::model::Tool;
+// use rmcp::model::Tool; // Replaced by ServerToolInfo for these public APIs
+use crate::models::types::ServerToolInfo; // Added for explicit use
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use toml::Table;
@@ -27,11 +28,11 @@ pub trait McpCoreProxyExt {
         tool: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
-    async fn list_all_server_tools(&self) -> Result<Vec<Tool>, String>;
+    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>; // Changed Tool to ServerToolInfo
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<Vec<Tool>, String>;
+    ) -> Result<Vec<ServerToolInfo>, String>; // Changed Tool to ServerToolInfo
     async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
@@ -165,7 +166,7 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all available tools from all running MCP servers
-    async fn list_all_server_tools(&self) -> Result<Vec<Tool>, String> {
+    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> { // Changed Tool to ServerToolInfo
         let mcp_state = self.mcp_state.read().await;
 
         // Check if tools are hidden
@@ -174,21 +175,22 @@ impl McpCoreProxyExt for MCPCore {
             return Ok(Vec::new());
         }
 
-        let server_tools = mcp_state.server_tools.read().await;
-        let mut all_tools = Vec::new();
+        let server_tools_map = mcp_state.server_tools.read().await; // This map now holds Vec<ServerToolInfo>
+        let mut all_server_tool_infos = Vec::new();
 
-        for tools in (*server_tools).values() {
-            all_tools.extend(tools.iter().cloned());
+        for tools_vec in server_tools_map.values() {
+            all_server_tool_infos.extend(tools_vec.iter().cloned()); // .cloned() works as ServerToolInfo is Clone
         }
-        Ok(all_tools)
+        Ok(all_server_tool_infos)
     }
 
     /// Discover tools from a specific MCP server
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
-    ) -> Result<Vec<Tool>, String> {
+    ) -> Result<Vec<ServerToolInfo>, String> { // Changed Tool to ServerToolInfo
         let mcp_state = self.mcp_state.read().await;
+        // mcp_state.discover_server_tools now returns Result<Vec<ServerToolInfo>, String>
         mcp_state.discover_server_tools(&request.server_id).await
     }
 

@@ -53,14 +53,21 @@ impl ServerHandler for McpServer {
         _request: Option<PaginatedRequestParam>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        let server_tools = self.mcp_core.list_all_server_tools().await;
-        let server_tools = server_tools.map_err(|e| {
+        let app_server_tools_info = self.mcp_core.list_all_server_tools().await;
+        let app_server_tools_info = app_server_tools_info.map_err(|e| {
             McpError::new(
                 ErrorCode::INTERNAL_ERROR,
-                "Failed to list tools",
-                Some(e.into()),
+                "Failed to list tools from mcp_core",
+                Some(serde_json::Value::String(e)),
             )
         })?;
+
+        // Convert Vec<ServerToolInfo> to Vec<rmcp::model::Tool>
+        let rmcp_server_tools: Vec<Tool> = app_server_tools_info
+            .iter()
+            .map(rmcp::model::Tool::from) // Uses From<&ServerToolInfo> for rmcp::model::Tool
+            .collect();
+
         let tools: Vec<Tool> = vec![
             get_register_server_tool(),
             get_search_server_tool(),
@@ -69,8 +76,9 @@ impl ServerHandler for McpServer {
             get_uninstall_server_tool(),
         ]
         .into_iter()
-        .chain(server_tools)
+        .chain(rmcp_server_tools) // Chain with converted tools
         .collect();
+
         Ok(ListToolsResult {
             tools,
             next_cursor: None,

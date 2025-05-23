@@ -386,8 +386,8 @@ const InstalledServers: React.FC = () => {
             const serverTools = await MCPClient.listAllServerTools();
             // Only update tools for this specific server
             setServerTools(prev => {
-              const otherTools = prev.filter(tool => tool.server_id !== id);
-              const newTools = serverTools.filter(tool => tool.server_id === id);
+            const otherTools = prev.filter(tool => tool.serverId !== id); // id here is serverId
+            const newTools = serverTools.filter(tool => tool.serverId === id); // id here is serverId
               return [...otherTools, ...newTools];
             });
           }
@@ -788,7 +788,7 @@ const InstalledServers: React.FC = () => {
     if (!infoPopupVisible || !currentInfoServer) return null;
     
     // Filter tools for this server
-    const toolsForServer = serverTools.filter((t) => t.server_id === currentInfoServer.id);
+    const toolsForServer = serverTools.filter((t) => t.serverId === currentInfoServer.id);
     
     return (
       <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>

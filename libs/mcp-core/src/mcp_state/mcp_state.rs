@@ -1,9 +1,11 @@
+use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
 use crate::utils::command::CommandWrappedInShellBuilder;
 use log::{error, info};
 use rmcp::model::{
-    CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam, Tool,
+    CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam,
+    // Tool, // Will use ServerToolInfo for our internal cache
 };
 use rmcp::service::RunningService;
 use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
@@ -22,7 +24,7 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
-    pub server_tools: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>, // Changed Tool to ServerToolInfo
     pub mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
     pub are_tools_hidden: Arc<RwLock<bool>>,
 }
@@ -37,7 +39,7 @@ pub struct MCPClient {
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
-        server_tools: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+        server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>, // Changed Tool to ServerToolInfo
         mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
     ) -> Self {
         // Initialize with default value
@@ -335,14 +337,14 @@ impl MCPState {
         registry.save_setting("tools_hidden", if hidden { "true" } else { "false" })
     }
 
-    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<Tool>, String> {
+    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<ServerToolInfo>, String> {
         info!(
             "[discover_tools] Starting discovery for server: {}",
             server_id
         );
 
-        let mcp_client = self.mcp_clients.read().await.get(server_id).cloned();
-        if let Some(mcp_client) = mcp_client {
+        let mcp_client_opt = self.mcp_clients.read().await.get(server_id).cloned();
+        if let Some(mcp_client) = mcp_client_opt {
             info!(
                 "[discover tools] Successfully got client for server: {}",
                 server_id
@@ -350,47 +352,64 @@ impl MCPState {
 
             match mcp_client.server_status {
                 ServerStatus::Running => {
-                    info!("Server status is Running, about to call list_tools");
+                    info!("Server status is Running, about to call list_tools for server_id: {}", server_id);
 
-                    let list_tools = match mcp_client.client.list_tools(None).await {
+                    let list_tools_response = match mcp_client.client.list_tools(None).await {
                         Ok(result) => {
-                            info!("mcp_client: list_tools call succeeded");
+                            info!("mcp_client: list_tools call succeeded for server_id: {}", server_id);
                             result
                         }
                         Err(e) => {
-                            error!("mcp_client: list_tools call failed: {}", e);
-                            return Err(e.to_string());
+                            error!("mcp_client: list_tools call failed for server_id: {}: {}", server_id, e);
+                            return Err(format!("Failed to list tools for server {}: {}", server_id, e));
                         }
                     };
 
-                    let tools = list_tools.tools;
+                    let rmcp_tools = list_tools_response.tools;
                     info!(
-                        "Successfully discovered {} tools for {}",
-                        tools.len(),
+                        "Successfully discovered {} rmcp::model::Tool instances for server_id: {}",
+                        rmcp_tools.len(),
                         server_id
                     );
 
-                    // Save the tools to the database
-                    let registry = self.tool_registry.read().await;
+                    // Convert rmcp::model::Tool to ServerToolInfo
+                    let server_tool_infos: Vec<ServerToolInfo> = rmcp_tools
+                        .iter()
+                        .map(|rmcp_tool| ServerToolInfo::from_rmcp_tool(rmcp_tool, server_id))
+                        .collect();
+                    
+                    info!(
+                        "Converted {} rmcp::model::Tool instances to ServerToolInfo for server_id: {}",
+                        server_tool_infos.len(),
+                        server_id
+                    );
 
-                    for tool in &tools {
-                        info!("Saving tool info to database: {:?}", tool);
-                        if let Err(e) = registry.save_server_tool(&tool) {
-                            error!("Failed to save server tool to database: {}", e);
+                    // Save the ServerToolInfo instances to the database
+                    let registry = self.tool_registry.read().await;
+                    for tool_info in &server_tool_infos {
+                        info!("Saving ServerToolInfo to database: {:?}", tool_info.name);
+                        if let Err(e) = registry.save_server_tool(tool_info) {
+                            error!("Failed to save server tool {} to database for server_id {}: {}", tool_info.name, server_id, e);
                         }
                     }
 
-                    // Save the tools to the server_tools map
-                    let mut server_tools = self.server_tools.write().await;
-                    server_tools.insert(server_id.to_string(), tools.clone());
+                    // Save the ServerToolInfo instances to the server_tools map
+                    let mut server_tools_map = self.server_tools.write().await;
+                    server_tools_map.insert(server_id.to_string(), server_tool_infos.clone());
+                    info!("Updated server_tools map for server_id: {}", server_id);
 
-                    Ok(tools)
+                    Ok(server_tool_infos)
                 }
-                _ => Err(format!("Server {} is not running", server_id)),
+                _ => {
+                    let msg = format!("Server {} is not running, cannot discover tools.", server_id);
+                    info!("{}", msg);
+                    Err(msg)
+                }
             }
         } else {
-            info!("No client found for server: {}", server_id);
-            Err(format!("No client found for server: {}", server_id))
+            let msg = format!("No client found for server: {}, cannot discover tools.", server_id);
+            info!("{}", msg);
+            Err(msg)
         }
     }
 }
