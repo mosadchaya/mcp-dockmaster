@@ -2,18 +2,18 @@ use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::info;
+use rmcp::model::JsonObject;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{
-    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv, 
+    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv,
     NewServerTool, UpdateServer, UpdateServerTool,
 };
 use crate::models::types::{
-    Distribution, InputSchema, ServerConfiguration, ServerDefinition, ServerEnvironment,
-    ServerToolInfo,
+    Distribution, ServerConfiguration, ServerDefinition, ServerEnvironment, ServerToolInfo,
 };
 use crate::schema::app_settings::dsl as settings_dsl;
 use crate::schema::server_env::dsl as env_dsl;
@@ -314,15 +314,12 @@ impl DBManager {
             None
         };
 
-        let command_opt = tool
-            .configuration
-            .as_ref()
-            .and_then(|c| c.command.clone());
-            
+        let command_opt = tool.configuration.as_ref().and_then(|c| c.command.clone());
+
         // Only set command_str to None if we have no configuration or command is None
         let command_str = match &command_opt {
             Some(cmd) if !cmd.is_empty() => cmd.clone(),
-            _ => String::new() // Empty string will be mapped to None below
+            _ => String::new(), // Empty string will be mapped to None below
         };
 
         // Prepare upsert struct
@@ -573,7 +570,7 @@ impl DBManager {
             // Parse the input_schema from JSON if it exists
             let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
                 Some(
-                    serde_json::from_str::<InputSchema>(schema_json)
+                    serde_json::from_str::<JsonObject>(schema_json)
                         .map_err(|e| format!("Failed to parse input schema: {}", e))?,
                 )
             } else {

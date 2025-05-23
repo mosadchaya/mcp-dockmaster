@@ -1,3 +1,4 @@
+use rmcp::model::JsonObject;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -278,6 +279,10 @@ pub struct ConfigUpdateRequest {
     pub config: HashMap<String, String>,
 }
 
+fn default_is_active() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServerToolInfo {
     pub id: String,
@@ -285,7 +290,7 @@ pub struct ServerToolInfo {
     pub description: String,
     #[serde(default)]
     #[serde(rename = "inputSchema")]
-    pub input_schema: Option<InputSchema>,
+    pub input_schema: JsonObject,
     pub server_id: String,
     #[serde(default)]
     pub proxy_id: Option<String>,
