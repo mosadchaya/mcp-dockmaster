@@ -2,7 +2,6 @@ use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::info;
-use rmcp::model::JsonObject;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -13,7 +12,8 @@ use crate::models::tool_db::{
     NewServerTool, UpdateServer, UpdateServerTool,
 };
 use crate::models::types::{
-    Distribution, ServerConfiguration, ServerDefinition, ServerEnvironment, ServerToolInfo,
+    Distribution, InputSchema, ServerConfiguration, ServerDefinition, ServerEnvironment,
+    ServerToolInfo,
 };
 use crate::schema::app_settings::dsl as settings_dsl;
 use crate::schema::server_env::dsl as env_dsl;
@@ -570,7 +570,7 @@ impl DBManager {
             // Parse the input_schema from JSON if it exists
             let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
                 Some(
-                    serde_json::from_str::<JsonObject>(schema_json)
+                    serde_json::from_str::<InputSchema>(schema_json)
                         .map_err(|e| format!("Failed to parse input schema: {}", e))?,
                 )
             } else {

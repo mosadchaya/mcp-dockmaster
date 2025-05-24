@@ -47,7 +47,6 @@ impl ServerHandler for McpServer {
         }
     }
 
-    // TODO: Implement pagination
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParam>,
@@ -69,7 +68,7 @@ impl ServerHandler for McpServer {
             get_uninstall_server_tool(),
         ]
         .into_iter()
-        .chain(server_tools)
+        .chain(server_tools.into_iter().map(|tool| tool.to_tool().unwrap()))
         .collect();
         Ok(ListToolsResult {
             tools,

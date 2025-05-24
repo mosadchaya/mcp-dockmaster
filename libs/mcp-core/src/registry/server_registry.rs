@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use rmcp::model::Tool;
-
-use crate::{database::db_manager::DBManager, models::types::ServerDefinition};
+use crate::{
+    database::db_manager::DBManager, models::types::ServerDefinition, types::ServerToolInfo,
+};
 
 /// ServerRegistry: database logic only
 ///
@@ -44,17 +44,21 @@ impl ServerRegistry {
     }
 
     /// Save a server tool
-    pub fn save_server_tool(&self, tool: &Tool) -> Result<(), String> {
+    pub fn save_server_tool(&self, tool: &ServerToolInfo) -> Result<(), String> {
         self.db_manager.save_server_tool(tool)
     }
 
     /// Get a server tool by ID and server_id
-    pub fn get_server_tool(&self, tool_id: &str, server_id: &str) -> Result<Tool, String> {
+    pub fn get_server_tool(
+        &self,
+        tool_id: &str,
+        server_id: &str,
+    ) -> Result<ServerToolInfo, String> {
         self.db_manager.get_server_tool(tool_id, server_id)
     }
 
     /// Get all server tools for a server
-    pub fn get_server_tools(&self, server_id: &str) -> Result<Vec<Tool>, String> {
+    pub fn get_server_tools(&self, server_id: &str) -> Result<Vec<ServerToolInfo>, String> {
         self.db_manager.get_server_tools(server_id)
     }
 

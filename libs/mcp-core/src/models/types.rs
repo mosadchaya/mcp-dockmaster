@@ -1,9 +1,11 @@
-use rmcp::model::JsonObject;
+use rmcp::model::{JsonObject, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerId(String);
@@ -279,8 +281,118 @@ pub struct ConfigUpdateRequest {
     pub config: HashMap<String, String>,
 }
 
-fn default_is_active() -> bool {
-    true
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct InputSchemaProperty {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub description: String,
+
+    // Type can be a string or array of strings
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<Value>,
+
+    // Additional fields from the JSON example
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<Value>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maximum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "exclusiveMinimum")]
+    pub exclusive_minimum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "exclusiveMaximum")]
+    pub exclusive_maximum: Option<f64>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "additionalProperties")]
+    pub additional_properties: Option<bool>,
+
+    // Support for allOf arrays
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "allOf")]
+    pub all_of: Option<Vec<Value>>,
+
+    // Catch-all for any other properties
+    #[serde(flatten)]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub additional_fields: HashMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InputSchema {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub properties: HashMap<String, InputSchemaProperty>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub required: Vec<String>,
+
+    #[serde(default)]
+    pub r#type: String,
+
+    // Additional fields from the JSON example - all made optional with default values
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "additionalProperties")]
+    pub additional_properties: Option<bool>,
+
+    #[serde(rename = "$schema")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+
+    // Catch-all for any other properties - made optional with default value
+    #[serde(flatten)]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub additional_fields: HashMap<String, Value>,
+}
+
+impl Default for InputSchema {
+    fn default() -> Self {
+        Self {
+            properties: HashMap::new(),
+            required: Vec::new(),
+            r#type: "object".to_string(),
+            title: None,
+            description: None,
+            additional_properties: None,
+            schema: None,
+            additional_fields: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -290,10 +402,88 @@ pub struct ServerToolInfo {
     pub description: String,
     #[serde(default)]
     #[serde(rename = "inputSchema")]
-    pub input_schema: JsonObject,
+    pub input_schema: Option<InputSchema>,
     pub server_id: String,
     #[serde(default)]
     pub proxy_id: Option<String>,
     #[serde(default = "default_is_active")]
     pub is_active: bool,
+}
+
+fn default_is_active() -> bool {
+    true
+}
+
+impl ServerToolInfo {
+    /// Create a new ServerToolInfo from a JSON value
+    pub fn from_value(value: Value, server_id: String) -> Result<ServerToolInfo, String> {
+        // Generate id from name before deserializing
+        let name = value
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or("missing name field")?;
+
+        let id = name
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+
+        // Create mutable copy and insert the generated fields
+        let mut obj = value;
+
+        obj.as_object_mut()
+            .ok_or("value must be an object")?
+            .insert("id".to_string(), Value::String(id));
+        obj.as_object_mut()
+            .unwrap()
+            .insert("server_id".to_string(), Value::String(server_id));
+
+        // Now deserialize the complete object
+        serde_json::from_value(obj).map_err(|e| e.to_string())
+    }
+
+    pub fn from_tool(tool: Tool, server_id: String) -> Result<ServerToolInfo, String> {
+        let name = tool.name.clone();
+        let id = name
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+
+        let input_schema: InputSchema = serde_json::from_value(
+            serde_json::to_value(tool.input_schema).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+
+        Ok(Self {
+            id,
+            server_id: server_id.clone(),
+            name: tool.name.into(),
+            description: tool.description.unwrap_or_default().into(),
+            input_schema: Some(input_schema),
+            proxy_id: None,
+            is_active: true,
+        })
+    }
+
+    pub fn to_tool(self) -> Result<Tool, String> {
+        let input_schema: JsonObject = serde_json::to_value(self.input_schema)
+            .map_err(|e| e.to_string())
+            .map_err(|e| format!("failed to serialize input schema: {}", e))?
+            .as_object()
+            .unwrap_or(&serde_json::Map::new())
+            .to_owned();
+        let binding = self.name.clone();
+        let name = Cow::Borrowed(&binding);
+        let binding = self.description.clone();
+        let description = Cow::Borrowed(&binding);
+
+        Ok(Tool {
+            name: name.into_owned().into(),
+            description: Some(description.into_owned().into()),
+            input_schema: Arc::new(input_schema),
+            annotations: None,
+        })
+    }
 }

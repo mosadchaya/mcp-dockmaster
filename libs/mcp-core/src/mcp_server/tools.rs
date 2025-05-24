@@ -13,8 +13,8 @@ use crate::{
     mcp_server::registry_cache::fetch_tool_from_registry,
     registry::registry_search::{RegistrySearch, SearchError},
     types::{
-        Distribution, RegistryToolsResponse, ServerConfigUpdateRequest, ServerConfiguration,
-        ServerRegistrationRequest, ToolUninstallRequest,
+        Distribution, ServerConfigUpdateRequest, ServerConfiguration, ServerRegistrationRequest,
+        ToolUninstallRequest,
     },
 };
 

@@ -1,5 +1,6 @@
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
+use crate::types::ServerToolInfo;
 use crate::utils::command::CommandWrappedInShellBuilder;
 use log::{error, info};
 use rmcp::model::{
@@ -22,7 +23,7 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
-    pub server_tools: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+    pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
     pub mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
     pub are_tools_hidden: Arc<RwLock<bool>>,
 }
@@ -37,7 +38,7 @@ pub struct MCPClient {
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
-        server_tools: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+        server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
         mcp_clients: Arc<RwLock<HashMap<String, MCPClient>>>,
     ) -> Self {
         // Initialize with default value
@@ -335,7 +336,10 @@ impl MCPState {
         registry.save_setting("tools_hidden", if hidden { "true" } else { "false" })
     }
 
-    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<Tool>, String> {
+    pub async fn discover_server_tools(
+        &self,
+        server_id: &str,
+    ) -> Result<Vec<ServerToolInfo>, String> {
         info!(
             "[discover_tools] Starting discovery for server: {}",
             server_id
@@ -373,18 +377,27 @@ impl MCPState {
                     // Save the tools to the database
                     let registry = self.tool_registry.read().await;
 
+                    let mut server_tool_infos = Vec::new();
                     for tool in &tools {
                         info!("Saving tool info to database: {:?}", tool);
-                        if let Err(e) = registry.save_server_tool(&tool) {
-                            error!("Failed to save server tool to database: {}", e);
-                        }
+                        let server_tool_info =
+                            ServerToolInfo::from_tool(tool.clone(), server_id.to_string())
+                                .inspect_err(|e| {
+                                    error!("failed to create server tool info from tool: {}", e)
+                                })?;
+                        registry
+                            .save_server_tool(&server_tool_info)
+                            .inspect_err(|e| {
+                                error!("failed to save server tool to database: {}", e)
+                            })?;
+                        server_tool_infos.push(server_tool_info);
                     }
 
                     // Save the tools to the server_tools map
                     let mut server_tools = self.server_tools.write().await;
-                    server_tools.insert(server_id.to_string(), tools.clone());
+                    server_tools.insert(server_id.to_string(), server_tool_infos.clone());
 
-                    Ok(tools)
+                    Ok(server_tool_infos)
                 }
                 _ => Err(format!("Server {} is not running", server_id)),
             }
