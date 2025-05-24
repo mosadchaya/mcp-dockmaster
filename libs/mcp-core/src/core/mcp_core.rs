@@ -1,8 +1,10 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
+use axum::Router;
 use log::{error, info, warn};
-use rmcp::ServiceExt;
+use rmcp::{transport::sse_server::SseServerConfig, ServiceExt};
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
@@ -11,7 +13,7 @@ use crate::mcp_server::mcp_server::McpServer;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
-use rmcp::transport::stdio;
+use rmcp::transport::{stdio, SseServer};
 
 /// Errors that can occur during initialization
 #[derive(Debug)]
@@ -128,15 +130,55 @@ impl MCPCore {
         }
 
         info!("Creating MCP server...");
-        let transport = stdio();
-        let mcp_server = McpServer::new(self.clone())
-            .serve(transport)
+        let mcp_server_addr = "127.0.0.1:11011"
+            .parse()
+            .map_err(|e: std::net::AddrParseError| InitError::InitMcpServer(e.to_string()))?;
+        let (sse_server, router) = SseServer::new(SseServerConfig {
+            bind: mcp_server_addr,
+            sse_path: "/sse".to_string(),
+            post_path: "/post".to_string(),
+            ct: CancellationToken::new(),
+            sse_keep_alive: Some(Duration::from_secs(30)),
+        });
+        let ct = sse_server.config.ct.clone();
+
+        let mcp_core = Arc::new(self.clone());
+        sse_server.with_service(move || McpServer::new(mcp_core.clone()));
+
+        let mcp_http_router = Router::new().merge(router);
+
+        // Start HTTP server
+        let listener = tokio::net::TcpListener::bind(mcp_server_addr)
             .await
             .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
-        mcp_server
-            .waiting()
-            .await
-            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
+
+        // Handle signals for graceful shutdown
+        let cancel_token = ct.clone();
+        tokio::spawn(async move {
+            match tokio::signal::ctrl_c().await {
+                Ok(()) => {
+                    println!("Received Ctrl+C, shutting down server...");
+                    cancel_token.cancel();
+                }
+                Err(err) => {
+                    eprintln!("Unable to listen for Ctrl+C signal: {}", err);
+                }
+            }
+        });
+
+        info!("Server started on {}", mcp_server_addr);
+        let mcp_http_server =
+            axum::serve(listener, mcp_http_router).with_graceful_shutdown(async move {
+                // Wait for cancellation signal
+                ct.cancelled().await;
+                println!("Server is shutting down...");
+            });
+
+        tokio::spawn(async move {
+            let _ = mcp_http_server.await.inspect_err(|e| {
+                error!("mcp http server finished with error: {}", e);
+            });
+        });
 
         Ok(())
     }

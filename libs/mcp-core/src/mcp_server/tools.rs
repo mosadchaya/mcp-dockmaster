@@ -166,7 +166,7 @@ pub fn get_uninstall_server_tool() -> Tool {
 }
 
 pub async fn handle_register_server(
-    mcp_core: MCPCore,
+    mcp_core: Arc<MCPCore>,
     params: Map<String, Value>,
 ) -> Result<CallToolResult, McpError> {
     let params: ToolRegistrationRequest =
@@ -250,7 +250,7 @@ pub async fn handle_register_server(
 
 /// Handle uninstall_server tool
 pub async fn handle_uninstall_server(
-    mcp_core: MCPCore,
+    mcp_core: Arc<MCPCore>,
     args: Map<String, Value>,
 ) -> Result<CallToolResult, McpError> {
     // Convert the args into the format expected by the HTTP handler
@@ -280,7 +280,7 @@ pub async fn handle_uninstall_server(
 
 /// Handle configure_server tool
 pub async fn handle_configure_server(
-    mcp_core: MCPCore,
+    mcp_core: Arc<MCPCore>,
     args: Map<String, Value>,
 ) -> Result<CallToolResult, McpError> {
     let configure_request: ServerConfigUpdateRequest =
@@ -384,7 +384,9 @@ pub async fn handle_search_server(args: Map<String, Value>) -> Result<CallToolRe
 }
 
 /// Handle list_installed_servers tool
-pub async fn handle_list_installed_servers(mcp_core: MCPCore) -> Result<CallToolResult, McpError> {
+pub async fn handle_list_installed_servers(
+    mcp_core: Arc<MCPCore>,
+) -> Result<CallToolResult, McpError> {
     // Get the installed servers from MCPCore
     let result = mcp_core.list_servers().await;
 

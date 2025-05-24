@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rmcp::{
     model::{
         CallToolRequestParam, CallToolResult, Content, ErrorCode, ListToolsResult,
@@ -23,12 +25,12 @@ use super::{
 };
 
 pub struct McpServer {
-    mcp_core: MCPCore,
+    mcp_core: Arc<MCPCore>,
 }
 
 #[tool(tool_box)]
 impl McpServer {
-    pub fn new(mcp_core: MCPCore) -> Self {
+    pub fn new(mcp_core: Arc<MCPCore>) -> Self {
         Self { mcp_core }
     }
 }

@@ -4,7 +4,7 @@ use crate::types::ServerToolInfo;
 use crate::utils::command::CommandWrappedInShellBuilder;
 use log::{error, info};
 use rmcp::model::{
-    CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam, Tool,
+    CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam,
 };
 use rmcp::service::RunningService;
 use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
