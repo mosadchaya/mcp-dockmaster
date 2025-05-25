@@ -119,6 +119,15 @@ async fn main() {
     );
     mcp_core.init().await.unwrap();
 
+    // Handle Ctrl+C gracefully in a separate task
+    let mcp_core_clone = mcp_core.clone();
+    tokio::spawn(async move {
+        let _ = tokio::signal::ctrl_c().await;
+        println!("Received Ctrl+C, shutting down gracefully...");
+        mcp_core_clone.uninit().await;
+        std::process::exit(0);
+    });
+
     // Handle commands
     match cli.command {
         Commands::Register { name, .. } => {
@@ -185,9 +194,7 @@ async fn main() {
             println!("Please use the MCP Dockmaster UI to execute tools.");
         }
         Commands::Update { server_id, enabled } => {
-            info!(
-                "Updating server status: {server_id} (enabled={enabled})"
-            );
+            info!("Updating server status: {server_id} (enabled={enabled})");
 
             // We can't directly create ToolUpdateRequest due to private fields
             // Instead, we'll use a different approach to update tool status
@@ -239,4 +246,6 @@ async fn main() {
             }
         }
     }
+
+    mcp_core.uninit().await;
 }
