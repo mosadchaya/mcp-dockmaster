@@ -29,7 +29,7 @@ pub fn is_claude_installed(app_name: &str) -> Result<(), ClaudeError> {
             Ok(())
         } else {
             info!("❌ MCP Dockmaster is not installed in CLAUDE");
-            info!("{} missing from mcpServers", app_name);
+            info!("{app_name} missing from mcpServers");
             Err(ClaudeError::NoDockmaster)
         }
     } else {
@@ -58,8 +58,8 @@ pub fn install_claude(app_name: &str, binary_path: &str) -> Result<(), ClaudeErr
     if Path::new(&config_path).exists() {
         println!("ℹ️ Creating backup of Claude config...");
         match install_paths::backup_file(&config_path) {
-            Ok(backup_path) => println!("✅ Backup created at: {}", backup_path),
-            Err(e) => println!("⚠️ Failed to create backup: {}", e),
+            Ok(backup_path) => println!("✅ Backup created at: {backup_path}"),
+            Err(e) => println!("⚠️ Failed to create backup: {e}"),
         }
     }
 
@@ -95,8 +95,8 @@ pub fn install_claude(app_name: &str, binary_path: &str) -> Result<(), ClaudeErr
     fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
     info!("✅ MCP Dockmaster installed in CLAUDE");
     info!("Please restart Claude to apply the changes.");
-    info!("config_path: {}", config_path);
-    info!("content: {}", config);
+    info!("config_path: {config_path}");
+    info!("content: {config}");
     is_claude_installed(app_name)
 }
 

@@ -35,7 +35,7 @@ impl DBManager {
     pub fn new() -> Result<Self, String> {
         let storage_path = crate::utils::default_storage_path()?;
         let db_path = storage_path.join("mcp_dockmaster.db");
-        info!("database path: {:?}", db_path);
+        info!("database path: {db_path:?}");
         Self::with_path(db_path)
     }
 
@@ -45,7 +45,7 @@ impl DBManager {
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)
-                    .map_err(|e| format!("failed to create database directory: {}", e))?;
+                    .map_err(|e| format!("failed to create database directory: {e}"))?;
             }
         }
 
@@ -75,13 +75,13 @@ impl DBManager {
             .max_size(5)
             .connection_timeout(std::time::Duration::from_secs(5))
             .build(manager)
-            .map_err(|e| format!("failed to create connection pool: {}", e))?;
+            .map_err(|e| format!("failed to create connection pool: {e}"))?;
 
         let db_manager = Self {
             pool: Arc::new(pool),
         };
 
-        info!("database initialized at: {:?}", db_path);
+        info!("database initialized at: {db_path:?}");
         Ok(db_manager)
     }
 
@@ -91,56 +91,56 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
         let migration_result = conn.run_pending_migrations(MIGRATIONS);
         match &migration_result {
             Ok(migrations) => {
                 info!("Successfully ran {} migrations", migrations.len());
                 for migration in migrations {
-                    info!("Applied migration: {}", migration);
+                    info!("Applied migration: {migration}");
                 }
             }
             Err(e) => {
-                info!("Migration failed: {}", e);
+                info!("Migration failed: {e}");
             }
         }
-        migration_result.map_err(|e| format!("Failed to run migrations: {}", e))?;
+        migration_result.map_err(|e| format!("Failed to run migrations: {e}"))?;
 
         // Debug: Check if tables exist and their structure
         let tables = diesel::sql_query("SELECT name FROM sqlite_master WHERE type='table';")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to check tables: {}", e))?;
+            .map_err(|e| format!("Failed to check tables: {e}"))?;
 
-        info!("Found {} tables after migrations", tables);
+        info!("Found {tables} tables after migrations");
 
         // Set pragmas
         diesel::sql_query("PRAGMA journal_mode=WAL")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to set journal_mode: {}", e))?;
+            .map_err(|e| format!("Failed to set journal_mode: {e}"))?;
 
         diesel::sql_query("PRAGMA synchronous=FULL")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to set synchronous: {}", e))?;
+            .map_err(|e| format!("Failed to set synchronous: {e}"))?;
 
         diesel::sql_query("PRAGMA temp_store=MEMORY")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to set temp_store: {}", e))?;
+            .map_err(|e| format!("Failed to set temp_store: {e}"))?;
 
         diesel::sql_query("PRAGMA optimize")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to optimize: {}", e))?;
+            .map_err(|e| format!("Failed to optimize: {e}"))?;
 
         diesel::sql_query("PRAGMA busy_timeout = 5000")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to set busy_timeout: {}", e))?;
+            .map_err(|e| format!("Failed to set busy_timeout: {e}"))?;
 
         diesel::sql_query("PRAGMA mmap_size=262144000")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to set mmap_size: {}", e))?;
+            .map_err(|e| format!("Failed to set mmap_size: {e}"))?;
 
         diesel::sql_query("PRAGMA foreign_keys = ON")
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+            .map_err(|e| format!("Failed to enable foreign keys: {e}"))?;
 
         info!("Migrations applied successfully");
         Ok(())
@@ -151,19 +151,19 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         // 1) Fetch from `tools` table
         let db_tool: DBServer = tools_dsl::servers
             .filter(tools_dsl::id.eq(tool_id_str))
             .first::<DBServer>(&mut conn)
-            .map_err(|e| format!("Failed to get tool {}: {}", tool_id_str, e))?;
+            .map_err(|e| format!("Failed to get tool {tool_id_str}: {e}"))?;
 
         // 2) Fetch environment variables from `tool_env` table
         let env_rows: Vec<DBServerEnv> = env_dsl::server_env
             .filter(env_dsl::server_id.eq(tool_id_str))
             .load::<DBServerEnv>(&mut conn)
-            .map_err(|e| format!("Failed to get env vars for {}: {}", tool_id_str, e))?;
+            .map_err(|e| format!("Failed to get env vars for {tool_id_str}: {e}"))?;
 
         // Convert environment variables into a HashMap
         let mut env_map = HashMap::new();
@@ -220,18 +220,18 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         // 1) Fetch all tools from the `tools` table
         let db_tools: Vec<DBServer> = tools_dsl::servers
             .order_by(tools_dsl::id.desc())
             .load::<DBServer>(&mut conn)
-            .map_err(|e| format!("Failed to query tools: {}", e))?;
+            .map_err(|e| format!("Failed to query tools: {e}"))?;
 
         // 2) Fetch all environment variables
         let all_env_rows: Vec<DBServerEnv> = env_dsl::server_env
             .load::<DBServerEnv>(&mut conn)
-            .map_err(|e| format!("Failed to query environment variables: {}", e))?;
+            .map_err(|e| format!("Failed to query environment variables: {e}"))?;
 
         // Group environment variables by tool_id
         let mut env_map_by_tool: HashMap<String, HashMap<String, ServerEnvironment>> =
@@ -298,7 +298,7 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         // Convert domain `Tool` into row data
         let distribution_type_str = tool.distribution.as_ref().map(|d| d.r#type.clone());
@@ -364,13 +364,13 @@ impl DBManager {
             .do_update()
             .set(&update_tool)
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to save tool: {}", e))?;
+            .map_err(|e| format!("Failed to save tool: {e}"))?;
 
         // Now handle environment variables in tool_env
         // 1) Delete old environment variables
         diesel::delete(env_dsl::server_env.filter(env_dsl::server_id.eq(server_id_str)))
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to clear old env: {}", e))?;
+            .map_err(|e| format!("Failed to clear old env: {e}"))?;
 
         // 2) Insert new environment variables
         if let Some(config) = &tool.configuration {
@@ -393,7 +393,7 @@ impl DBManager {
                     diesel::insert_into(env_dsl::server_env)
                         .values(&new_env_rows)
                         .execute(&mut conn)
-                        .map_err(|e| format!("Failed to save env vars: {}", e))?;
+                        .map_err(|e| format!("Failed to save env vars: {e}"))?;
                 }
             }
         }
@@ -406,17 +406,17 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         // Delete environment variables first (foreign key constraint will ensure this happens)
         diesel::delete(env_dsl::server_env.filter(env_dsl::server_id.eq(tool_id_str)))
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to delete tool environment variables: {}", e))?;
+            .map_err(|e| format!("Failed to delete tool environment variables: {e}"))?;
 
         // Delete the tool
         diesel::delete(tools_dsl::servers.filter(tools_dsl::id.eq(tool_id_str)))
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to delete tool: {}", e))?;
+            .map_err(|e| format!("Failed to delete tool: {e}"))?;
 
         Ok(())
     }
@@ -426,7 +426,7 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         conn.transaction::<_, diesel::result::Error, _>(|conn| {
             // Delete environment variables first (due to foreign key constraints)
@@ -440,7 +440,7 @@ impl DBManager {
 
             Ok(())
         })
-        .map_err(|e| format!("Transaction failed: {}", e))?;
+        .map_err(|e| format!("Transaction failed: {e}"))?;
 
         info!("Database cleared successfully");
         Ok(())
@@ -451,12 +451,12 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         let count: i64 = tools_dsl::servers
             .count()
             .get_result(&mut conn)
-            .map_err(|e| format!("Failed to check database: {}", e))?;
+            .map_err(|e| format!("Failed to check database: {e}"))?;
 
         Ok(count > 0)
     }
@@ -474,13 +474,13 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         // Serialize the input_schema to JSON if it exists
         let input_schema_json = if let Some(schema) = &tool.input_schema {
             Some(
                 serde_json::to_string(schema)
-                    .map_err(|e| format!("Failed to serialize input schema: {}", e))?,
+                    .map_err(|e| format!("Failed to serialize input schema: {e}"))?,
             )
         } else {
             None
@@ -510,7 +510,7 @@ impl DBManager {
                 is_active: Some(tool.is_active),
             })
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to save server tool: {}", e))?;
+            .map_err(|e| format!("Failed to save server tool: {e}"))?;
 
         Ok(())
     }
@@ -524,19 +524,19 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         let db_tool: DBServerTool = server_tools_dsl::server_tools
             .filter(server_tools_dsl::id.eq(tool_id))
             .filter(server_tools_dsl::server_id.eq(server_id))
             .first::<DBServerTool>(&mut conn)
-            .map_err(|e| format!("Failed to get server tool {}: {}", tool_id, e))?;
+            .map_err(|e| format!("Failed to get server tool {tool_id}: {e}"))?;
 
         // Parse the input_schema from JSON if it exists
         let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
             Some(
                 serde_json::from_str::<InputSchema>(schema_json)
-                    .map_err(|e| format!("Failed to parse input schema: {}", e))?,
+                    .map_err(|e| format!("Failed to parse input schema: {e}"))?,
             )
         } else {
             None
@@ -558,12 +558,12 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         let db_tools: Vec<DBServerTool> = server_tools_dsl::server_tools
             .filter(server_tools_dsl::server_id.eq(server_id))
             .load::<DBServerTool>(&mut conn)
-            .map_err(|e| format!("Failed to get server tools for {}: {}", server_id, e))?;
+            .map_err(|e| format!("Failed to get server tools for {server_id}: {e}"))?;
 
         let mut tools = Vec::new();
         for db_tool in db_tools {
@@ -571,7 +571,7 @@ impl DBManager {
             let input_schema = if let Some(ref schema_json) = db_tool.input_schema {
                 Some(
                     serde_json::from_str::<InputSchema>(schema_json)
-                        .map_err(|e| format!("Failed to parse input schema: {}", e))?,
+                        .map_err(|e| format!("Failed to parse input schema: {e}"))?,
                 )
             } else {
                 None
@@ -596,7 +596,7 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         diesel::delete(
             server_tools_dsl::server_tools
@@ -604,7 +604,7 @@ impl DBManager {
                 .filter(server_tools_dsl::server_id.eq(server_id)),
         )
         .execute(&mut conn)
-        .map_err(|e| format!("Failed to delete server tool: {}", e))?;
+        .map_err(|e| format!("Failed to delete server tool: {e}"))?;
 
         Ok(())
     }
@@ -614,12 +614,12 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         let setting: DBAppSetting = settings_dsl::app_settings
             .filter(settings_dsl::key.eq(key))
             .first(&mut conn)
-            .map_err(|e| format!("Failed to get setting {}: {}", key, e))?;
+            .map_err(|e| format!("Failed to get setting {key}: {e}"))?;
 
         Ok(setting.value)
     }
@@ -629,7 +629,7 @@ impl DBManager {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
+            .map_err(|e| format!("Failed to get database connection: {e}"))?;
 
         let new_setting = NewAppSetting { key, value };
 
@@ -639,7 +639,7 @@ impl DBManager {
             .do_update()
             .set(settings_dsl::value.eq(value))
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to save setting: {}", e))?;
+            .map_err(|e| format!("Failed to save setting: {e}"))?;
 
         Ok(())
     }

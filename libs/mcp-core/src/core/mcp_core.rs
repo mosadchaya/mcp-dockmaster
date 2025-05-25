@@ -113,7 +113,7 @@ impl MCPCore {
         info!("Initializing MCP server");
         info!("Applying database migrations");
         if let Err(e) = self.apply_database_migrations().await {
-            error!("Failed to apply database migrations: {}", e);
+            error!("Failed to apply database migrations: {e}");
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
 
@@ -124,11 +124,11 @@ impl MCPCore {
             .await
         {
             Ok(_) => info!("Registry cache successfully updated"),
-            Err(e) => warn!("Warning: Failed to update registry cache: {}", e),
+            Err(e) => warn!("Warning: Failed to update registry cache: {e}"),
         }
         info!("Initializing Background MCP servers");
         if let Err(e) = self.init_mcp_server().await {
-            error!("Failed to initialize MCP server: {}", e);
+            error!("Failed to initialize MCP server: {e}");
             return Err(InitError::InitMcpServer(e.to_string()));
         }
 
