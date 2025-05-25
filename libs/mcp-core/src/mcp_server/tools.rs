@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
-use log::error;
+use log::{error, info};
 use rmcp::{
     model::{CallToolResult, Content, Tool},
     Error as McpError,
@@ -172,13 +172,10 @@ pub async fn handle_register_server(
     let params: ToolRegistrationRequest =
         serde_json::from_value(serde_json::Value::Object(params)).unwrap();
 
-    println!("[INSTALLATION] handle_register_tool: params {:?}", params);
+    info!("[INSTALLATION] handle_register_tool: params {params:?}");
     match params {
         ToolRegistrationRequest::ByName(request) => {
-            println!(
-                "[INSTALLATION] handle_register_tool: request (BY NAME) {:?}",
-                request
-            );
+            info!("[INSTALLATION] handle_register_tool: request (BY NAME) {request:?}");
             let tool_id = request.id;
             let tool_name = request.name;
             let description = request.description;
@@ -195,21 +192,18 @@ pub async fn handle_register_server(
                 distribution,
             };
 
-            println!("[POST] handle_register_tool: tool {:?}", tool);
+            info!("[POST] handle_register_tool: tool {tool:?}");
             let r = mcp_core.register_server(tool).await.map_err(|e| {
-                McpError::internal_error(format!("Error registering server: {}", e), None)
+                McpError::internal_error(format!("Error registering server: {e}"), None)
             })?;
-            println!("[INSTALLATION] handle_register_tool: r {:?}", r);
+            info!("[INSTALLATION] handle_register_tool: r {r:?}");
             Ok(CallToolResult {
                 content: vec![Content::text(r.message)],
                 is_error: Some(false),
             })
         }
         ToolRegistrationRequest::ById(request) => {
-            println!(
-                "[INSTALLATION] handle_register_tool: request (BY ID) {:?}",
-                request
-            );
+            info!("[INSTALLATION] handle_register_tool: request (BY ID) {request:?}");
             let tool_id = request.tool_id;
 
             let registry = fetch_tool_from_registry().await?;
@@ -220,12 +214,12 @@ pub async fn handle_register_server(
                 .find(|tool| tool.id.as_str() == tool_id);
             if tool.is_none() {
                 return Err(McpError::invalid_params(
-                    format!("Tool {} not found", tool_id),
+                    format!("Tool {tool_id} not found"),
                     Some(serde_json::Value::String(tool_id)),
                 ));
             }
             let tool = tool.unwrap();
-            println!("Building tool from registry: {:?}", tool);
+            info!("Building tool from registry: {tool:?}");
             let r = mcp_core
                 .register_server(ServerRegistrationRequest {
                     server_id: tool_id.clone(),
@@ -237,9 +231,9 @@ pub async fn handle_register_server(
                 })
                 .await
                 .map_err(|e| {
-                    McpError::internal_error(format!("Error registering server: {}", e), None)
+                    McpError::internal_error(format!("Error registering server: {e}"), None)
                 })?;
-            println!("[INSTALLATION] handle_register_tool: r {:?}", r);
+            info!("[INSTALLATION] handle_register_tool: r {r:?}");
             Ok(CallToolResult {
                 content: vec![Content::text(r.message)],
                 is_error: Some(false),
@@ -272,7 +266,7 @@ pub async fn handle_uninstall_server(
             is_error: Some(false),
         }),
         Err(error) => Err(McpError::internal_error(
-            format!("Error uninstalling server: {}", error),
+            format!("Error uninstalling server: {error}"),
             None,
         )),
     }
@@ -289,7 +283,7 @@ pub async fn handle_configure_server(
     let r = mcp_core
         .update_server_config(configure_request)
         .await
-        .map_err(|e| McpError::internal_error(format!("Error configuring server: {}", e), None))?;
+        .map_err(|e| McpError::internal_error(format!("Error configuring server: {e}"), None))?;
 
     Ok(CallToolResult {
         content: vec![Content::text(r.message)],
@@ -307,23 +301,23 @@ pub async fn handle_search_server(args: Map<String, Value>) -> Result<CallToolRe
         Ok(search) => search,
         Err(e) => match e {
             SearchError::CacheError(msg) => {
-                error!("Cache error during registry search: {}", msg);
+                error!("Cache error during registry search: {msg}");
                 return Err(McpError::internal_error(
-                    format!("Cache error during registry search: {}", msg),
+                    format!("Cache error during registry search: {msg}"),
                     None,
                 ));
             }
             SearchError::IndexError(msg) => {
-                error!("Index error during registry search: {}", msg);
+                error!("Index error during registry search: {msg}");
                 return Err(McpError::internal_error(
-                    format!("Registry index error: {}", msg),
+                    format!("Registry index error: {msg}"),
                     None,
                 ));
             }
             SearchError::QueryError(msg) => {
-                error!("Query error during registry search: {}", msg);
+                error!("Query error during registry search: {msg}");
                 return Err(McpError::internal_error(
-                    format!("Query error: {}", msg),
+                    format!("Query error: {msg}"),
                     None,
                 ));
             }
@@ -336,13 +330,13 @@ pub async fn handle_search_server(args: Map<String, Value>) -> Result<CallToolRe
         Err(e) => match e {
             SearchError::QueryError(msg) => {
                 return Err(McpError::invalid_params(
-                    format!("Invalid query: {}", msg),
+                    format!("Invalid query: {msg}"),
                     None,
                 ));
             }
             _ => {
                 return Err(McpError::invalid_params(
-                    format!("Search execution error: {:?}", e),
+                    format!("Search execution error: {e}"),
                     None,
                 ));
             }

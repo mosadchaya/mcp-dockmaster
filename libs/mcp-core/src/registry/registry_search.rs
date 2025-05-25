@@ -37,7 +37,7 @@ impl RegistrySearch {
         let registry: RegistryToolsResponse = RegistryCache::instance()
             .get_registry_tools()
             .await
-            .map_err(|e| SearchError::CacheError(e))?;
+            .map_err(|e| SearchError::CacheError(e.to_string()))?;
         let tools = registry.tools;
 
         // Create a new index with 4 fields: title, description, publisher, categories.
@@ -145,7 +145,7 @@ impl RegistrySearch {
         let registry: RegistryToolsResponse = RegistryCache::instance()
             .get_registry_tools()
             .await
-            .map_err(|e| SearchError::CacheError(e))?;
+            .map_err(SearchError::CacheError)?;
         let tools = registry.tools;
 
         // Create a new index with the same number of fields

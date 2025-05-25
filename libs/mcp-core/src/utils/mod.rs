@@ -17,7 +17,7 @@ pub fn default_storage_path() -> Result<PathBuf, String> {
     // Ensure the data directory exists
     if !storage_path.exists() {
         fs::create_dir_all(storage_path)
-            .map_err(|e| format!("Failed to create data directory: {}", e))?;
+            .map_err(|e| format!("Failed to create data directory: {e}"))?;
     }
 
     // Check if the directory is writable
@@ -28,10 +28,10 @@ pub fn default_storage_path() -> Result<PathBuf, String> {
             let _ = fs::remove_file(&test_file);
         }
         Err(e) => {
-            return Err(format!("Data directory is not writable: {}", e));
+            return Err(format!("Data directory is not writable: {e}"));
         }
     }
 
-    info!("default storage path: {:?}", storage_path);
+    info!("default storage path: {storage_path:?}");
     Ok(storage_path.to_path_buf())
 }

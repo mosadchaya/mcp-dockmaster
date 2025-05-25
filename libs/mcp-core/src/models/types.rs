@@ -46,7 +46,7 @@ impl fmt::Display for ServerStatus {
             ServerStatus::Running => write!(f, "Running"),
             ServerStatus::Stopped => write!(f, "Stopped"),
             ServerStatus::Starting => write!(f, "Starting"),
-            ServerStatus::Error(msg) => write!(f, "Error: {}", msg),
+            ServerStatus::Error(msg) => write!(f, "Error: {msg}"),
         }
     }
 }
@@ -217,7 +217,7 @@ fn serialize_error<S>(error_message: &String, serializer: S) -> Result<S::Ok, S:
 where
     S: serde::Serializer,
 {
-    serializer.serialize_str(&format!("Error: {}", error_message))
+    serializer.serialize_str(&format!("Error: {error_message}"))
 }
 
 // Custom deserializer for the Error variant that handles "Error: message" format
@@ -470,7 +470,7 @@ impl ServerToolInfo {
     pub fn to_tool(self) -> Result<Tool, String> {
         let input_schema: JsonObject = serde_json::to_value(self.input_schema)
             .map_err(|e| e.to_string())
-            .map_err(|e| format!("failed to serialize input schema: {}", e))?
+            .map_err(|e| format!("failed to serialize input schema: {e}"))?
             .as_object()
             .unwrap_or(&serde_json::Map::new())
             .to_owned();

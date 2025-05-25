@@ -75,7 +75,7 @@ impl RegistryCache {
                 if let Some(data) = &cache_read.data {
                     match serde_json::from_value::<RegistryToolsResponse>(data.clone()) {
                         Ok(response) => return Ok(response),
-                        Err(e) => warn!("Failed to parse cached registry data: {}", e),
+                        Err(e) => warn!("Failed to parse cached registry data: {e}"),
                     }
                 }
             }
@@ -85,7 +85,7 @@ impl RegistryCache {
         // This is a blocking call in a synchronous context - not ideal but necessary
         let rt = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
-            Err(e) => return Err(format!("Failed to create Tokio runtime: {}", e)),
+            Err(e) => return Err(format!("Failed to create Tokio runtime: {e}")),
         };
 
         let result = rt.block_on(async {
@@ -145,7 +145,7 @@ impl RegistryCache {
         let tools_url =
             "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json";
 
-        info!("Fetching registry data from {}", tools_url);
+        info!("Fetching registry data from {tools_url}");
         let client = reqwest::Client::builder().build().unwrap_or_default();
 
         let response = client
@@ -154,15 +154,15 @@ impl RegistryCache {
             .header("User-Agent", "MCP-Core/1.0")
             .send()
             .await
-            .map_err(|e| format!("Failed to fetch tools from registry: {}", e))?;
+            .map_err(|e| format!("Failed to fetch tools from registry: {e}"))?;
 
         let raw = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
+            .map_err(|e| format!("Failed to parse tools from registry: {e}"))?;
 
         let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw)
-            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
+            .map_err(|e| format!("Failed to parse tools from registry: {e}"))?;
 
         info!("Fetched {} tools from registry", tool_wrapper.tools.len());
 

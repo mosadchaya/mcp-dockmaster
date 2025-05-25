@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 use server::mcp_proxy_client::get_mcp_client;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
 
 pub mod server;
@@ -17,10 +16,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize the tracing subscriber with file and stdout logging
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
-        // .with_writer(file_appender)
         .with_target(false)
         .with_thread_ids(true)
         .with_file(true)
@@ -31,7 +28,13 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
-    let args = Args::parse();
+    let args = Args::try_parse().unwrap_or_else(|e| {
+        tracing::warn!("Failed to parse arguments: {}. Using default values.", e);
+        Args {
+            see_target_address: None,
+        }
+    });
+
     let sse_address = args
         .see_target_address
         .unwrap_or("http://127.0.0.1:11011/sse".to_string());

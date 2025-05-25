@@ -14,7 +14,7 @@ pub fn get_claude_config_path() -> Result<String, ClaudeError> {
                     "APPDATA not found",
                 ))
             })?;
-            Ok(format!("{}\\Claude\\claude_desktop_config.json", appdata))
+            Ok(format!("{appdata}\\Claude\\claude_desktop_config.json"))
         }
         "macos" => {
             let home = env::var("HOME").map_err(|_| {
@@ -24,8 +24,7 @@ pub fn get_claude_config_path() -> Result<String, ClaudeError> {
                 ))
             })?;
             Ok(format!(
-                "{}/Library/Application Support/Claude/claude_desktop_config.json",
-                home
+                "{home}/Library/Application Support/Claude/claude_desktop_config.json"
             ))
         }
         os => Err(ClaudeError::UnsupportedOS(os.to_string())),
@@ -38,7 +37,7 @@ pub fn backup_file(file_path: &str) -> Result<String, io::Error> {
         return Ok(file_path.to_string());
     }
     let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_millis();
-    let backup_path = format!("{}.backup_{}", file_path, timestamp);
+    let backup_path = format!("{file_path}.backup_{timestamp}");
 
     fs::copy(file_path, &backup_path)?;
     Ok(backup_path)
@@ -51,10 +50,9 @@ For any MCP client, configure with:
 
 ```
 Server Name: mcp-dockmaster
-Command: {}
+Command: {binary_path}
 Arguments: []
 ```
-        ",
-        binary_path
+        "
     )
 }

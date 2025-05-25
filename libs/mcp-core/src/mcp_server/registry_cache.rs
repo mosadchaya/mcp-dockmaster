@@ -64,15 +64,15 @@ pub async fn fetch_tool_from_registry() -> Result<RegistryToolsResponse, rmcp::E
         .send()
         .await
         .map_err(|e| {
-            rmcp::Error::internal_error(format!("Failed to fetch tools from registry: {}", e), None)
+            rmcp::Error::internal_error(format!("Failed to fetch tools from registry: {e}"), None)
         })?;
 
     let raw = response.json().await.map_err(|e| {
-        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
+        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {e}"), None)
     })?;
 
     let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw).map_err(|e| {
-        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {}", e), None)
+        rmcp::Error::internal_error(format!("Failed to parse tools from registry: {e}"), None)
     })?;
 
     println!("[TOOLS] found # tools {:?}", tool_wrapper.tools.len());

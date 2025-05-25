@@ -34,7 +34,7 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "apps/mcp-dockmaster-cli",
+        "cwd": "apps/mcp-dockmaster",
         "command": "cargo clippy -- -D warnings"
       }
     },

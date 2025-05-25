@@ -7,7 +7,7 @@ use super::command::CommandWrappedInShellBuilder;
 
 fn adapted_process_name(process_name: &str) -> String {
     let name = if cfg!(target_os = "windows") {
-        format!("{}.exe", process_name).to_string()
+        format!("{process_name}.exe").to_string()
     } else if cfg!(target_os = "linux") {
         // For linux pkill pattern just supports 15 characters
         process_name.chars().take(15).collect::<String>()
@@ -29,7 +29,7 @@ pub fn restart_process(process_name: &str) -> Result<bool, String> {
             Ok(true)
         }
         Err(e) => {
-            println!("Process not found {}", process_name);
+            println!("Process not found {process_name}");
             Err(e)
         }
     }
@@ -44,10 +44,7 @@ pub fn find_process_by_name(process_name: &str) -> Result<String, String> {
     for (pid, process) in system.processes() {
         let n = process.name().to_str().unwrap().to_string();
         if n.to_lowercase().eq(&target_name.to_lowercase()) {
-            println!(
-                "Found process '{:?}' (PID: {}) -- terminating...",
-                process, pid
-            );
+            println!("Found process '{process:?}' (PID: {pid}) -- terminating...");
             let command = process
                 .cmd()
                 .iter()
@@ -56,7 +53,7 @@ pub fn find_process_by_name(process_name: &str) -> Result<String, String> {
             return Ok(command.first().unwrap_or(&"").to_string());
         }
     }
-    print!("Process not found {}", process_name);
+    print!("Process not found {process_name}");
     Err("Process not found".to_string())
 }
 
@@ -77,10 +74,7 @@ pub fn kill_process_by_name(process_name: &str) {
     match output {
         Ok(output) => {
             if output.status.success() {
-                log::info!(
-                    "existing process '{}' has been terminated.",
-                    adapted_process_name
-                );
+                log::info!("existing process '{adapted_process_name}' has been terminated.");
             } else {
                 log::warn!(
                     "failed to terminate process '{}'. Error: {}",
@@ -90,7 +84,7 @@ pub fn kill_process_by_name(process_name: &str) {
             }
         }
         Err(e) => {
-            log::error!("failed to execute command to terminate process: {}", e);
+            log::error!("failed to execute command to terminate process: {e}");
         }
     }
 }
@@ -109,7 +103,7 @@ pub async fn kill_process_by_pid(process_id: &str) -> Result<(), String> {
     };
     if let Ok(output) = command.output().await {
         if output.status.success() {
-            log::info!("process with PID '{}' has been terminated.", process_id);
+            log::info!("process with PID '{process_id}' has been terminated.");
         } else {
             log::warn!(
                 "failed to terminate process with PID '{}'. error: {}",
@@ -126,7 +120,7 @@ pub async fn kill_process_by_pid(process_id: &str) -> Result<(), String> {
 }
 
 pub async fn kill_all_processes_by_name(process_name: &str) {
-    info!("kill_all_processes_by_name name:{} ", process_name);
+    info!("kill_all_processes_by_name name:{process_name} ");
     let adapted_process_name = adapted_process_name(process_name);
     let mut system = System::new_all();
     system.refresh_all();
@@ -136,7 +130,7 @@ pub async fn kill_all_processes_by_name(process_name: &str) {
     let processes: Vec<_> = system.processes_by_name(process_name_as_os_str).collect();
 
     if processes.is_empty() {
-        info!("no process found with name:{}", process_name);
+        info!("no process found with name:{process_name}");
         return;
     }
 

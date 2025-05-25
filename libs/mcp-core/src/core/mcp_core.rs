@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::Router;
 use log::{error, info, warn};
-use rmcp::{transport::sse_server::SseServerConfig, ServiceExt};
+use rmcp::transport::sse_server::SseServerConfig;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
@@ -13,7 +13,7 @@ use crate::mcp_server::mcp_server::McpServer;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
-use rmcp::transport::{stdio, SseServer};
+use rmcp::transport::SseServer;
 
 /// Errors that can occur during initialization
 #[derive(Debug)]
@@ -41,6 +41,8 @@ pub struct MCPCore {
     pub port: u16,
     /// App name
     pub app_name: String,
+    /// SSE server cancellation token
+    pub sse_server_cancel_token: CancellationToken,
 }
 
 impl MCPCore {
@@ -98,6 +100,7 @@ impl MCPCore {
             tool_registry: tool_registry_arc,
             port,
             app_name,
+            sse_server_cancel_token: CancellationToken::new(),
         }
     }
 
@@ -137,10 +140,9 @@ impl MCPCore {
             bind: mcp_server_addr,
             sse_path: "/sse".to_string(),
             post_path: "/post".to_string(),
-            ct: CancellationToken::new(),
+            ct: self.sse_server_cancel_token.clone(),
             sse_keep_alive: Some(Duration::from_secs(30)),
         });
-        let ct = sse_server.config.ct.clone();
 
         let mcp_core = Arc::new(self.clone());
         sse_server.with_service(move || McpServer::new(mcp_core.clone()));
@@ -152,38 +154,34 @@ impl MCPCore {
             .await
             .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
 
-        // Handle signals for graceful shutdown
-        let cancel_token = ct.clone();
-        tokio::spawn(async move {
-            match tokio::signal::ctrl_c().await {
-                Ok(()) => {
-                    println!("Received Ctrl+C, shutting down server...");
-                    cancel_token.cancel();
-                }
-                Err(err) => {
-                    eprintln!("Unable to listen for Ctrl+C signal: {}", err);
-                }
-            }
-        });
-
-        info!("Server started on {}", mcp_server_addr);
+        info!("Server started on {mcp_server_addr}");
+        let cancellation_token = self.sse_server_cancel_token.clone();
         let mcp_http_server =
             axum::serve(listener, mcp_http_router).with_graceful_shutdown(async move {
-                // Wait for cancellation signal
-                ct.cancelled().await;
-                println!("Server is shutting down...");
+                let _ = cancellation_token.cancelled().await;
             });
 
         tokio::spawn(async move {
-            let _ = mcp_http_server.await.inspect_err(|e| {
-                error!("mcp http server finished with error: {}", e);
-            });
+            if let Err(e) = mcp_http_server.await {
+                error!("mcp http server finished with error: {e}");
+            }
         });
 
         Ok(())
     }
 
-    /// Get the current tool visibility state
+    pub async fn uninit(&self) {
+        self.sse_server_cancel_token.cancel();
+        // Kill all MCP Server processes
+        info!("killing all MCP processes");
+        let result = self.kill_all_processes().await;
+        if let Err(e) = result {
+            error!("failed to kill all MCP processes: {e}");
+        } else {
+            info!("killing all MCP processes done");
+        }
+    }
+
     pub async fn are_tools_hidden(&self) -> bool {
         let mcp_state = self.mcp_state.read().await;
         mcp_state.are_tools_hidden().await

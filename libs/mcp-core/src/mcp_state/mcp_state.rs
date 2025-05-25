@@ -61,7 +61,7 @@ impl MCPState {
                 let hidden = value == "true";
                 let mut are_tools_hidden = self.are_tools_hidden.write().await;
                 *are_tools_hidden = hidden;
-                info!("Loaded tools visibility state from database: {}", hidden);
+                info!("Loaded tools visibility state from database: {hidden}");
             }
             Err(_) => {
                 // Setting doesn't exist yet, use the default value (false)
@@ -79,7 +79,7 @@ impl MCPState {
 
         for server_id in server_ids {
             if let Err(e) = self.kill_process(&server_id).await {
-                errors.push(format!("Failed to kill process {}: {}", server_id, e));
+                errors.push(format!("Failed to kill process {server_id}: {e}"));
             }
         }
 
@@ -99,18 +99,18 @@ impl MCPState {
         };
 
         if !client_exists {
-            return Err(format!("No client found for server: {}", server_id));
+            return Err(format!("No client found for server: {server_id}"));
         }
 
         let mut mcp_clients = self.mcp_clients.write().await;
         let mcp_client_option = mcp_clients.remove(server_id);
-        info!("Removed client for {}", server_id);
+        info!("Removed client for {server_id}");
         if let Some(mcp_client_instance) = mcp_client_option {
             let owned_service = Arc::try_unwrap(mcp_client_instance.client)
                 .map_err(|arc_still_shared| {
                     format!(
                         "Failed to obtain exclusive ownership of client for server {}. Cannot cancel. Strong count: {}",
-                        server_id,
+                            server_id,
                         Arc::strong_count(&arc_still_shared)
                     )
                 })?;
@@ -118,7 +118,7 @@ impl MCPState {
             // Call cancel on the now owned_service.
             // The error from cancel() is logged, but kill_process doesn't fail due to it.
             if let Err(e) = owned_service.cancel().await {
-                error!("Cancellation error for client {}: {}", server_id, e);
+                error!("Cancellation error for client {server_id}: {e}");
             }
         }
         // Remove the server tools
@@ -135,10 +135,7 @@ impl MCPState {
     ) -> Result<CallToolResult, ServiceError> {
         let mcp_client = self.mcp_clients.read().await.get(server_id).cloned();
         if let Some(mcp_client) = mcp_client {
-            info!(
-                "[execute tool] Successfully got client for server: {}",
-                server_id
-            );
+            info!("[execute tool] Successfully got client for server: {server_id}");
             let result = mcp_client
                 .client
                 .call_tool(rmcp::model::CallToolRequestParam {
@@ -155,7 +152,7 @@ impl MCPState {
 
     /// Restart a server by its ID
     pub async fn restart_server(&self, server_id: &str) -> Result<(), String> {
-        info!("Attempting to restart server: {}", server_id);
+        info!("Attempting to restart server: {server_id}");
 
         // Get tool from database
         let server_data = {
@@ -165,8 +162,8 @@ impl MCPState {
 
         // Check if tools_type is empty
         if server_data.tools_type.is_empty() {
-            error!("Missing tools_type for server {}", server_id);
-            return Err(format!("Missing tools_type for server {}", server_id));
+            error!("Missing tools_type for server {server_id}");
+            return Err(format!("Missing tools_type for server {server_id}"));
         }
 
         // Check if the client already exists
@@ -178,18 +175,15 @@ impl MCPState {
         if client_exists {
             // First kill the existing process
             if let Err(e) = self.kill_process(server_id).await {
-                error!("Failed to kill existing process during restart: {}", e);
-                return Err(format!("Failed to kill existing process: {}", e));
+                error!("Failed to kill existing process during restart: {e}");
+                return Err(format!("Failed to kill existing process: {e}"));
             }
-            info!(
-                "Successfully killed existing process for server: {}",
-                server_id
-            );
+            info!("Successfully killed existing process for server: {server_id}");
         }
 
         // Check if the tool is enabled
         if !server_data.enabled {
-            info!("Server {} is disabled, not restarting", server_id);
+            info!("Server {server_id} is disabled, not restarting");
             return Ok(());
         }
 
@@ -208,17 +202,17 @@ impl MCPState {
                     .collect();
                 Some(simple_env_map)
             } else {
-                info!("No environment variables found for server {}", server_id);
+                info!("No environment variables found for server {server_id}");
                 None
             }
         } else {
-            info!("No configuration found for server {}", server_id);
+            info!("No configuration found for server {server_id}");
             None
         };
 
         // Get the configuration from the tool data
         let config_value = if let Some(configuration) = &server_data.configuration {
-            info!("Using configuration from server data for {}", server_id);
+            info!("Using configuration from server data for {server_id}");
             json!({
                 "command": configuration.command,
                 "args": configuration.args
@@ -229,16 +223,13 @@ impl MCPState {
             .unwrap_or_default()
             .is_empty()
         {
-            info!(
-                "Creating simple configuration with entry_point for {}",
-                server_id
-            );
+            info!("Creating simple configuration with entry_point for {server_id}");
             json!({
                 "command": server_data.entry_point
             })
         } else {
-            error!("Missing configuration for server {}", server_id);
-            return Err(format!("Missing configuration for server {}", server_id));
+            error!("Missing configuration for server {server_id}");
+            return Err(format!("Missing configuration for server {server_id}"));
         };
 
         let mut envs = env_vars.unwrap_or_default();
@@ -276,11 +267,11 @@ impl MCPState {
                 cmd.args(adapted_args);
                 cmd.envs(adapted_envs);
             }))
-            .map_err(|e| format!("Failed to create tokio child process: {}", e))?;
+            .map_err(|e| format!("Failed to create tokio child process: {e}"))?;
         let service = client_info
             .serve(tokio_child_process)
             .await
-            .map_err(|e| format!("Failed to serve tokio child process: {}", e))?;
+            .map_err(|e| format!("Failed to serve tokio child process: {e}"))?;
 
         self.mcp_clients.write().await.insert(
             server_id.to_string(),
@@ -299,11 +290,11 @@ impl MCPState {
                 );
             }
             Err(e) => {
-                error!("Failed to discover tools for server: {}", e);
+                error!("Failed to discover tools for server: {e}");
             }
         }
 
-        info!("Successfully initialized client for server: {}", server_id);
+        info!("Successfully initialized client for server: {server_id}");
 
         Ok(())
     }
@@ -340,17 +331,11 @@ impl MCPState {
         &self,
         server_id: &str,
     ) -> Result<Vec<ServerToolInfo>, String> {
-        info!(
-            "[discover_tools] Starting discovery for server: {}",
-            server_id
-        );
+        info!("[discover_tools] Starting discovery for server: {server_id}");
 
         let mcp_client = self.mcp_clients.read().await.get(server_id).cloned();
         if let Some(mcp_client) = mcp_client {
-            info!(
-                "[discover tools] Successfully got client for server: {}",
-                server_id
-            );
+            info!("[discover tools] Successfully got client for server: {server_id}");
 
             match mcp_client.server_status {
                 ServerStatus::Running => {
@@ -362,7 +347,7 @@ impl MCPState {
                             result
                         }
                         Err(e) => {
-                            error!("mcp_client: list_tools call failed: {}", e);
+                            error!("mcp_client: list_tools call failed: {e}");
                             return Err(e.to_string());
                         }
                     };
@@ -379,16 +364,16 @@ impl MCPState {
 
                     let mut server_tool_infos = Vec::new();
                     for tool in &tools {
-                        info!("Saving tool info to database: {:?}", tool);
+                        info!("Saving tool info to database: {tool:?}");
                         let server_tool_info =
                             ServerToolInfo::from_tool(tool.clone(), server_id.to_string())
                                 .inspect_err(|e| {
-                                    error!("failed to create server tool info from tool: {}", e)
+                                    error!("failed to create server tool info from tool: {e}")
                                 })?;
                         registry
                             .save_server_tool(&server_tool_info)
                             .inspect_err(|e| {
-                                error!("failed to save server tool to database: {}", e)
+                                error!("failed to save server tool to database: {e}")
                             })?;
                         server_tool_infos.push(server_tool_info);
                     }
@@ -399,11 +384,11 @@ impl MCPState {
 
                     Ok(server_tool_infos)
                 }
-                _ => Err(format!("Server {} is not running", server_id)),
+                _ => Err(format!("Server {server_id} is not running")),
             }
         } else {
-            info!("No client found for server: {}", server_id);
-            Err(format!("No client found for server: {}", server_id))
+            info!("No client found for server: {server_id}");
+            Err(format!("No client found for server: {server_id}"))
         }
     }
 }

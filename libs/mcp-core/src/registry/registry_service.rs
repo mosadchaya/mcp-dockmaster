@@ -18,7 +18,7 @@ impl RegistryService {
             Ok(registry) => registry,
             Err(e) => {
                 // Log the error and return an empty registry
-                eprintln!("Failed to fetch registry: {}", e);
+                eprintln!("Failed to fetch registry: {e}");
                 RegistryToolsResponse {
                     count: 0,
                     version: 0,
@@ -42,7 +42,7 @@ impl RegistryService {
 
         match tool {
             Some(tool) => Ok(tool),
-            None => Err(format!("Tool '{}' not found in registry", tool_id)),
+            None => Err(format!("Tool '{tool_id}' not found in registry")),
         }
     }
 
@@ -101,7 +101,7 @@ impl RegistryService {
 
         match tool {
             Some(tool) => Ok(tool),
-            None => Err(format!("Tool '{}' not found in registry", tool_id)),
+            None => Err(format!("Tool '{tool_id}' not found in registry")),
         }
     }
 }
