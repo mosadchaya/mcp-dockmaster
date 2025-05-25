@@ -28,6 +28,11 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
+    /*
+        This is important because some clients like IntelliJ products
+        sometimes pass "" when there are no arguments, producing some issues.
+        So if arguments are not parsed, we use default values.
+    */
     let args = Args::try_parse().unwrap_or_else(|e| {
         tracing::warn!("Failed to parse arguments: {}. Using default values.", e);
         Args {
