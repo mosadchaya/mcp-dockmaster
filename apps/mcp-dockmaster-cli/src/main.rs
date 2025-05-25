@@ -105,7 +105,7 @@ async fn main() {
     let storage_path = match default_storage_path() {
         Ok(path) => path,
         Err(e) => {
-            eprintln!("failed to get storage path: {}", e);
+            eprintln!("failed to get storage path: {e}");
             std::process::exit(1);
         }
     };
@@ -122,7 +122,7 @@ async fn main() {
     // Handle commands
     match cli.command {
         Commands::Register { name, .. } => {
-            info!("Registering tool: {}", name);
+            info!("Registering tool: {name}");
 
             // We can't directly create ToolRegistrationRequest due to private fields
             // Instead, we'll use a different approach to register tools
@@ -136,8 +136,8 @@ async fn main() {
             let servers = match mcp_core.list_servers().await {
                 Ok(servers) => servers,
                 Err(e) => {
-                    error!("Error listing servers: {}", e);
-                    println!("Error listing servers: {}", e);
+                    error!("Error listing servers: {e}");
+                    println!("Error listing servers: {e}");
                     return;
                 }
             };
@@ -145,8 +145,8 @@ async fn main() {
             let tools = match mcp_core.list_all_server_tools().await {
                 Ok(tools) => tools,
                 Err(e) => {
-                    error!("Error listing tools: {}", e);
-                    println!("Error listing tools: {}", e);
+                    error!("Error listing tools: {e}");
+                    println!("Error listing tools: {e}");
                     return;
                 }
             };
@@ -177,7 +177,7 @@ async fn main() {
             }
         }
         Commands::Execute { tool_id, .. } => {
-            info!("Executing tool: {}", tool_id);
+            info!("Executing tool: {tool_id}");
 
             // We can't directly create ToolExecutionRequest due to private fields
             // Instead, we'll use a different approach to execute tools
@@ -186,8 +186,7 @@ async fn main() {
         }
         Commands::Update { server_id, enabled } => {
             info!(
-                "Updating server status: {} (enabled={})",
-                server_id, enabled
+                "Updating server status: {server_id} (enabled={enabled})"
             );
 
             // We can't directly create ToolUpdateRequest due to private fields
@@ -196,7 +195,7 @@ async fn main() {
             println!("Please use the MCP Dockmaster UI to update tool status.");
         }
         Commands::Config { server_id, .. } => {
-            info!("Updating server configuration: {}", server_id);
+            info!("Updating server configuration: {server_id}");
 
             // We can't directly create ToolConfigUpdateRequest due to private fields
             // Instead, we'll use a different approach to update tool configuration
@@ -204,7 +203,7 @@ async fn main() {
             println!("Please use the MCP Dockmaster UI to update tool configuration.");
         }
         Commands::Uninstall { tool_id } => {
-            info!("Uninstalling tool: {}", tool_id);
+            info!("Uninstalling tool: {tool_id}");
 
             // We can't directly create ToolUninstallRequest due to private fields
             // Instead, we'll use a different approach to uninstall tools
@@ -212,7 +211,7 @@ async fn main() {
             println!("Please use the MCP Dockmaster UI to uninstall tools.");
         }
         Commands::Restart { server_id } => {
-            info!("Restarting server: {}", server_id);
+            info!("Restarting server: {server_id}");
 
             // Restart the server using the direct function
             match mcp_core.restart_server_command(server_id.clone()).await {
@@ -220,8 +219,8 @@ async fn main() {
                     println!("Server restarted successfully");
                 }
                 Err(e) => {
-                    error!("Error restarting server: {}", e);
-                    println!("Error restarting server: {}", e);
+                    error!("Error restarting server: {e}");
+                    println!("Error restarting server: {e}");
                 }
             }
         }
@@ -234,8 +233,8 @@ async fn main() {
                     println!("Database cleared successfully");
                 }
                 Err(e) => {
-                    error!("Error clearing database: {}", e);
-                    println!("Error clearing database: {}", e);
+                    error!("Error clearing database: {e}");
+                    println!("Error clearing database: {e}");
                 }
             }
         }
