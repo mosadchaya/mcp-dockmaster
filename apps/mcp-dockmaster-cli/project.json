@@ -15,7 +15,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mcp-dockmaster-cli",
-        "command": "cargo test"
+        "command": "cargo test -- --test-threads=1"
       }
     },
     "lint": {

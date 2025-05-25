@@ -13,6 +13,7 @@ import { handlers, tools } from "./tools";
 const server = new Server({
   name: "mcp-server-hello-world",
   version: "1.0.0",
+  description: "A simple hello world server",
 }, {
   capabilities: {
     tools: {}

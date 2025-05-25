@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::database::db_manager::DBManager;
-use crate::mcp_server::mcp_server::McpServer;
+use crate::mcp_server_implementation::mcp_server::McpServer;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;

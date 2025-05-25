@@ -1,4 +1,3 @@
-pub mod mcp_router;
 pub mod mcp_server;
 pub mod notifications;
 pub mod registry_cache;

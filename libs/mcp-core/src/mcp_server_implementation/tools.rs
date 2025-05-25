@@ -10,7 +10,7 @@ use serde_json::{json, Map, Value};
 
 use crate::{
     core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
-    mcp_server::registry_cache::fetch_tool_from_registry,
+    mcp_server_implementation::registry_cache::fetch_tool_from_registry,
     registry::registry_search::{RegistrySearch, SearchError},
     types::{
         Distribution, ServerConfigUpdateRequest, ServerConfiguration, ServerRegistrationRequest,

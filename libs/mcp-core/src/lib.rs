@@ -2,7 +2,7 @@ pub mod core;
 pub mod database;
 pub mod jsonrpc_frame_codec;
 pub mod mcp_installers;
-pub mod mcp_server;
+pub mod mcp_server_implementation;
 pub mod mcp_state;
 pub mod models;
 pub mod registry;
