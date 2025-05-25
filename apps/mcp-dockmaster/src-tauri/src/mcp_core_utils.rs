@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use log::{error, info};
+use log::info;
 use mcp_core::{
-    core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
+    core::mcp_core::MCPCore,
     utils::process::kill_all_processes_by_name,
 };
 use tauri::{utils::platform, Manager};
@@ -135,7 +135,7 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
         app_name = format!("{app_name}.{app_id_suffix}");
     }
 
-    info!("app name: {}", app_name);
+    info!("app name: {app_name}");
 
     let mcp_core = MCPCore::new(
         database_path.clone(),

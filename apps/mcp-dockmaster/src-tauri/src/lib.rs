@@ -75,7 +75,7 @@ fn init_services(app_handle: tauri::AppHandle) {
         let mcp_core = app_handle.state::<MCPCore>();
         let result = mcp_core.init().await;
         if let Err(e) = result {
-            error!("Failed to initialize MCP services: {:?}", e);
+            error!("Failed to initialize MCP services: {e:?}");
         }
 
         // Set the initialization complete flag
@@ -85,7 +85,7 @@ fn init_services(app_handle: tauri::AppHandle) {
 
         // Emit an event to notify the frontend that initialization is complete
         if let Err(e) = app_handle.emit("mcp-initialization-complete", ()) {
-            error!("Failed to emit initialization complete event: {}", e);
+            error!("Failed to emit initialization complete event: {e}");
         } else {
             info!("Emitted initialization complete event");
         }
@@ -159,7 +159,7 @@ pub async fn run() {
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 app_init(&app_handle_clone).await.unwrap_or_else(|e| {
-                    error!("Failed to initialize app: {}", e);
+                    error!("Failed to initialize app: {e}");
                     app_handle_clone.exit(1);
                 });
             });
@@ -208,7 +208,7 @@ pub async fn run() {
                 info!("[RunEvent:ExitRequested] preventing exit to handle cleanup");
                 api.prevent_exit();
             }
-            RunEvent::Exit { .. } => {
+            RunEvent::Exit => {
                 // Cleanup processes
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
