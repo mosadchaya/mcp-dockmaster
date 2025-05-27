@@ -1,0 +1,197 @@
+{
+  "about": {
+    "github": {
+      "learn_more": "を訪れて、詳細を学んだり、貢献したり、問題を報告したりしてください。",
+      "link_text": "GitHubリポジトリ",
+      "title": "GitHubリポジトリ",
+      "visit": "私たちの"
+    },
+    "overview": {
+      "description": "MCP Dockmasterは、MCP（モデルコンテキストプロトコル）を使用してAIアプリケーションを簡単にインストール、管理、監視するために設計されたシンプルなツールです。MCPは、Anthropicによって作成されたオープンソースの標準であり、Claude DesktopやCursorのようなAIアプリがSlackやGoogle Driveなどのプラットフォームからデータにシームレスにアクセスし、他のアプリケーションと対話し、APIに接続できるようにします。",
+      "title": "概要"
+    },
+    "purpose": {
+      "description": "MCP Dockmasterは、MCP互換アプリケーションの管理を簡素化し、複雑さを取り除いたユーザーフレンドリーなインターフェースを提供します。私たちは、誰もが技術的な経験に関係なく、強力なAIツールに簡単にアクセスできるべきだと信じています。",
+      "title": "私たちの目的"
+    },
+    "title": "MCP Dockmasterについて",
+    "what_you_can_do": {
+      "item1": "MCP互換アプリを迅速にインストールおよび管理",
+      "item2": "中央の場所からアプリを表示および制御",
+      "item3": "厳選されたアプリのセレクションを通じて新しいAIツールを発見",
+      "item4": "統合を簡素化し、ワークフローを効率化",
+      "title": "できること"
+    }
+  },
+  "common": {
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "error": "エラーが発生しました",
+    "loading": "読み込み中...",
+    "retry": "再試行",
+    "save": "保存",
+    "welcome": "ようこそ"
+  },
+  "errors": {
+    "invalid_email": "有効なメールアドレスを入力してください",
+    "network_error": "ネットワークエラー。接続を確認してください",
+    "required": "このフィールドは必須です",
+    "restart": "再起動",
+    "server_error": "サーバーエラー。後でもう一度お試しください"
+  },
+  "feedback": {
+    "contact_description": "質問がある場合、どのように連絡できますか？",
+    "contact_label": "連絡先情報",
+    "contact_placeholder": "メールまたは電話番号",
+    "description": "私たちはあなたのフィードバックを大切にしています！MCP Dockmasterについてのあなたの考えや、どのように体験を改善できるかを教えてください。",
+    "error_message": "フォームの送信に失敗しました。再試行してください。",
+    "feedback_label": "あなたのフィードバック",
+    "feedback_placeholder": "あなたの考え、提案、または質問を共有してください...",
+    "send_button": "フィードバックを送信",
+    "success_message": "フィードバックありがとうございます！すぐにお返事いたします。",
+    "title": "フィードバック"
+  },
+  "home": {
+    "checking": "確認中...",
+    "environment": {
+      "active": "アクティブ",
+      "description": "MCPを実行するためにNode.js、Python、Dockerがインストールされていることを確認してください。",
+      "inactive": "非アクティブ",
+      "install": "インストール",
+      "installed": "インストール済みで実行中",
+      "not_installed": "インストールされていないか、実行されていません",
+      "title": "環境の詳細"
+    },
+    "getting_started": "はじめに",
+    "install_error": "{{toolName}}のインストールページを開けませんでした",
+    "install_success": "{{mcpClientApp}}が正常にインストールされました！変更を適用するには{{mcpClientApp}}を再起動してください。",
+    "integration": {
+      "active": "アクティブ",
+      "add_to_claude": "Claudeデスクトップに追加",
+      "add_to_cursor": "カーソルに追加",
+      "add_to_other": "他のMCPクライアントに追加",
+      "description": "DockmasterをCursor、Claude Desktop、または他のMCPクライアントに追加します。",
+      "inactive": "非アクティブ",
+      "other": "その他のアプリ",
+      "other_description": "コマンドタイプのMCPサーバーをサポートする他のアプリにMCP Dockmasterを追加します:",
+      "title": "統合の詳細"
+    },
+    "mcp_description": "MCPはAnthropicによるオープンソースの標準で、Claude DesktopやCursorなどのAIアプリがSlackやGoogle Driveなどのプラットフォームからデータに簡単にアクセスし、他のアプリケーションと対話し、APIに接続できるようにします。",
+    "refresh": "更新",
+    "registry": {
+      "description": "さまざまな機能を持つAIアプリケーションを拡張するために、レジストリから利用可能なMCPを閲覧します。",
+      "title": "レジストリの詳細",
+      "view_registry": "レジストリを表示"
+    },
+    "restart": {
+      "description": "変更を適用し、MCPを使用するためにMCPクライアントを再起動します。",
+      "not_running": "実行されていません",
+      "restart": "再起動",
+      "running": "実行中",
+      "title": "再起動オプション"
+    },
+    "restart_error": "{{mcpClientApp}}の再起動に失敗しました",
+    "restart_success": "{{mcpClientApp}}が正常に再起動しました！",
+    "title": "MCP Dockmasterへようこそ",
+    "what_is_mcp": "MCPとは？"
+  },
+  "navigation": {
+    "about": "について",
+    "app_version": "アプリバージョン:",
+    "feedback": "フィードバック",
+    "home": "ホーム",
+    "logout": "ログアウト",
+    "mcp_server_registry": "MCPサーバーレジストリ",
+    "profile": "プロフィール",
+    "servers_installed": "インストールされたサーバー",
+    "settings": "設定"
+  },
+  "registry": {
+    "by_publisher": "発行者",
+    "confirm_dialog": {
+      "confirm_button": "確認",
+      "default_description": "このアクションを続行してもよろしいですか？",
+      "manual_button": "手動で行います",
+      "restart_both_button": "両方を再起動",
+      "restart_both_success": "ClaudeとCursorが正常に再起動しました！",
+      "restart_both_title": "ClaudeとCursorを再起動",
+      "restart_claude_button": "Claudeを再起動",
+      "restart_claude_success": "Claudeが正常に再起動しました！",
+      "restart_claude_title": "Claudeを再起動",
+      "restart_cursor_button": "Cursorを再起動",
+      "restart_cursor_success": "Cursorが正常に再起動しました！",
+      "restart_cursor_title": "Cursorを再起動",
+      "restart_explanation": "ClaudeとCursorは、モデルコンテキストプロトコル（MCP）によって提供されるツールの更新されたリストを再読み込みするために再起動する必要があります。",
+      "title": "アクションの確認"
+    },
+    "description": "AIアプリケーションとMCPツールを発見し、インストールします。",
+    "details_popup": {
+      "args_label": "引数",
+      "basic_info_title": "基本情報",
+      "categories_label": "カテゴリ",
+      "close_button": "閉じる",
+      "command_label": "コマンド",
+      "config_title": "設定",
+      "description": "サーバーの詳細と情報",
+      "description_label": "説明",
+      "distribution_title": "配布",
+      "env_vars_label": "環境変数",
+      "id_label": "ID",
+      "license_label": "ライセンス",
+      "name_label": "名前",
+      "package_label": "パッケージ",
+      "publisher_title": "発行者",
+      "runtime_label": "ランタイム",
+      "title": "{{serverName}}",
+      "tools_title": "ツール",
+      "type_label": "タイプ",
+      "url_label": "URL",
+      "value_label": "値: {{value}}"
+    },
+    "env_vars_dialog": {
+      "cancel_button": "キャンセル",
+      "description_optional": "{{serverName}}のオプションの環境変数を設定します。",
+      "description_required": "{{serverName}}をインストールする前に、{{count}}の環境変数を設定する必要があります。",
+      "install_button": "インストール",
+      "optional_title": "オプションの環境変数",
+      "required_marker": "*",
+      "required_title": "必須環境変数",
+      "title": "環境変数の設定"
+    },
+    "featured_category": "特集",
+    "import_button": "GitHubからインポート",
+    "import_modal": {
+      "cancel_button": "キャンセル",
+      "description": "新しいMCPサーバーをインポートするためにGitHubリポジトリのURLを入力してください。リポジトリにはpackage.json（Node.js用）またはpyproject.toml（Python用）ファイルが含まれている必要があります。",
+      "error_empty_url": "GitHubのURLを入力してください",
+      "error_invalid_url": "有効なGitHubリポジトリのURLを入力してください",
+      "import_button": "インポート",
+      "import_error": "サーバーのインポートに失敗しました: {{message}}",
+      "import_generic_error": "サーバーのインポートに失敗しました",
+      "importing_button": "インポート中...",
+      "note_description": "リポジトリのREADME.mdファイルから必要な環境変数を抽出しようとします。このプロセスでは、すべての必要な変数を正しく特定できない場合がありますのでご注意ください。",
+      "note_title": "注意:",
+      "title": "GitHubからMCPサーバーをインポート",
+      "url_label": "GitHubリポジトリのURL",
+      "url_placeholder": "https://github.com/owner/repo"
+    },
+    "install_button": "インストール",
+    "installed_badge": "インストール済み",
+    "installing_button": "インストール中...",
+    "no_results": "検索条件に一致するツールは見つかりませんでした。",
+    "search_placeholder": "ツールを検索...",
+    "search_results_found": "{{count}} 件の結果が見つかりました",
+    "search_results_found_plural": "{{count}} 件の結果が見つかりました",
+    "show_all_categories": "すべてのカテゴリを表示",
+    "show_less": "少なく表示",
+    "title": "MCPサーバーレジストリ",
+    "uninstall_button": "アンインストール",
+    "uninstalling_button": "アンインストール中...",
+    "view_details_tooltip": "サーバーの詳細を表示"
+  },
+  "validation": {
+    "max_length": "最大で{{count}}文字以下である必要があります",
+    "min_length": "最低でも{{count}}文字以上である必要があります",
+    "password_mismatch": "パスワードが一致しません"
+  }
+}

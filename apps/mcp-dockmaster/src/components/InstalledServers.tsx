@@ -1344,7 +1344,7 @@ const InstalledServers: React.FC = () => {
                             ? "running" 
                             : server.status === 'starting' 
                               ? "starting" 
-                              : server.status.startsWith("Error:") 
+                              : server.status?.startsWith("Error:") 
                                 ? "error" 
                                 : "stopped"
                       }`}
@@ -1358,7 +1358,7 @@ const InstalledServers: React.FC = () => {
                             ? "Stopped" 
                             : server.status === 'starting' 
                               ? "Starting..." 
-                              : server.status.startsWith("Error:") 
+                              : server.status?.startsWith("Error:") 
                                 ? server.status 
                                 : "Stopped"}
                     </span>
