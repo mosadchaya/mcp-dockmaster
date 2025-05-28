@@ -17,6 +17,7 @@
       }
     },
     "build": {
+      "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "@nx/vite:build",
       "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
@@ -33,6 +34,7 @@
       }
     },
     "lint": {
+      "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/mcp-dockmaster/src-tauri",
