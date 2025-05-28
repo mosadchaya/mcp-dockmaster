@@ -33,7 +33,7 @@ impl McpCoreRuntimesExt for MCPCore {
                 Ok(success)
             }
             Err(e) => {
-                error!("Failed to check Node.js installation: {}", e);
+                error!("Failed to check Node.js installation: {e}");
                 Err(e.to_string())
             }
         }

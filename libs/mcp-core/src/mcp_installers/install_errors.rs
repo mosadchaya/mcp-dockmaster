@@ -12,13 +12,13 @@ impl std::fmt::Display for ClaudeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ClaudeError::ConfigNotFound(path) => {
-                write!(f, "Configuration file not found at {}", path)
+                write!(f, "Configuration file not found at {path}")
             }
-            ClaudeError::InvalidJson(err) => write!(f, "Invalid JSON configuration: {}", err),
+            ClaudeError::InvalidJson(err) => write!(f, "Invalid JSON configuration: {err}"),
             ClaudeError::NoMcpServers => write!(f, "No mcpServers found in configuration"),
             ClaudeError::NoDockmaster => write!(f, "mcp-dockmaster not found in mcpServers"),
-            ClaudeError::UnsupportedOS(os) => write!(f, "Unsupported operating system: {}", os),
-            ClaudeError::IoError(err) => write!(f, "IO Error: {}", err),
+            ClaudeError::UnsupportedOS(os) => write!(f, "Unsupported operating system: {os}"),
+            ClaudeError::IoError(err) => write!(f, "IO Error: {err}"),
         }
     }
 }
@@ -54,14 +54,14 @@ impl std::fmt::Display for CursorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CursorError::ConfigNotFound(path) => {
-                write!(f, "Configuration file not found at {}", path)
+                write!(f, "Configuration file not found at {path}")
             }
-            CursorError::DatabaseNotFound(path) => write!(f, "Database not found at {}", path),
-            CursorError::DatabaseCorrupt(err) => write!(f, "Database is corrupt: {}", err),
-            CursorError::TableNotFound(table) => write!(f, "Required table not found: {}", table),
-            CursorError::KeyNotFound(key) => write!(f, "Required key not found: {}", key),
-            CursorError::InvalidJson(err) => write!(f, "Invalid JSON configuration: {}", err),
-            CursorError::IoError(err) => write!(f, "IO Error: {}", err),
+            CursorError::DatabaseNotFound(path) => write!(f, "Database not found at {path}"),
+            CursorError::DatabaseCorrupt(err) => write!(f, "Database is corrupt: {err}"),
+            CursorError::TableNotFound(table) => write!(f, "Required table not found: {table}"),
+            CursorError::KeyNotFound(key) => write!(f, "Required key not found: {key}"),
+            CursorError::InvalidJson(err) => write!(f, "Invalid JSON configuration: {err}"),
+            CursorError::IoError(err) => write!(f, "IO Error: {err}"),
             CursorError::NoMcpServers => write!(f, "No mcpServers found in configuration"),
             CursorError::NoDockmaster => write!(f, "mcp-dockmaster not found in mcpServers"),
         }

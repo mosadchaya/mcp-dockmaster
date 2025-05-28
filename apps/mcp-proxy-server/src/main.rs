@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 use server::mcp_proxy_client::get_mcp_client;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
 
 pub mod server;
@@ -17,27 +16,43 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Set up file appender for logging
-    let temp_path = std::env::temp_dir().join("mcp-server-logs");
-    let file_appender = RollingFileAppender::new(Rotation::DAILY, temp_path, "proxy-server.log");
-
-    // Initialize the tracing subscriber with file and stdout logging
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
-        .with_writer(file_appender)
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
         .with_target(false)
         .with_thread_ids(true)
         .with_file(true)
         .with_line_number(true)
+        .with_writer(std::io::stderr)
+        .with_ansi(false)
         .init();
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
-    let args = Args::parse();
+    /*
+        This is important because some clients like IntelliJ products
+        sometimes pass "" when there are no arguments, producing some issues.
+        So if arguments are not parsed, we use default values.
+    */
+    let args = Args::try_parse().unwrap_or_else(|e| {
+        tracing::warn!("Failed to parse arguments: {}. Using default values.", e);
+        Args {
+            see_target_address: None,
+        }
+    });
+
     let sse_address = args
         .see_target_address
-        .unwrap_or("http://localhost:11011/mcp/sse".to_string());
-    let mcp_proxy_client = get_mcp_client(&sse_address).await.unwrap();
+        .unwrap_or("http://127.0.0.1:11011/sse".to_string());
+
+    let mcp_proxy_client = loop {
+        match get_mcp_client(&sse_address).await {
+            Ok(client) => break client,
+            Err(e) => {
+                tracing::error!("Error getting MCP client: {:?}. Retrying...", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
+        }
+    };
 
     tracing::info!("Creating stdio transport...");
     let transport = stdio();
@@ -47,6 +62,7 @@ async fn main() -> Result<()> {
         .serve(transport)
         .await?;
 
+    tracing::info!("Waiting for MCP server to exit...");
     mcp_proxy_server.waiting().await?;
     Ok(())
 }

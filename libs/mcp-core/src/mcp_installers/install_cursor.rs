@@ -41,25 +41,16 @@ pub fn is_cursor_installed(app_name: &str) -> Result<bool, CursorError> {
     let cursor_mcp_global_config_path = get_cursor_mcp_global_config_path()?;
     let cursor_mcp_global_config_as_str = std::fs::read_to_string(&cursor_mcp_global_config_path)
         .map_err(|e| {
-        error!(
-            "cannot install: Failed to read Cursor MCP global config: {}",
-            e
-        );
+        error!("cannot install: Failed to read Cursor MCP global config: {e}");
         CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;
-    println!(
-        "cursor_mcp_global_config_file: {}",
-        cursor_mcp_global_config_as_str
-    );
+    println!("cursor_mcp_global_config_file: {cursor_mcp_global_config_as_str}");
     let cursor_mcp_global_config: CursorMcpGlobalConfig =
         if cursor_mcp_global_config_as_str.is_empty() {
             CursorMcpGlobalConfig { mcp_servers: None }
         } else {
             serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
-                error!(
-                    "cannot install: Failed to parse Cursor MCP global config: {}",
-                    e
-                );
+                error!("cannot install: Failed to parse Cursor MCP global config: {e}");
                 CursorError::InvalidJson(e.to_string())
             })?
         };
@@ -72,36 +63,24 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
     let cursor_mcp_global_config_path = get_cursor_mcp_global_config_path()?;
     let cursor_mcp_global_config_as_str = if !cursor_mcp_global_config_path.exists() {
         File::create(&cursor_mcp_global_config_path).map_err(|e| {
-            error!(
-                "cannot install: Failed to create Cursor MCP global config: {}",
-                e
-            );
+            error!("cannot install: Failed to create Cursor MCP global config: {e}");
             CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
         })?;
         String::new()
     } else {
         std::fs::read_to_string(&cursor_mcp_global_config_path).map_err(|e| {
-            error!(
-                "cannot install: Failed to read Cursor MCP global config: {}",
-                e
-            );
+            error!("cannot install: Failed to read Cursor MCP global config: {e}");
             CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
         })?
     };
 
-    println!(
-        "cursor_mcp_global_config_file: {}",
-        cursor_mcp_global_config_as_str
-    );
+    println!("cursor_mcp_global_config_file: {cursor_mcp_global_config_as_str}");
     let mut cursor_mcp_global_config: CursorMcpGlobalConfig =
         if cursor_mcp_global_config_as_str.is_empty() {
             CursorMcpGlobalConfig { mcp_servers: None }
         } else {
             serde_json::from_str(&cursor_mcp_global_config_as_str).map_err(|e| {
-                error!(
-                    "cannot install: Failed to parse Cursor MCP global config: {}",
-                    e
-                );
+                error!("cannot install: Failed to parse Cursor MCP global config: {e}");
                 CursorError::InvalidJson(e.to_string())
             })?
         };
@@ -126,10 +105,7 @@ pub fn install_cursor(app_name: &str, binary_path: &str) -> Result<(), CursorErr
         })?,
     )
     .map_err(|e| {
-        error!(
-            "cannot install: Failed to write Cursor MCP global config: {}",
-            e
-        );
+        error!("cannot install: Failed to write Cursor MCP global config: {e}");
         CursorError::ConfigNotFound(cursor_mcp_global_config_path.to_string_lossy().to_string())
     })?;
 

@@ -1,50 +1,26 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-      {
-        "label": "ui:dev",
-        "type": "shell",
-        "command": "npm",
-        "args": ["run", "dev"],
-        "options": {
-          "cwd": "${workspaceFolder}/apps/mcp-dockmaster"
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ui:dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/mcp-dockmaster"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "^$"
         },
-        "isBackground": true,
-        "problemMatcher": {
-          "owner": "custom",
-          "pattern": {
-            "regexp": "^$"
-          },
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": ".*",
-            "endsPattern": "ready|error"
-          }
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "ready|error"
         }
-      },
-      {
-        "label": "build-proxy-server",
-        "type": "shell",
-        "command": "npx",
-        "args": ["nx", "run", "mcp-proxy-server:build"],
-        "options": {
-          "cwd": "${workspaceFolder}"
-        }
-      },
-      {
-        "label": "copy-proxy-server",
-        "type": "shell",
-        "command": "npx",
-        "args": ["nx", "run", "mcp-dockmaster:copy-proxy-server-sidecar"],
-        "options": {
-          "cwd": "${workspaceFolder}"
-        },
-        "dependsOn": ["build-proxy-server"]
-      },
-      {
-        "label": "setup-proxy",
-        "dependsOn": ["copy-proxy-server"],
-        "problemMatcher": []
       }
-    ]
-  }
+    }
+  ]
+}

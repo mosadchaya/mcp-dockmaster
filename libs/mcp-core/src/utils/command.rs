@@ -72,7 +72,7 @@ pub fn get_envs() -> HashMap<String, String> {
 static BASE_OS_ENVS: Lazy<Option<HashMap<String, String>>> = Lazy::new(get_base_os_envs);
 fn get_base_os_envs() -> Option<HashMap<String, String>> {
     let env_location = "/usr/bin/env";
-    info!("grabbing environment variables from {}", env_location);
+    info!("grabbing environment variables from {env_location}");
     let env_output = std::process::Command::new(env_location).output();
     match env_output {
         Ok(env_output) => {
@@ -91,7 +91,7 @@ fn get_base_os_envs() -> Option<HashMap<String, String>> {
             Some(env_map)
         }
         Err(e) => {
-            error!("error executing env to grab environment variables: {}", e);
+            error!("error executing env to grab environment variables: {e}");
             None
         }
     }

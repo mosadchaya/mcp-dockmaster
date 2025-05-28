@@ -1,14 +1,19 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
+use axum::Router;
 use log::{error, info, warn};
+use rmcp::transport::sse_server::SseServerConfig;
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::database::db_manager::DBManager;
+use crate::mcp_server_implementation::mcp_server::McpServer;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
+use rmcp::transport::SseServer;
 
 /// Errors that can occur during initialization
 #[derive(Debug)]
@@ -36,6 +41,8 @@ pub struct MCPCore {
     pub port: u16,
     /// App name
     pub app_name: String,
+    /// SSE server cancellation token
+    pub sse_server_cancel_token: CancellationToken,
 }
 
 impl MCPCore {
@@ -93,6 +100,7 @@ impl MCPCore {
             tool_registry: tool_registry_arc,
             port,
             app_name,
+            sse_server_cancel_token: CancellationToken::new(),
         }
     }
 
@@ -105,7 +113,7 @@ impl MCPCore {
         info!("Initializing MCP server");
         info!("Applying database migrations");
         if let Err(e) = self.apply_database_migrations().await {
-            error!("Failed to apply database migrations: {}", e);
+            error!("Failed to apply database migrations: {e}");
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
 
@@ -116,23 +124,64 @@ impl MCPCore {
             .await
         {
             Ok(_) => info!("Registry cache successfully updated"),
-            Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
+            Err(e) => warn!("Warning: Failed to update registry cache: {e}"),
         }
         info!("Initializing Background MCP servers");
         if let Err(e) = self.init_mcp_server().await {
-            error!("Failed to initialize MCP server: {}", e);
+            error!("Failed to initialize MCP server: {e}");
             return Err(InitError::InitMcpServer(e.to_string()));
         }
-        info!("Starting HTTP server");
-        if let Err(e) = crate::http_server::start_http_server(self.clone(), self.port).await {
-            error!("Failed to start HTTP server: {}", e);
-            return Err(InitError::StartHttpServer(e.to_string()));
-        }
+
+        info!("Creating MCP server...");
+        let mcp_server_addr = "127.0.0.1:11011"
+            .parse()
+            .map_err(|e: std::net::AddrParseError| InitError::InitMcpServer(e.to_string()))?;
+        let (sse_server, router) = SseServer::new(SseServerConfig {
+            bind: mcp_server_addr,
+            sse_path: "/sse".to_string(),
+            post_path: "/post".to_string(),
+            ct: self.sse_server_cancel_token.clone(),
+            sse_keep_alive: Some(Duration::from_secs(30)),
+        });
+
+        let mcp_core = Arc::new(self.clone());
+        sse_server.with_service(move || McpServer::new(mcp_core.clone()));
+
+        let mcp_http_router = Router::new().merge(router);
+
+        // Start HTTP server
+        let listener = tokio::net::TcpListener::bind(mcp_server_addr)
+            .await
+            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
+
+        info!("Server started on {mcp_server_addr}");
+        let cancellation_token = self.sse_server_cancel_token.clone();
+        let mcp_http_server =
+            axum::serve(listener, mcp_http_router).with_graceful_shutdown(async move {
+                let _ = cancellation_token.cancelled().await;
+            });
+
+        tokio::spawn(async move {
+            if let Err(e) = mcp_http_server.await {
+                error!("mcp http server finished with error: {e}");
+            }
+        });
 
         Ok(())
     }
 
-    /// Get the current tool visibility state
+    pub async fn uninit(&self) {
+        self.sse_server_cancel_token.cancel();
+        // Kill all MCP Server processes
+        info!("killing all MCP processes");
+        let result = self.kill_all_processes().await;
+        if let Err(e) = result {
+            error!("failed to kill all MCP processes: {e}");
+        } else {
+            info!("killing all MCP processes done");
+        }
+    }
+
     pub async fn are_tools_hidden(&self) -> bool {
         let mcp_state = self.mcp_state.read().await;
         mcp_state.are_tools_hidden().await

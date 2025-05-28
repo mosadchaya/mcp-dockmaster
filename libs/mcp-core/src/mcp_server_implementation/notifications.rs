@@ -1,5 +1,5 @@
-use serde_json::json;
 use super::session_manager::SESSION_MANAGER;
+use serde_json::json;
 
 pub async fn broadcast_tools_list_changed() {
     let notification = json!({
@@ -10,8 +10,8 @@ pub async fn broadcast_tools_list_changed() {
 
     let message = serde_json::to_string(&notification).unwrap_or_default();
     let failed = SESSION_MANAGER.broadcast_message(&message).await;
-    
+
     if !failed.is_empty() {
-        log::warn!("Failed to send tools list changed notification to some sessions: {:?}", failed);
+        log::warn!("Failed to send tools list changed notification to some sessions: {failed:?}");
     }
 }

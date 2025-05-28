@@ -22,7 +22,7 @@ impl McpCoreDatabaseExt for MCPCore {
     async fn clear_database(&self) -> Result<(), String> {
         match self.database_manager.write().await.clear_database() {
             Ok(_) => Ok(()),
-            Err(e) => Err(format!("Failed to clear database: {}", e)),
+            Err(e) => Err(format!("Failed to clear database: {e}")),
         }
     }
 }

@@ -1,10 +1,11 @@
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
-    ServerRegistrationResponse, ServerStatus, ServerToolInfo, ServerUninstallResponse,
-    ServerUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
-    ToolUninstallRequest, ToolUpdateResponse,
+    ServerRegistrationResponse, ServerStatus, ServerUninstallResponse, ServerUpdateRequest,
+    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest,
+    ToolUpdateResponse,
 };
+use crate::types::ServerToolInfo;
 use crate::utils::github::{
     extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
 };
@@ -15,7 +16,6 @@ use log::{error, info};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use crate::mcp_server::mcp_tools_service::MCPToolsService;
 use toml::Table;
 
 use super::mcp_core::MCPCore;
@@ -82,7 +82,7 @@ impl McpCoreProxyExt for MCPCore {
         // Log configuration details if present
         if let Some(config) = &request.configuration {
             if let Some(cmd) = &config.command {
-                info!("Command: {}", cmd);
+                info!("Command: {cmd}");
             } else {
                 info!("Command: Not specified in configuration");
             }
@@ -167,13 +167,13 @@ impl McpCoreProxyExt for MCPCore {
     /// List all available tools from all running MCP servers
     async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
-        
+
         // Check if tools are hidden
         if mcp_state.are_tools_hidden().await {
             // Return empty list when tools are hidden
             return Ok(Vec::new());
         }
-        
+
         let server_tools = mcp_state.server_tools.read().await;
         let mut all_tools = Vec::new();
 
@@ -212,7 +212,7 @@ impl McpCoreProxyExt for MCPCore {
         let mcp_clients = mcp_state.mcp_clients.read().await;
         let mcp_client = mcp_clients.get(server_id);
         if mcp_client.is_none() {
-            return Err(format!("Server with ID '{}' not found", server_id));
+            return Err(format!("Server with ID '{server_id}' not found"));
         }
         let mcp_client = mcp_client.unwrap();
 
@@ -223,11 +223,14 @@ impl McpCoreProxyExt for MCPCore {
 
         let result = match mcp_client
             .client
-            .call_tool(tool_id, request.parameters.clone())
+            .call_tool(rmcp::model::CallToolRequestParam {
+                name: tool_id.to_string().into(),
+                arguments: request.parameters.clone(),
+            })
             .await
         {
             Ok(result) => result,
-            Err(e) => return Err(format!("Tool execution error: {}", e)),
+            Err(e) => return Err(format!("Tool execution error: {e}")),
         };
 
         Ok(ToolExecutionResponse {
@@ -311,12 +314,6 @@ impl McpCoreProxyExt for MCPCore {
                 success: false,
                 message: e,
             });
-        }
-        // Update the tools cache
-        let tools_service = MCPToolsService::get_instance().await;
-        if let Err(e) =  tools_service.expect("REASON").update_cache().await {
-            error!("Failed to update tools cache after updating tool status: {}", e);
-            return Err(e);
         }
 
         // Return success
@@ -449,7 +446,7 @@ impl McpCoreProxyExt for MCPCore {
         if let Err(e) = registry.delete_server(&request.server_id) {
             return Ok(ServerUninstallResponse {
                 success: false,
-                message: format!("Failed to delete tool: {}", e),
+                message: format!("Failed to delete tool: {e}"),
             });
         }
 
@@ -474,10 +471,10 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         if !tool_exists {
-            error!("Tool with ID '{}' not found for restart", server_id);
+            error!("Tool with ID '{server_id}' not found for restart");
             return Ok(ToolUpdateResponse {
                 success: false,
-                message: format!("Tool with ID '{}' not found", server_id),
+                message: format!("Tool with ID '{server_id}' not found"),
             });
         }
 
@@ -488,17 +485,17 @@ impl McpCoreProxyExt for MCPCore {
 
         match restart_result {
             Ok(_) => {
-                info!("Successfully restarted tool: {}", server_id);
+                info!("Successfully restarted tool: {server_id}");
                 Ok(ToolUpdateResponse {
                     success: true,
-                    message: format!("Tool '{}' restarted successfully", server_id),
+                    message: format!("Tool '{server_id}' restarted successfully"),
                 })
             }
             Err(e) => {
-                error!("Failed to restart tool {}: {}", server_id, e);
+                error!("Failed to restart tool {server_id}: {e}");
                 Ok(ToolUpdateResponse {
                     success: false,
-                    message: format!("Failed to restart tool: {}", e),
+                    message: format!("Failed to restart tool: {e}"),
                 })
             }
         }
@@ -510,18 +507,18 @@ impl McpCoreProxyExt for MCPCore {
 
         // Initialize the state from the database
         if let Err(e) = self.mcp_state.read().await.init_state().await {
-            error!("Failed to initialize state from database: {}", e);
+            error!("Failed to initialize state from database: {e}");
         }
 
         // Get all tools from database
         let tools = match self.tool_registry.read().await.get_all_servers() {
             Ok(tools) => tools,
             Err(e) => {
-                error!("Failed to get tools from database: {}", e);
+                error!("Failed to get tools from database: {e}");
                 return Err(anyhow::anyhow!("Failed to get tools from database: {}", e));
             }
         };
-        
+
         info!("MCP state initialized, preparing to restart enabled tools");
 
         // Update the state with the new registry
@@ -531,7 +528,7 @@ impl McpCoreProxyExt for MCPCore {
         // Prepare restart tasks for all enabled tools
         for (tool_id_str, metadata) in tools {
             if metadata.enabled {
-                info!("Found enabled tool: {}", tool_id_str);
+                info!("Found enabled tool: {tool_id_str}");
                 let tool_id = tool_id_str.clone();
                 let mcp_state_arc_clone = self.mcp_state.clone();
 
@@ -540,10 +537,10 @@ impl McpCoreProxyExt for MCPCore {
                     let mcp_state_clone_write_guard = mcp_state_arc_clone.read().await;
                     match mcp_state_clone_write_guard.restart_server(&tool_id).await {
                         Ok(()) => {
-                            info!("Successfully spawned process for tool: {}", tool_id);
+                            info!("Successfully spawned process for tool: {tool_id}");
                         }
                         Err(e) => {
-                            error!("Failed to spawn process for tool {}: {}", tool_id, e);
+                            error!("Failed to spawn process for tool {tool_id}: {e}");
                         }
                     }
 
@@ -599,7 +596,7 @@ impl McpCoreProxyExt for MCPCore {
         // Create HTTP client
         let client = Client::builder()
             .build()
-            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+            .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
         // Try to fetch README.md to extract environment variables
         let mut env_vars = HashSet::new();
@@ -615,7 +612,7 @@ impl McpCoreProxyExt for MCPCore {
             );
 
             if !env_vars.is_empty() {
-                info!("Extracted environment variables: {:?}", env_vars);
+                info!("Extracted environment variables: {env_vars:?}");
             }
         } else {
             info!("README.md not found or could not be parsed");
@@ -659,7 +656,7 @@ impl McpCoreProxyExt for MCPCore {
     ) -> Result<ServerRegistrationResponse, String> {
         // Parse package.json
         let package_json: Value = serde_json::from_str(&package_json_content)
-            .map_err(|e| format!("Failed to parse package.json: {}", e))?;
+            .map_err(|e| format!("Failed to parse package.json: {e}"))?;
 
         // Extract package name
         let package_name = package_json
@@ -679,7 +676,7 @@ impl McpCoreProxyExt for MCPCore {
         let server_id = format!("{}/{}", repo_info.owner, repo_info.repo);
 
         // Create server name from package name
-        let server_name = format!("{} MCP Server", package_name);
+        let server_name = format!("{package_name} MCP Server");
 
         // Create environment variables map from extracted env vars
         let mut env_map = HashMap::new();
@@ -687,7 +684,7 @@ impl McpCoreProxyExt for MCPCore {
             env_map.insert(
                 var_name.clone(),
                 ServerEnvironment {
-                    description: format!("Extracted from README.md: {}", var_name),
+                    description: format!("Extracted from README.md: {var_name}"),
                     default: Some("".to_string()), // Empty default value
                     required: true,
                 },
@@ -731,7 +728,7 @@ impl McpCoreProxyExt for MCPCore {
         // Parse pyproject.toml
         let pyproject_toml: Table = pyproject_toml_content
             .parse::<Table>()
-            .map_err(|e| format!("Failed to parse pyproject.toml: {}", e))?;
+            .map_err(|e| format!("Failed to parse pyproject.toml: {e}"))?;
 
         // Extract package name
         let project = pyproject_toml
@@ -771,7 +768,7 @@ impl McpCoreProxyExt for MCPCore {
         let server_id = format!("{}/{}", repo_info.owner, repo_info.repo);
 
         // Create server name from package name
-        let server_name = format!("{} MCP Server", package_name);
+        let server_name = format!("{package_name} MCP Server");
 
         // Create environment variables map from extracted env vars
         let mut env_map = HashMap::new();
@@ -779,7 +776,7 @@ impl McpCoreProxyExt for MCPCore {
             env_map.insert(
                 var_name.clone(),
                 ServerEnvironment {
-                    description: format!("Extracted from README.md: {}", var_name),
+                    description: format!("Extracted from README.md: {var_name}"),
                     default: Some("".to_string()), // Empty default value
                     required: true,
                 },

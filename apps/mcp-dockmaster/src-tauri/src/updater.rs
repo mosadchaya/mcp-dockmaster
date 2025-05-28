@@ -22,7 +22,7 @@ pub async fn check_for_updates(
         .unwrap();
 
     if let Some(update) = updater.check().await.unwrap_or_else(|e| {
-        error!("failed to check for updates: {}", e);
+        error!("failed to check for updates: {e}");
         None
     }) {
         info!("update available: {}", update.version);
@@ -36,7 +36,7 @@ pub async fn check_for_updates(
             ))
             .title(format!("New Update Available v{}", update.version));
         dialog.show(move |answer| {
-        info!("user answer to the update prompt: {}", answer);
+        info!("user answer to the update prompt: {answer}");
         if !answer {
             info!("new update available but user cancelled installation");
             return;
@@ -66,7 +66,7 @@ pub async fn check_for_updates(
                     app_handle_clone.restart();
                 }
                 Err(e) => {
-                    error!("failed to install update: {}", e);
+                    error!("failed to install update: {e}");
                     if e.to_string().contains("InvalidSignature") {
                         error!("update signature verification failed. This could mean the update package has been tampered with or the public key doesn't match.");
                     }

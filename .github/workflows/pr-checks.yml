@@ -1,5 +1,4 @@
 name: PR Checks
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number}}
 
@@ -15,6 +14,7 @@ on:
 jobs:
   test-mcp-dockmaster-tauri:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use log::{error, info};
+use log::info;
 use mcp_core::{
-    core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
+    core::mcp_core::MCPCore,
     utils::process::kill_all_processes_by_name,
 };
 use tauri::{utils::platform, Manager};
@@ -135,7 +135,7 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
         app_name = format!("{app_name}.{app_id_suffix}");
     }
 
-    info!("app name: {}", app_name);
+    info!("app name: {app_name}");
 
     let mcp_core = MCPCore::new(
         database_path.clone(),
@@ -153,18 +153,11 @@ pub async fn init_mcp_core(app_handle: &tauri::AppHandle) -> Result<(), String> 
 pub async fn uninit_mcp_core(app_handle: &tauri::AppHandle) {
     info!("uninit_mcp_core, getting handle");
     let app_handle_clone = app_handle.clone();
-    let mcp_core = app_handle_clone.try_state::<MCPCore>();
     let mcp_core_options = app_handle_clone.try_state::<MCPCoreOptions>();
 
-    // Kill all MCP Server processes
+    let mcp_core = app_handle_clone.try_state::<MCPCore>();
     if let Some(mcp_core) = mcp_core {
-        info!("killing all MCP processes");
-        let result = mcp_core.kill_all_processes().await;
-        if let Err(e) = result {
-            error!("failed to kill all MCP processes: {}", e);
-        } else {
-            info!("killing all MCP processes done");
-        }
+        mcp_core.uninit().await;
     }
 
     /*

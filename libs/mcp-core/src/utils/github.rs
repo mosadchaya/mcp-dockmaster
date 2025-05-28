@@ -25,7 +25,7 @@ pub fn parse_github_url(url: &str) -> Result<GitHubRepo, String> {
         }
     }
 
-    Err(format!("Invalid GitHub URL: {}", url))
+    Err(format!("Invalid GitHub URL: {url}"))
 }
 
 /// Fetch a file from a GitHub repository
@@ -35,33 +35,28 @@ pub async fn fetch_github_file(
     repo: &str,
     path: &str,
 ) -> Result<String, String> {
-    let url = format!(
-        "https://raw.githubusercontent.com/{}/{}/main/{}",
-        owner, repo, path
-    );
+    let url = format!("https://raw.githubusercontent.com/{owner}/{repo}/main/{path}");
 
-    info!("Fetching file from GitHub: {}", url);
+    info!("Fetching file from GitHub: {url}");
 
     match client.get(&url).send().await {
         Ok(response) => {
             if response.status().is_success() {
                 match response.text().await {
                     Ok(content) => Ok(content),
-                    Err(e) => Err(format!("Failed to read response content: {}", e)),
+                    Err(e) => Err(format!("Failed to read response content: {e}")),
                 }
             } else {
                 // Try with master branch if main fails
-                let master_url = format!(
-                    "https://raw.githubusercontent.com/{}/{}/master/{}",
-                    owner, repo, path
-                );
+                let master_url =
+                    format!("https://raw.githubusercontent.com/{owner}/{repo}/master/{path}");
 
                 match client.get(&master_url).send().await {
                     Ok(master_response) => {
                         if master_response.status().is_success() {
                             match master_response.text().await {
                                 Ok(content) => Ok(content),
-                                Err(e) => Err(format!("Failed to read response content: {}", e)),
+                                Err(e) => Err(format!("Failed to read response content: {e}")),
                             }
                         } else {
                             Err(format!(
@@ -70,11 +65,11 @@ pub async fn fetch_github_file(
                             ))
                         }
                     }
-                    Err(e) => Err(format!("Failed to fetch file: {}", e)),
+                    Err(e) => Err(format!("Failed to fetch file: {e}")),
                 }
             }
         }
-        Err(e) => Err(format!("Failed to fetch file: {}", e)),
+        Err(e) => Err(format!("Failed to fetch file: {e}")),
     }
 }
 
