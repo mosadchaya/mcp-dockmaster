@@ -13,6 +13,7 @@ import { Label } from "./ui/label";
 import { termsOfServiceMarkdown } from "../constants/terms-of-service";
 import { saveUserConsent } from "../lib/localStorage";
 import { updateAnalyticsConsent } from "../lib/analytics";
+import { useTranslation } from "@mcp-dockmaster/i18n";
 
 interface TermsConsentDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface TermsConsentDialogProps {
 }
 
 export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) => {
+  const { t } = useTranslation();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
 
@@ -33,9 +35,9 @@ export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) 
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Terms of Service & Privacy Settings</DialogTitle>
+          <DialogTitle>{t('terms_consent.title')}</DialogTitle>
           <DialogDescription>
-            Please review and accept our terms of service to continue using MCP Dockmaster.
+            {t('terms_consent.description')}
           </DialogDescription>
         </DialogHeader>
         
@@ -53,7 +55,7 @@ export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) 
               onCheckedChange={setTermsAccepted} 
             />
             <Label htmlFor="terms" className="font-medium">
-              I accept the Terms of Service
+              {t('terms_consent.accept_terms')}
             </Label>
           </div>
           
@@ -64,7 +66,7 @@ export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) 
               onCheckedChange={setAnalyticsEnabled} 
             />
             <Label htmlFor="analytics" className="font-medium">
-              Enable anonymous analytics to help improve the application
+              {t('terms_consent.enable_analytics')}
             </Label>
           </div>
         </div>
@@ -74,7 +76,7 @@ export const TermsConsentDialog = ({ open, onAccept }: TermsConsentDialogProps) 
             onClick={handleAccept} 
             disabled={!termsAccepted}
           >
-            Continue
+            {t('common.continue')}
           </Button>
         </DialogFooter>
       </DialogContent>

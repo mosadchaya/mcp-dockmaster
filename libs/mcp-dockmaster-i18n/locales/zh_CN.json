@@ -30,7 +30,24 @@
     "loading": "加载中...",
     "retry": "重试",
     "save": "保存",
-    "welcome": "欢迎"
+    "welcome": "欢迎",
+    "close": "关闭",
+    "continue": "继续",
+    "ok": "确定",
+    "yes": "是",
+    "no": "否",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "running": "运行中",
+    "stopped": "已停止",
+    "starting": "启动中...",
+    "updating": "更新中...",
+    "all": "全部",
+    "tags": "标签:",
+    "status": "状态:",
+    "required": "必需",
+    "optional": "可选",
+    "default": "默认"
   },
   "errors": {
     "invalid_email": "请输入有效的电子邮件地址",
@@ -53,6 +70,8 @@
   },
   "home": {
     "checking": "检查中...",
+    "confirm_installation_title": "确认安装",
+    "confirm_installation_description": "请确保 {{title}} 在继续之前已关闭。",
     "environment": {
       "active": "活动",
       "description": "确保您已安装 Node.js、Python 和 Docker，以便运行 MCP。",
@@ -72,6 +91,7 @@
       "add_to_other": "添加到其他MCP客户端",
       "description": "将 Dockmaster 添加到 Cursor、Claude Desktop 或任何其他 MCP 客户端。",
       "inactive": "未激活",
+      "install": "安装",
       "other": "其他应用",
       "other_description": "将MCP Dockmaster添加到任何支持命令类型MCP服务器的其他应用中：",
       "title": "集成详情"
@@ -193,5 +213,106 @@
     "max_length": "最多只能包含 {{count}} 个字符",
     "min_length": "必须至少包含 {{count}} 个字符",
     "password_mismatch": "密码不匹配"
+  },
+  "installed_servers": {
+    "title": "已安装的服务器",
+    "description": "管理您已安装的AI应用程序和MCP工具。",
+    "loading": "正在加载已安装的应用程序...",
+    "no_applications": "您还没有安装任何应用程序。",
+    "visit_store": "访问AI应用商店以发现和安装应用程序。",
+    "no_matches": "没有服务器匹配所选过滤器。",
+    "clear_filter": "清除过滤器",
+    "active_status": "MCP服务器活跃",
+    "paused_status": "MCP服务器已暂停",
+    "updating_servers": "正在更新服务器...",
+    "add_new_color": "添加新颜色",
+    "server_info": {
+      "tooltip": "服务器信息",
+      "title": "服务器信息",
+      "description": "查看此服务器的详细信息",
+      "basic_info_title": "基本信息",
+      "description_label": "描述",
+      "id_label": "ID",
+      "status_label": "状态",
+      "enabled_label": "已启用",
+      "tools_label": "工具",
+      "tools_count": "{{count}} 个工具可用",
+      "tools_type_label": "工具类型",
+      "source_url_label": "源URL",
+      "entry_point_label": "入口点",
+      "tools_title": "工具",
+      "configuration_title": "配置",
+      "command_label": "命令",
+      "args_label": "参数",
+      "env_vars_label": "环境变量",
+      "distribution_title": "发行版",
+      "type_label": "类型",
+      "package_label": "包",
+      "uninstall_server": "卸载服务器"
+    },
+    "env_vars": {
+      "tooltip": "配置环境变量",
+      "needs_attention": "需要注意",
+      "needs_attention_tooltip": "此服务器要求您设置某些环境变量。没有这些设置，工具列表可能不会出现。"
+    },
+    "color_dialog": {
+      "title": "添加新颜色",
+      "description": "输入新颜色的名称。此颜色将添加到所有服务器。",
+      "name_label": "颜色名称",
+      "name_placeholder": "例如 蓝色、黄色、紫色",
+      "preview_label": "颜色预览",
+      "new_color": "新颜色",
+      "add_color": "添加颜色"
+    },
+    "config_popup": {
+      "title": "环境变量",
+      "uninstall": "卸载",
+      "save": "保存",
+      "cancel": "取消",
+      "saving": "保存中..."
+    }
+  },
+  "server": {
+    "uninstalled": {
+      "success": "服务器卸载成功",
+      "error": "卸载服务器失败："
+    },
+    "enabling": {
+      "all": "正在启用所有服务器..."
+    },
+    "enabled": "已启用 ",
+    "updating": "正在更新服务器 ",
+    "updated": "已更新 ",
+    "update": {
+      "error": "更新服务器时出错"
+    },
+    "color": {
+      "empty": "颜色名称不能为空",
+      "added": "已添加新颜色："
+    },
+    "notfound": "ID为 ",
+    "config": {
+      "updated": "配置已更新 ",
+      "error": "更新配置失败："
+    },
+    "restarting": "正在重启 ",
+    "restarted": " 已使用新配置成功重启",
+    "restart": {
+      "error": "重启失败 "
+    }
+  },
+  "terms_consent": {
+    "title": "服务条款和隐私设置",
+    "description": "请审阅并接受我们的服务条款以继续使用MCP Dockmaster。",
+    "accept_terms": "我接受服务条款",
+    "enable_analytics": "启用匿名分析以帮助改进应用程序"
+  },
+  "sidebar": {
+    "toggle": "切换侧边栏"
+  },
+  "ui": {
+    "close": "关闭",
+    "sidebar": "侧边栏",
+    "sidebar_description": "显示移动侧边栏。"
   }
 }
