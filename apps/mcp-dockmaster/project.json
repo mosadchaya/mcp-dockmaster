@@ -42,26 +42,10 @@
       }
     },
     "serve": {
-      "executor": "@nx/vite:dev-server",
-      "defaultConfiguration": "development",
-      "options": {
-        "buildTarget": "mcp-dockmaster:build"
-      },
-      "configurations": {
-        "development": {
-          "buildTarget": "mcp-dockmaster:build:development",
-          "hmr": true
-        },
-        "production": {
-          "buildTarget": "mcp-dockmaster:build:production",
-          "hmr": false
-        }
-      }
-    },
-    "serve-tauri": {
+      "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri dev",
+        "command": "npx tauri dev --config=\"src-tauri/tauri.conf.local.json\"",
         "cwd": "apps/mcp-dockmaster"
       }
     },

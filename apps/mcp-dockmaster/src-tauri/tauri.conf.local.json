@@ -1,5 +1,5 @@
 {
-  "productName": "MCP Dockmaster",
+  "productName": "MCP Dockmaster Local",
   "identifier": "com.mcp-dockmaster.desktop.local",
   "bundle": {
     "createUpdaterArtifacts": false
