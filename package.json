@@ -67,6 +67,7 @@
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.5.0",
     "autoprefixer": "^10.4.21",
+    "consola": "^3.4.2",
     "date-fns": "^4.1.0",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9.27.0",
