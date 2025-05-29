@@ -7,6 +7,7 @@ import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
 import About from "./pages/about";
 import Feedback from "./pages/feedback";
+import Settings from "./pages/settings";
 import InitMcpOverlay from "./components/init-mcp-overlay";
 import { getVersion } from "@tauri-apps/api/app";
 
@@ -31,6 +32,7 @@ import {
   HomeIcon,
   RegistryIcon,
   ServersIcon,
+  SettingsIcon,
 } from "./components/icons";
 import { MessageSquare } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
@@ -87,6 +89,7 @@ function AppSidebar() {
     },
     { id: "about", label: t('navigation.about'), icon: AboutIcon, to: "/about" },
     { id: "feedback", label: t('navigation.feedback'), icon: MessageSquare, to: "/feedback" },
+    { id: "settings", label: t('navigation.settings'), icon: SettingsIcon, to: "/settings" },
   ];
 
   return (
@@ -136,6 +139,7 @@ const AppRoutes = () => {
                   <Route path="/registry" element={<Registry />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/feedback" element={<Feedback />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route element={<Navigate replace to={"/"} />} path="*" />
                 </Routes>
               </SidebarInset>

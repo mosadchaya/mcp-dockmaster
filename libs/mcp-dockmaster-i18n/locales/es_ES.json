@@ -308,11 +308,34 @@
     "enable_analytics": "Habilitar análisis anónimos para ayudar a mejorar la aplicación"
   },
   "sidebar": {
-    "toggle": "Alternar Barra Lateral"
+    "toggle": "Alternar barra lateral"
   },
   "ui": {
     "close": "Cerrar",
-    "sidebar": "Barra Lateral",
+    "sidebar": "Barra lateral",
     "sidebar_description": "Muestra la barra lateral móvil."
+  },
+  "settings": {
+    "title": "Configuración",
+    "description": "Gestiona tus preferencias y configuración de la aplicación.",
+    "coming_soon": "Próximamente...",
+    "language": {
+      "title": "Idioma",
+      "description": "Elige tu idioma preferido para la aplicación.",
+      "select_label": "Seleccionar idioma",
+      "select_placeholder": "Elige un idioma",
+      "current_language": "Idioma actual",
+      "changing": "Cambiando idioma...",
+      "changed_success": "¡Idioma cambiado exitosamente!",
+      "changed_error": "Error al cambiar el idioma. Por favor, inténtalo de nuevo."
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "description": "Personaliza la apariencia de la aplicación."
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "description": "Gestiona tus preferencias de notificaciones."
+    }
   }
 }

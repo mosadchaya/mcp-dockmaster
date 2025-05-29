@@ -313,6 +313,29 @@
   "ui": {
     "close": "关闭",
     "sidebar": "侧边栏",
-    "sidebar_description": "显示移动侧边栏。"
+    "sidebar_description": "显示移动端侧边栏。"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "管理您的应用程序首选项和配置。",
+    "coming_soon": "即将推出...",
+    "language": {
+      "title": "语言",
+      "description": "选择您的应用程序首选语言。",
+      "select_label": "选择语言",
+      "select_placeholder": "选择一种语言",
+      "current_language": "当前语言",
+      "changing": "正在更改语言...",
+      "changed_success": "语言更改成功！",
+      "changed_error": "更改语言失败。请重试。"
+    },
+    "appearance": {
+      "title": "外观",
+      "description": "自定义应用程序的外观。"
+    },
+    "notifications": {
+      "title": "通知",
+      "description": "管理您的通知首选项。"
+    }
   }
 }

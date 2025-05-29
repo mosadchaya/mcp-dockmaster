@@ -314,5 +314,28 @@
     "close": "Fermer",
     "sidebar": "Barre latérale",
     "sidebar_description": "Affiche la barre latérale mobile."
+  },
+  "settings": {
+    "title": "Paramètres",
+    "description": "Gérez vos préférences et la configuration de l'application.",
+    "coming_soon": "Bientôt disponible...",
+    "language": {
+      "title": "Langue",
+      "description": "Choisissez votre langue préférée pour l'application.",
+      "select_label": "Sélectionner la langue",
+      "select_placeholder": "Choisir une langue",
+      "current_language": "Langue actuelle",
+      "changing": "Changement de langue...",
+      "changed_success": "Langue changée avec succès !",
+      "changed_error": "Échec du changement de langue. Veuillez réessayer."
+    },
+    "appearance": {
+      "title": "Apparence",
+      "description": "Personnalisez l'apparence de l'application."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Gérez vos préférences de notifications."
+    }
   }
 }

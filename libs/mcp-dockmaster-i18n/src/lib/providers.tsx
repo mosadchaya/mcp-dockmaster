@@ -11,6 +11,18 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     i18NextInstancePromise.then((resolvedInstance) => {
       setInstance(resolvedInstance);
+      
+      // Subscribe to language changes for logging (optional)
+      const handleLanguageChange = (lng: string) => {
+        console.log('[I18nProvider] Language changed to:', lng);
+      };
+      
+      resolvedInstance.on('languageChanged', handleLanguageChange);
+      
+      // Cleanup function
+      return () => {
+        resolvedInstance.off('languageChanged', handleLanguageChange);
+      };
     });
   }, []); // Run only once on mount
 

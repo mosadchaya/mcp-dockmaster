@@ -30,19 +30,30 @@ const initI18n = async () => {
     }
   }
 
+  // Check for saved language preference
+  const savedLanguage = localStorage.getItem('preferredLanguage');
+  const defaultLanguage = savedLanguage && allowedLocales.includes(savedLanguage as any) 
+    ? savedLanguage 
+    : 'en_US';
+
+  console.log(`[i18n] Using default language: ${defaultLanguage}`, savedLanguage ? `(from localStorage: ${savedLanguage})` : '(fallback)');
+
   await i18n
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
       resources,
+      lng: defaultLanguage, // Set the initial language explicitly
       fallbackLng: 'en_US',
       supportedLngs: allowedLocales,
       defaultNS: 'translation',
       fallbackNS: 'translation',
       ns: ['translation'],
       detection: {
-        order: ['navigator', 'htmlTag', 'path', 'subdomain'],
+        // Only use localStorage and disable other detection methods to prevent conflicts
+        order: ['localStorage'],
         caches: ['localStorage'],
+        lookupLocalStorage: 'preferredLanguage',
       },
       interpolation: {
         escapeValue: false,
@@ -60,6 +71,8 @@ const initI18n = async () => {
 
   i18n.on('languageChanged', (lng) => {
     console.log(`[i18n] Language changed to: ${lng}`);
+    // Save the language change to localStorage
+    localStorage.setItem('preferredLanguage', lng);
   });
 
   return i18n;
