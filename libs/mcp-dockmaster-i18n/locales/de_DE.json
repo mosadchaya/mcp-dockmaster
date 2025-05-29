@@ -30,7 +30,24 @@
     "loading": "Laden...",
     "retry": "Erneut versuchen",
     "save": "Speichern",
-    "welcome": "Willkommen"
+    "welcome": "Willkommen",
+    "close": "Schließen",
+    "continue": "Fortfahren",
+    "ok": "OK",
+    "yes": "Ja",
+    "no": "Nein",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "running": "Läuft",
+    "stopped": "Gestoppt",
+    "starting": "Startet...",
+    "updating": "Aktualisiert...",
+    "all": "Alle",
+    "tags": "Tags:",
+    "status": "Status:",
+    "required": "Erforderlich",
+    "optional": "Optional",
+    "default": "Standard"
   },
   "errors": {
     "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
@@ -53,6 +70,8 @@
   },
   "home": {
     "checking": "Überprüfen...",
+    "confirm_installation_title": "Installation bestätigen",
+    "confirm_installation_description": "Bitte stellen Sie sicher, dass {{title}} geschlossen ist, bevor Sie fortfahren.",
     "environment": {
       "active": "Aktiv",
       "description": "Stellen Sie sicher, dass Sie Node.js, Python und Docker installiert haben, um MCPs auszuführen.",
@@ -72,6 +91,7 @@
       "add_to_other": "Zu anderem MCP-Client hinzufügen",
       "description": "Fügen Sie Dockmaster zu Cursor, Claude Desktop oder einem anderen MCP-Client hinzu.",
       "inactive": "Inaktiv",
+      "install": "Installieren",
       "other": "Andere Apps",
       "other_description": "Fügen Sie MCP Dockmaster zu jeder anderen App hinzu, die MCP-Server vom Typ Befehl unterstützt:",
       "title": "Integrationsdetails"
@@ -193,5 +213,106 @@
     "max_length": "Darf höchstens {{count}} Zeichen lang sein",
     "min_length": "Muss mindestens {{count}} Zeichen lang sein",
     "password_mismatch": "Die Passwörter stimmen nicht überein"
+  },
+  "installed_servers": {
+    "title": "Installierte Server",
+    "description": "Verwalten Sie Ihre installierten KI-Anwendungen und MCP-Tools.",
+    "loading": "Installierte Anwendungen laden...",
+    "no_applications": "Sie haben noch keine Anwendungen installiert.",
+    "visit_store": "Besuchen Sie den KI-App-Store, um Anwendungen zu entdecken und zu installieren.",
+    "no_matches": "Keine Server entsprechen dem ausgewählten Filter.",
+    "clear_filter": "Filter löschen",
+    "active_status": "MCP-Server aktiv",
+    "paused_status": "MCP-Server pausiert",
+    "updating_servers": "Server werden aktualisiert...",
+    "add_new_color": "Neue Farbe hinzufügen",
+    "server_info": {
+      "tooltip": "Serverinformationen",
+      "title": "Serverinformationen",
+      "description": "Detaillierte Informationen über diesen Server anzeigen",
+      "basic_info_title": "Grundlegende Informationen",
+      "description_label": "Beschreibung",
+      "id_label": "ID",
+      "status_label": "Status",
+      "enabled_label": "Aktiviert",
+      "tools_label": "Tools",
+      "tools_count": "{{count}} Tools verfügbar",
+      "tools_type_label": "Tools-Typ",
+      "source_url_label": "Quell-URL",
+      "entry_point_label": "Einstiegspunkt",
+      "tools_title": "Tools",
+      "configuration_title": "Konfiguration",
+      "command_label": "Befehl",
+      "args_label": "Argumente",
+      "env_vars_label": "Umgebungsvariablen",
+      "distribution_title": "Verteilung",
+      "type_label": "Typ",
+      "package_label": "Paket",
+      "uninstall_server": "Server deinstallieren"
+    },
+    "env_vars": {
+      "tooltip": "Umgebungsvariablen konfigurieren",
+      "needs_attention": "Benötigt Aufmerksamkeit",
+      "needs_attention_tooltip": "Dieser Server erfordert, dass Sie bestimmte Umgebungsvariablen einrichten. Ohne diese Einstellungen wird die Liste der Tools möglicherweise nicht angezeigt."
+    },
+    "color_dialog": {
+      "title": "Neue Farbe hinzufügen",
+      "description": "Geben Sie einen Namen für die neue Farbe ein. Diese Farbe wird zu allen Servern hinzugefügt.",
+      "name_label": "Farbname",
+      "name_placeholder": "z.B. Blau, Gelb, Lila",
+      "preview_label": "Farbvorschau",
+      "new_color": "Neue Farbe",
+      "add_color": "Farbe hinzufügen"
+    },
+    "config_popup": {
+      "title": "Umgebungsvariablen",
+      "uninstall": "Deinstallieren",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "saving": "Speichern..."
+    }
+  },
+  "server": {
+    "uninstalled": {
+      "success": "Server erfolgreich deinstalliert",
+      "error": "Fehler beim Deinstallieren des Servers: "
+    },
+    "enabling": {
+      "all": "Alle Server werden aktiviert..."
+    },
+    "enabled": "Aktiviert ",
+    "updating": "Server werden aktualisiert für ",
+    "updated": "Aktualisiert ",
+    "update": {
+      "error": "Fehler beim Aktualisieren der Server"
+    },
+    "color": {
+      "empty": "Farbname darf nicht leer sein",
+      "added": "Neue Farbe hinzugefügt: "
+    },
+    "notfound": "Server mit ID ",
+    "config": {
+      "updated": "Konfiguration für ",
+      "error": "Fehler beim Aktualisieren der Konfiguration: "
+    },
+    "restarting": "Neustart ",
+    "restarted": " erfolgreich neu gestartet mit neuer Konfiguration",
+    "restart": {
+      "error": "Fehler beim Neustart "
+    }
+  },
+  "terms_consent": {
+    "title": "Nutzungsbedingungen und Datenschutzeinstellungen",
+    "description": "Bitte lesen und akzeptieren Sie unsere Nutzungsbedingungen, um MCP Dockmaster weiterhin zu verwenden.",
+    "accept_terms": "Ich akzeptiere die Nutzungsbedingungen",
+    "enable_analytics": "Anonyme Analysen aktivieren, um die Anwendung zu verbessern"
+  },
+  "sidebar": {
+    "toggle": "Seitenleiste umschalten"
+  },
+  "ui": {
+    "close": "Schließen",
+    "sidebar": "Seitenleiste",
+    "sidebar_description": "Zeigt die mobile Seitenleiste an."
   }
 }

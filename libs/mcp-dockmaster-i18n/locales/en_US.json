@@ -6,7 +6,24 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "save": "Save",
-    "delete": "Delete"
+    "delete": "Delete",
+    "close": "Close",
+    "continue": "Continue",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "running": "Running",
+    "stopped": "Stopped",
+    "starting": "Starting...",
+    "updating": "Updating...",
+    "all": "All",
+    "tags": "Tags:",
+    "status": "Status:",
+    "required": "Required",
+    "optional": "Optional",
+    "default": "Default"
   },
   "navigation": {
     "home": "Home",
@@ -42,6 +59,8 @@
     "restart_error": "Failed to restart {{mcpClientApp}}",
     "mcp_description": "MCP is an open-source standard from Anthropic that helps AI apps like Claude Desktop or Cursor easily access data from platforms such as Slack and Google Drive, interact with other applications, and connect to APIs.",
     "getting_started": "Getting Started",
+    "confirm_installation_title": "Confirm Installation",
+    "confirm_installation_description": "Please make sure {{title}} is closed before continuing.",
     "environment": {
       "title": "Environment Details",
       "description": "Make sure that you have Node.js, Python, and Docker installed so you can run MCPs.",
@@ -60,6 +79,7 @@
       "other": "Other Apps",
       "inactive": "Inactive",
       "active": "Active",
+      "install": "Install",
       "other_description": "Add MCP Dockmaster to any other app that supports MCP Servers of type command:"
     },
     "registry": {
@@ -193,5 +213,106 @@
       "restart_both_button": "Restart Both",
       "confirm_button": "Confirm"
     }
+  },
+  "installed_servers": {
+    "title": "Servers Installed",
+    "description": "Manage your installed AI applications and MCP tools.",
+    "loading": "Loading installed applications...",
+    "no_applications": "You don't have any applications installed yet.",
+    "visit_store": "Visit the AI App Store to discover and install applications.",
+    "no_matches": "No servers match the selected filter.",
+    "clear_filter": "Clear Filter",
+    "active_status": "MCP Servers Active",
+    "paused_status": "MCP Servers Paused",
+    "updating_servers": "Updating servers...",
+    "add_new_color": "Add New Color",
+    "server_info": {
+      "tooltip": "Server Information",
+      "title": "Server Information",
+      "description": "View detailed information about this server",
+      "basic_info_title": "Basic Information",
+      "description_label": "Description",
+      "id_label": "ID",
+      "status_label": "Status",
+      "enabled_label": "Enabled",
+      "tools_label": "Tools",
+      "tools_count": "{{count}} tools available",
+      "tools_type_label": "Tools Type",
+      "source_url_label": "Source URL",
+      "entry_point_label": "Entry Point",
+      "tools_title": "Tools",
+      "configuration_title": "Configuration",
+      "command_label": "Command",
+      "args_label": "Arguments",
+      "env_vars_label": "Environment Variables",
+      "distribution_title": "Distribution",
+      "type_label": "Type",
+      "package_label": "Package",
+      "uninstall_server": "Uninstall Server"
+    },
+    "env_vars": {
+      "tooltip": "Configure Environment Variables",
+      "needs_attention": "Needs Attention",
+      "needs_attention_tooltip": "This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear."
+    },
+    "color_dialog": {
+      "title": "Add New Color",
+      "description": "Enter a name for the new color. This color will be added to all servers.",
+      "name_label": "Color Name",
+      "name_placeholder": "e.g. Blue, Yellow, Purple",
+      "preview_label": "Color Preview",
+      "new_color": "New Color",
+      "add_color": "Add Color"
+    },
+    "config_popup": {
+      "title": "Environment Variables",
+      "uninstall": "Uninstall",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving..."
+    }
+  },
+  "server": {
+    "uninstalled": {
+      "success": "Server uninstalled successfully",
+      "error": "Failed to uninstall server: "
+    },
+    "enabling": {
+      "all": "Enabling all servers..."
+    },
+    "enabled": "Enabled ",
+    "updating": "Updating servers for ",
+    "updated": "Updated ",
+    "update": {
+      "error": "Error updating servers"
+    },
+    "color": {
+      "empty": "Color name cannot be empty",
+      "added": "Added new color: "
+    },
+    "notfound": "Server with ID ",
+    "config": {
+      "updated": "Configuration for ",
+      "error": "Failed to update configuration: "
+    },
+    "restarting": "Restarting ",
+    "restarted": " restarted successfully with new configuration",
+    "restart": {
+      "error": "Failed to restart "
+    }
+  },
+  "terms_consent": {
+    "title": "Terms of Service & Privacy Settings",
+    "description": "Please review and accept our terms of service to continue using MCP Dockmaster.",
+    "accept_terms": "I accept the Terms of Service",
+    "enable_analytics": "Enable anonymous analytics to help improve the application"
+  },
+  "sidebar": {
+    "toggle": "Toggle Sidebar"
+  },
+  "ui": {
+    "close": "Close",
+    "sidebar": "Sidebar",
+    "sidebar_description": "Displays the mobile sidebar."
   }
 }

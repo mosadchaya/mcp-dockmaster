@@ -30,7 +30,24 @@
     "loading": "Cargando...",
     "retry": "Reintentar",
     "save": "Guardar",
-    "welcome": "Bienvenido"
+    "welcome": "Bienvenido",
+    "close": "Cerrar",
+    "continue": "Continuar",
+    "ok": "OK",
+    "yes": "Sí",
+    "no": "No",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "running": "Ejecutándose",
+    "stopped": "Detenido",
+    "starting": "Iniciando...",
+    "updating": "Actualizando...",
+    "all": "Todos",
+    "tags": "Etiquetas:",
+    "status": "Estado:",
+    "required": "Requerido",
+    "optional": "Opcional",
+    "default": "Por defecto"
   },
   "errors": {
     "invalid_email": "Por favor, introduce una dirección de correo electrónico válida",
@@ -53,6 +70,8 @@
   },
   "home": {
     "checking": "Verificando...",
+    "confirm_installation_title": "Confirmar Instalación",
+    "confirm_installation_description": "Por favor, asegúrate de que {{title}} esté cerrado antes de continuar.",
     "environment": {
       "active": "Activo",
       "description": "Asegúrate de tener instalados Node.js, Python y Docker para poder ejecutar MCPs.",
@@ -72,6 +91,7 @@
       "add_to_other": "Agregar a otro cliente MCP",
       "description": "Agrega Dockmaster a Cursor, Claude Desktop o cualquier otro cliente MCP.",
       "inactive": "Inactivo",
+      "install": "Instalar",
       "other": "Otras Aplicaciones",
       "other_description": "Agrega MCP Dockmaster a cualquier otra aplicación que soporte servidores MCP de tipo comando:",
       "title": "Detalles de Integración"
@@ -193,5 +213,106 @@
     "max_length": "Debe tener como máximo {{count}} caracteres",
     "min_length": "Debe tener al menos {{count}} caracteres",
     "password_mismatch": "Las contraseñas no coinciden"
+  },
+  "installed_servers": {
+    "title": "Servidores Instalados",
+    "description": "Gestiona tus aplicaciones de IA instaladas y herramientas MCP.",
+    "loading": "Cargando aplicaciones instaladas...",
+    "no_applications": "Aún no tienes aplicaciones instaladas.",
+    "visit_store": "Visita la Tienda de Aplicaciones de IA para descubrir e instalar aplicaciones.",
+    "no_matches": "Ningún servidor coincide con el filtro seleccionado.",
+    "clear_filter": "Limpiar Filtro",
+    "active_status": "Servidores MCP Activos",
+    "paused_status": "Servidores MCP Pausados",
+    "updating_servers": "Actualizando servidores...",
+    "add_new_color": "Agregar Nuevo Color",
+    "server_info": {
+      "tooltip": "Información del Servidor",
+      "title": "Información del Servidor",
+      "description": "Ver información detallada sobre este servidor",
+      "basic_info_title": "Información Básica",
+      "description_label": "Descripción",
+      "id_label": "ID",
+      "status_label": "Estado",
+      "enabled_label": "Habilitado",
+      "tools_label": "Herramientas",
+      "tools_count": "{{count}} herramientas disponibles",
+      "tools_type_label": "Tipo de Herramientas",
+      "source_url_label": "URL de Origen",
+      "entry_point_label": "Punto de Entrada",
+      "tools_title": "Herramientas",
+      "configuration_title": "Configuración",
+      "command_label": "Comando",
+      "args_label": "Argumentos",
+      "env_vars_label": "Variables de Entorno",
+      "distribution_title": "Distribución",
+      "type_label": "Tipo",
+      "package_label": "Paquete",
+      "uninstall_server": "Desinstalar Servidor"
+    },
+    "env_vars": {
+      "tooltip": "Configurar Variables de Entorno",
+      "needs_attention": "Necesita Atención",
+      "needs_attention_tooltip": "Este servidor requiere que configures ciertas variables de entorno. Sin estas configuraciones, la lista de herramientas puede no aparecer."
+    },
+    "color_dialog": {
+      "title": "Agregar Nuevo Color",
+      "description": "Ingresa un nombre para el nuevo color. Este color se agregará a todos los servidores.",
+      "name_label": "Nombre del Color",
+      "name_placeholder": "ej. Azul, Amarillo, Púrpura",
+      "preview_label": "Vista Previa del Color",
+      "new_color": "Nuevo Color",
+      "add_color": "Agregar Color"
+    },
+    "config_popup": {
+      "title": "Variables de Entorno",
+      "uninstall": "Desinstalar",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "saving": "Guardando..."
+    }
+  },
+  "server": {
+    "uninstalled": {
+      "success": "Servidor desinstalado exitosamente",
+      "error": "Error al desinstalar el servidor: "
+    },
+    "enabling": {
+      "all": "Habilitando todos los servidores..."
+    },
+    "enabled": "Habilitado ",
+    "updating": "Actualizando servidores para ",
+    "updated": "Actualizado ",
+    "update": {
+      "error": "Error al actualizar servidores"
+    },
+    "color": {
+      "empty": "El nombre del color no puede estar vacío",
+      "added": "Nuevo color agregado: "
+    },
+    "notfound": "Servidor con ID ",
+    "config": {
+      "updated": "Configuración para ",
+      "error": "Error al actualizar la configuración: "
+    },
+    "restarting": "Reiniciando ",
+    "restarted": " reiniciado exitosamente con nueva configuración",
+    "restart": {
+      "error": "Error al reiniciar "
+    }
+  },
+  "terms_consent": {
+    "title": "Términos de Servicio y Configuración de Privacidad",
+    "description": "Por favor, revisa y acepta nuestros términos de servicio para continuar usando MCP Dockmaster.",
+    "accept_terms": "Acepto los Términos de Servicio",
+    "enable_analytics": "Habilitar análisis anónimos para ayudar a mejorar la aplicación"
+  },
+  "sidebar": {
+    "toggle": "Alternar Barra Lateral"
+  },
+  "ui": {
+    "close": "Cerrar",
+    "sidebar": "Barra Lateral",
+    "sidebar_description": "Muestra la barra lateral móvil."
   }
 }

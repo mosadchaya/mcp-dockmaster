@@ -26,6 +26,7 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
+import { useTranslation } from "@mcp-dockmaster/i18n";
 
 // Add a simple notification component
 interface NotificationProps {
@@ -81,6 +82,7 @@ const getColorTagStyle = (color: string) => {
 };
 
 const InstalledServers: React.FC = () => {
+  const { t } = useTranslation();
   const [servers, setServers] = useState<RuntimeServer[]>([]);
   const [serverTools, setServerTools] = useState<ServerToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,17 +332,17 @@ const InstalledServers: React.FC = () => {
       if (response.success) {
         // Dispatch event that a server was uninstalled
         dispatchServerUninstalled(id);
-        addNotification(`Server uninstalled successfully`, "success");
+        addNotification(t('server.uninstalled.success'), "success");
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall server:", response.message);
-        addNotification(`Failed to uninstall server: ${response.message}`, "error");
+        addNotification(t('server.uninstalled.error') + response.message, "error");
         // Refresh the list to ensure UI is in sync with backend
         loadData();
       }
     } catch (error) {
       console.error("Error uninstalling server:", error);
-      addNotification("Error uninstalling server", "error");
+      addNotification(t('server.uninstalled.error'), "error");
       // Refresh the list to ensure UI is in sync with backend
       loadData();
     }
@@ -499,7 +501,7 @@ const InstalledServers: React.FC = () => {
       // If no color is selected (All), enable all servers
       if (!color) {
         // Show loading notification
-        addNotification("Enabling all servers...", "info");
+        addNotification(t('server.enabling.all'), "info");
         
         // Track servers that need to be enabled
         const serversToUpdate = servers.filter(server => !server.enabled);
@@ -510,13 +512,13 @@ const InstalledServers: React.FC = () => {
         }
         
         if (serversToUpdate.length > 0) {
-          addNotification(`Enabled ${serversToUpdate.length} servers`, "success");
+          addNotification(t('server.enabled') + serversToUpdate.length, "success");
         }
         return;
       }
       
       // If a specific color is selected, enable servers with that tag and disable others
-      addNotification(`Updating servers for ${color} group...`, "info");
+      addNotification(t('server.updating') + color, "info");
       
       // Track which servers need to be enabled/disabled
       const serversToEnable = [];
@@ -548,13 +550,13 @@ const InstalledServers: React.FC = () => {
       const totalUpdated = serversToEnable.length + serversToDisable.length;
       if (totalUpdated > 0) {
         addNotification(
-          `Updated ${totalUpdated} servers for ${color} group`,
+          t('server.updated') + totalUpdated + ' ' + color,
           "success"
         );
       }
     } catch (error) {
       console.error("Error updating servers by color tag:", error);
-      addNotification("Error updating servers", "error");
+      addNotification(t('server.update.error'), "error");
     } finally {
       // Clear loading state
       setUpdatingServers(false);
@@ -564,7 +566,7 @@ const InstalledServers: React.FC = () => {
   // Function to add a new color
   const addNewColor = () => {
     if (!newColorName.trim()) {
-      addNotification("Color name cannot be empty", "error");
+      addNotification(t('server.color.empty'), "error");
       return;
     }
     
@@ -588,7 +590,7 @@ const InstalledServers: React.FC = () => {
     setNewColorName('');
     setShowColorDialog(false);
     
-    addNotification(`Added new color: ${newColorName}`, "success");
+    addNotification(t('server.color.added') + newColorName, "success");
   };
   
   // Filter servers based on selected color
@@ -631,7 +633,7 @@ const InstalledServers: React.FC = () => {
       const server = servers.find((s) => s.id === serverId);
       if (!server) {
         console.error(`Server with ID ${serverId} not found`);
-        addNotification(`Server with ID ${serverId} not found`, "error");
+        addNotification(t('server.notfound') + serverId, "error");
         return;
       }
 
@@ -652,7 +654,7 @@ const InstalledServers: React.FC = () => {
       if (response.success) {
         console.log(`Server ${serverId} configuration updated successfully`);
         addNotification(
-          `Configuration for ${server.name} updated successfully`,
+          t('server.config.updated') + server.name,
           "success",
         );
 
@@ -683,7 +685,7 @@ const InstalledServers: React.FC = () => {
           console.log(
             `Server ${serverId} is enabled, restarting with new configuration...`,
           );
-          addNotification(`Restarting ${server.name}...`, "info");
+          addNotification(t('server.restarting') + server.name, "info");
 
           try {
             const restartResponse = await MCPClient.restartTool(serverId);
@@ -692,7 +694,7 @@ const InstalledServers: React.FC = () => {
                 `Server ${serverId} restarted successfully with new configuration`,
               );
               addNotification(
-                `${server.name} restarted successfully with new configuration`,
+                t('server.restarted') + server.name,
                 "success",
               );
               // Dispatch event to update UI
@@ -703,13 +705,13 @@ const InstalledServers: React.FC = () => {
                 restartResponse.message,
               );
               addNotification(
-                `Failed to restart ${server.name}: ${restartResponse.message}`,
+                t('server.restart.error') + server.name + ': ' + restartResponse.message,
                 "error",
               );
             }
           } catch (restartError) {
             console.error(`Error restarting server ${serverId}:`, restartError);
-            addNotification(`Error restarting ${server.name}`, "error");
+            addNotification(t('server.restart.error'), "error");
           }
         } else {
           console.log(`Server ${serverId} is disabled, not restarting`);
@@ -721,13 +723,13 @@ const InstalledServers: React.FC = () => {
       } else {
         console.error("Failed to update server configuration:", response.message);
         addNotification(
-          `Failed to update configuration: ${response.message}`,
+          t('server.config.error') + response.message,
           "error",
         );
       }
     } catch (error) {
       console.error("Error updating server configuration:", error);
-      addNotification("Error updating configuration", "error");
+      addNotification(t('server.config.error'), "error");
     } finally {
       setSavingConfig(false);
       setEnvOperationInProgress(false); // Reset flag to allow auto-refresh again
@@ -794,53 +796,53 @@ const InstalledServers: React.FC = () => {
       <Dialog open={infoPopupVisible} onOpenChange={closeInfoPopup}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{currentInfoServer.name} Information</DialogTitle>
+            <DialogTitle>{t('installed_servers.server_info.title')}</DialogTitle>
             <DialogDescription>
-              Details about this server and its tools.
+              {t('installed_servers.server_info.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             {/* Basic Information */}
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">Basic Information</h3>
+              <h3 className="text-sm font-medium">{t('installed_servers.server_info.basic_info_title')}</h3>
               <div className="rounded-md border p-3 space-y-2">
                 {currentInfoServer.description && (
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Description</Label>
+                    <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.description_label')}</Label>
                     <div className="col-span-3 text-sm">{currentInfoServer.description}</div>
                   </div>
                 )}
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">ID</Label>
+                  <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.id_label')}</Label>
                   <div className="col-span-3 text-sm font-mono">{currentInfoServer.id}</div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Status</Label>
+                  <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.status_label')}</Label>
                   <div className="col-span-3">
                     {currentInfoServer.status === 'running' ? (
-                      <span className="text-green-500 text-sm">Running</span>
+                      <span className="text-green-500 text-sm">{t('common.running')}</span>
                     ) : (
-                      <span className="text-red-500 text-sm">Stopped</span>
+                      <span className="text-red-500 text-sm">{t('common.stopped')}</span>
                     )}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Enabled</Label>
+                  <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.enabled_label')}</Label>
                   <div className="col-span-3 text-sm">
-                    {currentInfoServer.enabled ? "Yes" : "No"}
+                    {currentInfoServer.enabled ? t('common.yes') : t('common.no')}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Tools</Label>
-                  <div className="col-span-3 text-sm">{currentInfoServer.tool_count} tools available</div>
+                  <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.tools_label')}</Label>
+                  <div className="col-span-3 text-sm">{t('installed_servers.server_info.tools_count', { count: currentInfoServer.tool_count })}</div>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right text-xs pt-1">Tools Type</Label>
+                  <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.tools_type_label')}</Label>
                   <div className="col-span-3 text-sm">{currentInfoServer.tools_type}</div>
                 </div>
                 {currentInfoServer.sourceUrl && (
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Source URL</Label>
+                    <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.source_url_label')}</Label>
                     <div className="col-span-3">
                       <a 
                         href={currentInfoServer.sourceUrl} 
@@ -855,7 +857,7 @@ const InstalledServers: React.FC = () => {
                 )}
                 {currentInfoServer.entry_point && (
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Entry Point</Label>
+                    <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.entry_point_label')}</Label>
                     <div className="col-span-3 text-sm font-mono">{currentInfoServer.entry_point}</div>
                   </div>
                 )}
@@ -865,7 +867,7 @@ const InstalledServers: React.FC = () => {
             {/* Tools Section */}
             {toolsForServer.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Tools</h3>
+                <h3 className="text-sm font-medium">{t('installed_servers.server_info.tools_title')}</h3>
                 <div className="rounded-md border p-3 space-y-6">
                   {toolsForServer.map((tool) => (
                     <div key={tool.id} className="pb-4 border-b border-slate-200 last:border-0 last:pb-0">
@@ -896,17 +898,17 @@ const InstalledServers: React.FC = () => {
             {/* Configuration */}
             {currentInfoServer.configuration && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Configuration</h3>
+                <h3 className="text-sm font-medium">{t('installed_servers.server_info.configuration_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   {currentInfoServer.configuration.command && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Command</Label>
+                      <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.command_label')}</Label>
                       <div className="col-span-3 text-sm font-mono">{currentInfoServer.configuration.command}</div>
                     </div>
                   )}
                   {currentInfoServer.configuration.args && currentInfoServer.configuration.args.length > 0 && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Arguments</Label>
+                      <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.args_label')}</Label>
                       <div className="col-span-3 text-sm font-mono">
                         {currentInfoServer.configuration.args.map((arg, index) => (
                           <div key={index}>{arg}</div>
@@ -916,7 +918,7 @@ const InstalledServers: React.FC = () => {
                   )}
                   {currentInfoServer.configuration.env && Object.keys(currentInfoServer.configuration.env).length > 0 && (
                     <div className="grid grid-cols-4 items-start gap-4">
-                      <Label className="text-right text-xs pt-1">Environment Variables</Label>
+                      <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.env_vars_label')}</Label>
                       <div className="col-span-3 space-y-2">
                         {Object.entries(currentInfoServer.configuration.env).map(([key, value]) => (
                           <div key={key} className="text-sm">
@@ -924,10 +926,10 @@ const InstalledServers: React.FC = () => {
                             {value.description && <div className="text-muted-foreground text-xs">{value.description}</div>}
                             <div className="text-xs mt-1">
                               {value.required ? 
-                                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Required</Badge> : 
-                                <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-300">Optional</Badge>
+                                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">{t('common.required')}</Badge> : 
+                                <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-300">{t('common.optional')}</Badge>
                               }
-                              {value.default && <span className="ml-2">Default: <span className="font-mono">{value.default}</span></span>}
+                              {value.default && <span className="ml-2">{t('common.default')}: <span className="font-mono">{value.default}</span></span>}
                             </div>
                           </div>
                         ))}
@@ -941,14 +943,14 @@ const InstalledServers: React.FC = () => {
             {/* Distribution */}
             {currentInfoServer.distribution && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Distribution</h3>
+                <h3 className="text-sm font-medium">{t('installed_servers.server_info.distribution_title')}</h3>
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Type</Label>
+                    <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.type_label')}</Label>
                     <div className="col-span-3 text-sm">{currentInfoServer.distribution.type}</div>
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label className="text-right text-xs pt-1">Package</Label>
+                    <Label className="text-right text-xs pt-1">{t('installed_servers.server_info.package_label')}</Label>
                     <div className="col-span-3">
                       {currentInfoServer.distribution.type === "npm" ? (
                         <a 
@@ -976,10 +978,10 @@ const InstalledServers: React.FC = () => {
                 closeInfoPopup();
               }}
             >
-              Uninstall Server
+              {t('installed_servers.server_info.uninstall_server')}
             </Button>
             <Button variant="outline" onClick={closeInfoPopup}>
-              Close
+              {t('common.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -997,7 +999,7 @@ const InstalledServers: React.FC = () => {
       <div className="config-popup-overlay" onClick={cancelEditingEnvVars}>
         <div className="config-popup" onClick={(e) => e.stopPropagation()}>
           <div className="config-popup-header">
-            <h3>Environment Variables - {server.name}</h3>
+            <h3>{t('installed_servers.config_popup.title')} - {server.name}</h3>
             <button
               className="close-popup-button"
               onClick={cancelEditingEnvVars}
@@ -1049,7 +1051,7 @@ const InstalledServers: React.FC = () => {
                 }}
                 disabled={savingConfig}
               >
-                Uninstall
+                {t('installed_servers.config_popup.uninstall')}
               </Button>
               <div className="flex gap-2">
                 <button
@@ -1057,14 +1059,14 @@ const InstalledServers: React.FC = () => {
                   onClick={(e) => saveEnvVars(currentConfigTool.id, e)}
                   disabled={savingConfig}
                 >
-                  {savingConfig ? "Saving..." : "Save"}
+                  {savingConfig ? t('installed_servers.config_popup.saving') : t('installed_servers.config_popup.save')}
                 </button>
                 <button
                   className="cancel-env-vars-button"
                   onClick={cancelEditingEnvVars}
                   disabled={savingConfig}
                 >
-                  Cancel
+                  {t('installed_servers.config_popup.cancel')}
                 </button>
               </div>
             </div>
@@ -1093,38 +1095,38 @@ const InstalledServers: React.FC = () => {
       <Dialog open={showColorDialog} onOpenChange={setShowColorDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Color</DialogTitle>
+            <DialogTitle>{t('installed_servers.color_dialog.title')}</DialogTitle>
             <DialogDescription>
-              Enter a name for the new color. This color will be added to all servers.
+              {t('installed_servers.color_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="flex flex-col gap-4 py-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="colorName" className="text-sm font-medium">Color Name</Label>
+              <Label htmlFor="colorName" className="text-sm font-medium">{t('installed_servers.color_dialog.name_label')}</Label>
               <Input
                 id="colorName"
                 value={newColorName}
                 onChange={(e) => setNewColorName(e.target.value)}
-                placeholder="e.g. Blue, Yellow, Purple"
+                placeholder={t('installed_servers.color_dialog.name_placeholder')}
               />
             </div>
             
             <div className="flex flex-col gap-2">
-              <Label htmlFor="colorPreview" className="text-sm font-medium">Color Preview</Label>
+              <Label htmlFor="colorPreview" className="text-sm font-medium">{t('installed_servers.color_dialog.preview_label')}</Label>
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full ${getColorTagStyle(newColorName.toLowerCase())}`}></div>
-                <span>{newColorName || "New Color"}</span>
+                <span>{newColorName || t('installed_servers.color_dialog.new_color')}</span>
               </div>
             </div>
           </div>
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowColorDialog(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={addNewColor}>
-              Add Color
+              {t('installed_servers.color_dialog.add_color')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1145,7 +1147,7 @@ const InstalledServers: React.FC = () => {
               updateServersByColorTag(null);
             }}
           >
-            All
+            {t('common.all')}
           </Badge>
           
           {Object.entries(availableColors).map(([key, color]) => (
@@ -1177,7 +1179,7 @@ const InstalledServers: React.FC = () => {
         {updatingServers && (
           <div className="updating-servers-indicator">
             <div className="updating-spinner"></div>
-            <span>Updating servers...</span>
+            <span>{t('installed_servers.updating_servers')}</span>
           </div>
         )}
       </div>
@@ -1200,11 +1202,11 @@ const InstalledServers: React.FC = () => {
       <div className="flex flex-col space-y-1.5">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Servers Installed
+            {t('installed_servers.title')}
           </h1>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {areToolsActive ? "MCP Servers Active" : "MCP Servers Paused"}
+              {areToolsActive ? t('installed_servers.active_status') : t('installed_servers.paused_status')}
             </span>
             <Switch
               checked={areToolsActive}
@@ -1214,7 +1216,7 @@ const InstalledServers: React.FC = () => {
           </div>
         </div>
         <p className="text-muted-foreground text-sm">
-          Manage your installed AI applications and MCP tools.
+          {t('installed_servers.description')}
         </p>
       </div>
 
@@ -1222,20 +1224,20 @@ const InstalledServers: React.FC = () => {
       {renderColorFilters()}
 
       {loading ? (
-        <div className="loading-message">Loading installed applications...</div>
+        <div className="loading-message">{t('installed_servers.loading')}</div>
       ) : filteredServers.length === 0 ? (
         <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10">
           {servers.length === 0 ? (
             <>
-              <p>You don&apos;t have any applications installed yet.</p>
-              <p>Visit the AI App Store to discover and install applications.</p>
+              <p>{t('installed_servers.no_applications')}</p>
+              <p>{t('installed_servers.visit_store')}</p>
             </>
           ) : (
             <>
-              <p>No servers match the selected filter.</p>
+              <p>{t('installed_servers.no_matches')}</p>
               {selectedColorFilter && (
                 <Button variant="outline" onClick={() => setSelectedColorFilter(null)}>
-                  Clear Filter
+                  {t('installed_servers.clear_filter')}
                 </Button>
               )}
             </>
@@ -1264,7 +1266,7 @@ const InstalledServers: React.FC = () => {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Server Information
+                        {t('installed_servers.server_info.tooltip')}
                       </TooltipContent>
                     </Tooltip>
                     
@@ -1284,7 +1286,7 @@ const InstalledServers: React.FC = () => {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            Configure Environment Variables
+                            {t('installed_servers.env_vars.tooltip')}
                           </TooltipContent>
                         </Tooltip>
                       )}
@@ -1298,7 +1300,7 @@ const InstalledServers: React.FC = () => {
                             : "text-slate-500",
                         )}
                       >
-                        {server.enabled ? "Enabled" : "Disabled"}
+                        {server.enabled ? t('common.enabled') : t('common.disabled')}
                       </span>
                       <Switch
                         checked={server.enabled}
@@ -1324,11 +1326,11 @@ const InstalledServers: React.FC = () => {
                           variant="outline" 
                           className="bg-amber-100 text-amber-800 border-amber-300 ml-2"
                         >
-                          Needs Attention
+                          {t('installed_servers.env_vars.needs_attention')}
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent>
-                        This server requires you to set up certain environment variable(s). Without these settings, the list of tools may not appear.
+                        {t('installed_servers.env_vars.needs_attention_tooltip')}
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -1350,24 +1352,24 @@ const InstalledServers: React.FC = () => {
                       }`}
                     ></span>
                     <span className="server-status-text">
-                      Status: {transitioningServers.has(server.id)
-                        ? "Updating..." 
+                      {t('common.status')} {transitioningServers.has(server.id)
+                        ? t('common.updating') 
                         : server.status === 'running' 
-                          ? "Running" 
+                          ? t('common.running') 
                           : server.status === 'stopped' 
-                            ? "Stopped" 
+                            ? t('common.stopped') 
                             : server.status === 'starting' 
-                              ? "Starting..." 
+                              ? t('common.starting') 
                               : server.status?.startsWith("Error:") 
                                 ? server.status 
-                                : "Stopped"}
+                                : t('common.stopped')}
                     </span>
                   </div>
                 </div>
                 
                 {/* Add color tag selection */}
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <span className="text-sm text-muted-foreground mr-2">Tags:</span>
+                  <span className="text-sm text-muted-foreground mr-2">{t('common.tags')}</span>
                   {Object.entries(availableColors).map(([key, color]) => {
                     const isSelected = (serverColorTags[server.id] || []).includes(color);
                     return (

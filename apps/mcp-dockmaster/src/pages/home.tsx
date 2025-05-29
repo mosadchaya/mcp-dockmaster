@@ -804,15 +804,12 @@ const Home: React.FC = () => {
         </div>
       </div>
 
-      {/* Config dialog removed as it's not being used in this view */}
-
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Installation</DialogTitle>
+            <DialogTitle>{t('home.confirm_installation_title')}</DialogTitle>
             <DialogDescription>
-              Please make sure {confirmDialogConfig?.title} is closed before
-              continuing.
+              {t('home.confirm_installation_description', { title: confirmDialogConfig?.title })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -820,7 +817,7 @@ const Home: React.FC = () => {
               variant="outline"
               onClick={() => setShowConfirmDialog(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={async () => {
@@ -830,7 +827,7 @@ const Home: React.FC = () => {
                 }
               }}
             >
-              OK
+              {t('common.ok')}
             </Button>
           </DialogFooter>
         </DialogContent>
