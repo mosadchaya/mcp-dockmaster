@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 use server::mcp_proxy_client::get_mcp_client;
-use tracing_subscriber::{self, EnvFilter};
+// use tracing_subscriber::{self, EnvFilter};
 
 pub mod server;
 
