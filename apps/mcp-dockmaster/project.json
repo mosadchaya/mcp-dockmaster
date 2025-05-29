@@ -18,18 +18,17 @@
     },
     "build": {
       "dependsOn": ["copy-proxy-server-sidecar"],
-      "executor": "@nx/vite:build",
-      "outputs": ["{options.outputPath}"],
-      "defaultConfiguration": "production",
+      "executor": "nx:run-commands",
       "options": {
-        "outputPath": "dist/apps/mcp-dockmaster"
+        "command": "npx tauri build",
+        "cwd": "apps/mcp-dockmaster"
       },
       "configurations": {
-        "development": {
-          "mode": "development"
+        "local": {
+          "args": ["--config", "./src-tauri/tauri.conf.local.json"]
         },
         "production": {
-          "mode": "production"
+          "args": []
         }
       }
     },
