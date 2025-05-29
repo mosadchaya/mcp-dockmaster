@@ -1,9 +1,8 @@
 name: Release production
 
 on:
-  push:
-    tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+  release:
+    types: [published]
 
 defaults:
   run:
@@ -33,7 +32,7 @@ jobs:
 
   release-mcp-dockmaster:
     permissions:
-      contents: "read"
+      contents: "write"
       id-token: "write"
     needs: prebuild
     name: Release MCP Dockmaster
@@ -255,6 +254,12 @@ jobs:
           aws_bucket: mcp-dockmaster-download
           source_dir: files-to-r2
           destination_dir: ./mcp-dockmaster/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/
+
+      - name: Upload installer to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prebuild.outputs.version }}
+          files: files-to-r2/${{ matrix.distributable_file_name }}
 
   rollout-mcp-dockmaster:
     environment: production
