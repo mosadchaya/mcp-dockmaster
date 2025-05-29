@@ -1,119 +1,113 @@
-# MCP Dockmaster
+# 🚀 MCP Dockmaster
 
-MCP Dockmaster allows you to easily install and manage MCP servers. Available for Mac, Windows and Linux as a Desktop App, CLI and a library.
+> **The Ultimate AI Tool Manager** - Install, manage, and supercharge your AI assistants with the power of Model Context Protocol (MCP)
 
-## Demo
+[![Demo Video](assets/dockmaster-screenshot.png)](https://mcp-dockmaster.com/dockmaster-demo.mp4)
 
-[![MCP Dockmaster Screenshot](assets/dockmaster-screenshot.png)](https://mcp-dockmaster.com/dockmaster-demo.mp4)
+## ✨ What is MCP Dockmaster?
 
-<video src="https://mcp-dockmaster.com/dockmaster-demo.mp4" controls></video>
+MCP Dockmaster transforms how you work with AI assistants like Claude by giving them superpowers through **Model Context Protocol (MCP) servers**. Think of it as an App Store for AI tools that seamlessly integrates with your favorite AI assistants.
 
-<!-- If the video embedding doesn't work, here's a direct link -->
-[Watch Demo Video](https://mcp-dockmaster.com/dockmaster-demo.mp4)
+🎯 **One-Click Installation** → Browse, install, and manage MCP servers  
+🔗 **Auto-Integration** → Automatically connects with Claude and other MCP-compatible AI assistants  
+🌐 **Multi-Platform** → Available as Desktop App, CLI, and library for Mac, Windows, and Linux  
+⚡ **Zero Config** → Works out of the box with automatic setup and updates  
 
-# MCP Dockmaster Monorepo
+### 🔥 Key Features
 
-This is a monorepo for the MCP Dockmaster project, managed with NX. A monorepo is a single repository that holds multiple projects, which can be related or independent. NX is a set of extensible dev tools for monorepos, which helps in managing and scaling the projects efficiently.
+- **🛍️ AI Tool Marketplace** - Discover and install powerful MCP servers from our curated store
+- **🔧 Smart Management** - Install, update, and remove AI tools with a simple click
+- **🎨 Beautiful Interface** - Modern, intuitive desktop app built with Tauri + React
+- **🚀 Lightning Fast** - Rust-powered backend for blazing performance
+- **🔌 Universal Compatibility** - Supports Node.js, Python, and Docker-based AI tools
+- **⚙️ Advanced Configuration** - Fine-tune settings for power users
 
-## Structure
+## 🎬 See It In Action
 
-- `apps/mcp-dockmaster`: The main Tauri application, which is a desktop application built using Tauri, a framework for building tiny, fast binaries for all major desktop platforms.
-- `apps/mcp-proxy-server`: The MCP proxy server, which handles network requests and serves as a middleware between the client and the server.
+**[📺 Watch Demo Video](https://mcp-dockmaster.com/dockmaster-demo.mp4)**
 
-## Getting Started
+Experience how MCP Dockmaster transforms your AI workflow in under 2 minutes!
 
-### Prerequisites
+## 🚀 Quick Start
 
-- Node.js (v18 or later): A JavaScript runtime built on Chrome's V8 JavaScript engine.
-- npm (v8 or later): A package manager for JavaScript, included with Node.js.
+### 💻 Desktop App (Recommended)
 
-### Installation
+1. **Download** the latest release for your platform from [mcp-dockmaster.com](https://mcp-dockmaster.com/)
+2. **Install** and launch MCP Dockmaster
+3. **Browse** the AI Tool Store and install your first MCP server
+4. **Integrate** Follow the integration steps at home to connect the app with Claude, Cursor, or any other supported app—and enjoy you AI with superpowers!
 
-1. Clone the repository using Git, a distributed version control system.
-2. Install dependencies using `npm ci`, which installs dependencies from the lock file, ensuring a consistent environment.
+### 🔨 Development Setup
 
-## Development
+Want to contribute or run from source? Here's how:
 
-### Running applications
+#### Prerequisites
+- **Node.js** v18+ 
+- **Rust** (for Tauri development)
+- **Git**
 
-To run the Dockmaster application:
-
+#### Get Started
 ```bash
-npx nx dev mcp-dockmaster
+# Clone the repository
+git clone https://github.com/your-username/mcp-dockmaster.git
+cd mcp-dockmaster
+
+# Install dependencies
+npm ci
+
+# Start the desktop app in development mode
+npx nx serve mcp-dockmaster
 ```
-This command starts the development server for the Dockmaster application.
 
-For Tauri development:
-
+#### Available Commands
 ```bash
-npx nx tauri:dev mcp-dockmaster
+# 🖥️ Desktop App Development
+npx nx serve mcp-dockmaster               # Start desktop app with hot reload
+
+# 🧪 Testing & Quality
+npx nx run-many -t test                   # Run all tests
 ```
-This command is used for developing the Tauri application, providing a live-reload environment.
 
-To build the MCP Runner:
+## 🏗️ Architecture
 
-```bash
-npx nx build mcp-proxy-server
+MCP Dockmaster is built as a modern monorepo with multiple specialized applications:
+
 ```
-This command compiles the MCP proxy server, preparing it for production deployment.
-
-### Running commands across all projects
-
-```bash
-# Build all projects
-npx nx run-many -t build
+📦 mcp-dockmaster/
+├── 🖥️ apps/mcp-dockmaster/        # Main desktop app (Tauri + React)
+├── 💻 apps/mcp-dockmaster-cli/    # Command-line interface  
+├── 🔄 apps/mcp-proxy-server/      # MCP proxy server
+├── 🌐 apps/mcp-server-hello-world/ # Example MCP server
+└── 📚 libs/mcp-core/              # Shared Rust libraries
 ```
-This command builds all projects in the monorepo.
 
-```bash
-# Run tests across all projects
-npx nx run-many -t test
-```
-This command runs tests for all projects, ensuring code quality and functionality.
+## 🤝 Contributing
 
-```bash
-# Lint all projects
-npx nx run-many -t lint
-```
-This command checks the code for potential errors and enforces coding standards.
+We love contributions! Whether you're:
+- 🐛 **Reporting bugs**
+- 💡 **Suggesting features** 
+- 📝 **Improving documentation**
+- 🔧 **Writing code**
 
-## Using NX
+Check out our [Contributing Guide](CONTRIBUTING.md) to get started!
 
-### Running tasks
+## 📖 Learn More
 
-```bash
-# Run a task for a specific project
-npx nx <task> <project>
-```
-This command allows you to run specific tasks, such as build or test, for a particular project.
+- 📚 [Model Context Protocol Docs](https://modelcontextprotocol.io/docs)
+- 🎯 [MCP Server Examples](https://github.com/modelcontextprotocol/servers)
+- 💬 [Community Discord](https://discord.gg/mcp)
+- 🐛 [Report Issues](https://github.com/your-username/mcp-dockmaster/issues)
 
-### Visualizing the project graph
+## 📄 License
 
-```bash
-npx nx graph
-```
-This command generates a visual representation of the project dependencies, helping you understand the relationships between different parts of the monorepo.
+This project is licensed under the [MIT License](LICENSE.md) - see the file for details.
 
-### Running tasks in parallel
+---
 
-```bash
-npx nx run-many --target=build --parallel=3
-```
-This command runs multiple tasks in parallel, improving efficiency and reducing build times.
+<div align="center">
 
-### Affected commands
+**⭐ Star this repo if MCP Dockmaster powers up your AI workflow!**
 
-```bash
-# Run tasks only for projects affected by changes
-npx nx affected --target=build
-```
-This command optimizes the build process by only running tasks for projects that have been modified, saving time and resources.
+Made with ❤️ by the MCP Dockmaster team
 
-## Learn More
-
-- [NX Documentation](https://nx.dev) 
-The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.
-
-## Running the App
-
-npx nx run mcp-dockmaster:serve-tauri
+</div>
