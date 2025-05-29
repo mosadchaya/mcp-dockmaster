@@ -16,15 +16,21 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_writer(std::io::stderr)
-        .with_ansi(false)
-        .init();
+    /*
+        In most cases we can use this tracing subscriber using the stderr as writer
+        BUT
+        there are some apps like IntelliJ products that flag an mcp server as errored
+        when found any error in the logs.
+    */
+    // tracing_subscriber::fmt()
+    //     .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
+    //     .with_target(false)
+    //     .with_thread_ids(true)
+    //     .with_file(true)
+    //     .with_line_number(true)
+    //     .with_writer(std::io::stderr)
+    //     .with_ansi(false)
+    //     .init();
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
