@@ -33,7 +33,13 @@ once_cell = "1.21.3"
 home = "0.5.11"
 strip-ansi-escapes = "0.2.1"
 uuid = { version = "1.17.0", features = ["v4", "serde"] }
-rmcp = { git="https://github.com/agallardol/rust-sdk.git", branch="main", features = ["client", "server", "transport-sse-server", "transport-child-process", "transport-io"] }
+rmcp = { git = "https://github.com/agallardol/rust-sdk.git", rev = "f99d7ad39034d94ae57688a80ca6a681de17beaa", features = [
+    "client",
+    "server",
+    "transport-sse-server",
+    "transport-child-process",
+    "transport-io",
+] }
 
 bytes = "1.10.1"
 probly-search = "2.0.1"

@@ -1372,7 +1372,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "0.1.5"
-source = "git+https://github.com/agallardol/rust-sdk.git?branch=main#f99d7ad39034d94ae57688a80ca6a681de17beaa"
+source = "git+https://github.com/agallardol/rust-sdk.git?rev=f99d7ad39034d94ae57688a80ca6a681de17beaa#f99d7ad39034d94ae57688a80ca6a681de17beaa"
 dependencies = [
  "axum",
  "base64",
@@ -1405,7 +1405,7 @@ dependencies = [
 [[package]]
 name = "rmcp-macros"
 version = "0.1.5"
-source = "git+https://github.com/agallardol/rust-sdk.git?branch=main#f99d7ad39034d94ae57688a80ca6a681de17beaa"
+source = "git+https://github.com/agallardol/rust-sdk.git?rev=f99d7ad39034d94ae57688a80ca6a681de17beaa#f99d7ad39034d94ae57688a80ca6a681de17beaa"
 dependencies = [
  "proc-macro2",
  "quote",
