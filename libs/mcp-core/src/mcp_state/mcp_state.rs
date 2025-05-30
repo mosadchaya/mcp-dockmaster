@@ -247,12 +247,12 @@ impl MCPState {
             };
             sustituted_args.push(args_value);
         }
-        let (adapted_program, adapted_args, adapted_envs) =
-            CommandWrappedInShellBuilder::wrap_in_shell_as_values(
-                config_value["command"].as_str().unwrap(),
-                Some(sustituted_args.iter().map(|s| s.as_str())),
-                Some(envs),
-            );
+
+        let mut command_builder =
+            CommandWrappedInShellBuilder::new(config_value["command"].as_str().unwrap());
+        command_builder.args(sustituted_args.iter().map(|s| s.as_str()));
+        command_builder.envs(envs);
+        let command = command_builder.build();
 
         let client_info = ClientInfo {
             protocol_version: Default::default(),
@@ -262,11 +262,8 @@ impl MCPState {
                 version: env!("CARGO_PKG_VERSION").into(),
             },
         };
-        let tokio_child_process =
-            TokioChildProcess::new(Command::new(adapted_program).configure(|cmd| {
-                cmd.args(adapted_args);
-                cmd.envs(adapted_envs);
-            }))
+
+        let tokio_child_process = TokioChildProcess::new(command)
             .map_err(|e| format!("Failed to create tokio child process: {e}"))?;
         let service = client_info
             .serve(tokio_child_process)

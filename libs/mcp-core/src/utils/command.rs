@@ -1,8 +1,7 @@
 use log::{error, info};
-use std::{collections::HashMap, ffi::OsStr};
-use tokio::process::Command;
-
 use once_cell::sync::Lazy;
+use std::{collections::HashMap, ffi::OsStr, os::windows::process::CommandExt};
+use tokio::process::Command;
 
 #[cfg(not(windows))]
 static ENVS: Lazy<HashMap<String, String>> = Lazy::new(get_envs);
@@ -73,7 +72,12 @@ static BASE_OS_ENVS: Lazy<Option<HashMap<String, String>>> = Lazy::new(get_base_
 fn get_base_os_envs() -> Option<HashMap<String, String>> {
     let env_location = "/usr/bin/env";
     info!("grabbing environment variables from {env_location}");
-    let env_output = std::process::Command::new(env_location).output();
+    let mut command = std::process::Command::new(env_location);
+    #[cfg(windows)]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let env_output = command.output();
     match env_output {
         Ok(env_output) => {
             let env_output_str = String::from_utf8_lossy(&env_output.stdout);
@@ -120,12 +124,13 @@ fn default_shell() -> String {
 }
 
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Clone)]
 pub struct CommandWrappedInShellBuilder {
     program: String,
     args: Option<Vec<String>>,
+    envs: HashMap<String, String>,
 }
 
 impl CommandWrappedInShellBuilder {
@@ -133,6 +138,7 @@ impl CommandWrappedInShellBuilder {
         Self {
             program: program.as_ref().to_string_lossy().to_string(),
             args: None,
+            envs: HashMap::new(),
         }
     }
 
@@ -148,6 +154,7 @@ impl CommandWrappedInShellBuilder {
                     .map(|s| s.as_ref().to_string_lossy().to_string())
                     .collect(),
             ),
+            envs: HashMap::new(),
         }
     }
 
@@ -171,6 +178,32 @@ impl CommandWrappedInShellBuilder {
             Some(args_vec) => args_vec.push(arg.as_ref().to_string_lossy().to_string()),
             None => self.args = Some(vec![arg.as_ref().to_string_lossy().to_string()]),
         }
+        self
+    }
+
+    pub fn envs<
+        Envs: IntoIterator<Item = (EnvKey, EnvValue)>,
+        EnvKey: AsRef<OsStr>,
+        EnvValue: AsRef<OsStr>,
+    >(
+        &mut self,
+        envs: Envs,
+    ) -> &mut CommandWrappedInShellBuilder {
+        for (key, value) in envs {
+            self.env(key, value);
+        }
+        self
+    }
+
+    pub fn env<EnvKey: AsRef<OsStr>, EnvValue: AsRef<OsStr>>(
+        &mut self,
+        key: EnvKey,
+        value: EnvValue,
+    ) -> &mut CommandWrappedInShellBuilder {
+        self.envs.insert(
+            key.as_ref().to_string_lossy().to_string(),
+            value.as_ref().to_string_lossy().to_string(),
+        );
         self
     }
 
@@ -246,6 +279,10 @@ impl CommandWrappedInShellBuilder {
         } else {
             self.program.clone()
         };
-        Self::wrapped_in_shell(command_with_args)
+        let mut command = Self::wrapped_in_shell(command_with_args);
+        for (key, value) in self.envs {
+            command.env(key, value);
+        }
+        command
     }
 }

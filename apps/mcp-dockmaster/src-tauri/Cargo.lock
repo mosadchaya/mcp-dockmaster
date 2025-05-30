@@ -4101,12 +4101,16 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "0.1.5"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk?rev=22134eb33e249a3b3ae6c0153b0176e4dd532220#22134eb33e249a3b3ae6c0153b0176e4dd532220"
+source = "git+https://github.com/agallardol/rust-sdk.git?branch=main#6123a37ff1b201428827394a07eaea6921bcc460"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "bytes",
  "chrono",
  "futures",
+ "http",
+ "http-body",
+ "http-body-util",
  "paste",
  "pin-project-lite",
  "process-wrap",
@@ -4115,18 +4119,21 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sse-stream",
  "thiserror 2.0.12",
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tower-service",
  "tracing",
  "uuid",
+ "windows",
 ]
 
 [[package]]
 name = "rmcp-macros"
 version = "0.1.5"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk?rev=22134eb33e249a3b3ae6c0153b0176e4dd532220#22134eb33e249a3b3ae6c0153b0176e4dd532220"
+source = "git+https://github.com/agallardol/rust-sdk.git?branch=main#6123a37ff1b201428827394a07eaea6921bcc460"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4672,6 +4679,19 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "sse-stream"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f649a9f9e91db2ed32f3724516eac2bc09fab77fc33be8f670f5619b9dc6c3f"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "http-body",
+ "http-body-util",
+ "pin-project-lite",
 ]
 
 [[package]]

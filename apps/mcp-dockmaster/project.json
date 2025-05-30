@@ -54,6 +54,13 @@
         "command": "npx tauri icon",
         "cwd": "apps/mcp-dockmaster"
       }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mcp-dockmaster/src-tauri",
+        "command": "cargo clean"
+      }
     }
   },
   "tags": []
