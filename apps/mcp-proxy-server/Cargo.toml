@@ -15,7 +15,7 @@ futures = "0.3"
 clap = { version = "4.5.38", features = ["derive"] }
 reqwest = { version = "0.12.15", features = ["json"] }
 tower = "0.5.2"
-rmcp = { git = "https://github.com/agallardol/rust-sdk.git", rev = "f99d7ad39034d94ae57688a80ca6a681de17beaa", features = [
+rmcp = { git = "https://github.com/agallardol/rust-sdk.git", rev = "6e213d69f23c84a53c0296d283fb54200850c7fb", features = [
     "client",
     "server",
     "reqwest",

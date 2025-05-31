@@ -263,7 +263,7 @@ impl MCPState {
             },
         };
 
-        let tokio_child_process = TokioChildProcess::new(command)
+        let tokio_child_process = TokioChildProcess::new_with_raw_command(command)
             .map_err(|e| format!("Failed to create tokio child process: {e}"))?;
         let service = client_info
             .serve(tokio_child_process)

@@ -216,7 +216,8 @@ impl CommandWrappedInShellBuilder {
         if let Some(path) = ENVS.get("PATH") {
             command.env("PATH", path);
         }
-
+        #[cfg(unix)]
+        command.process_group(std::process::id());
         #[cfg(windows)]
         {
             command.creation_flags(CREATE_NO_WINDOW);
