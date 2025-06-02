@@ -1,6 +1,8 @@
 use log::{error, info};
 use once_cell::sync::Lazy;
-use std::{collections::HashMap, ffi::OsStr, os::windows::process::CommandExt};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+use std::{collections::HashMap, ffi::OsStr};
 use tokio::process::Command;
 
 #[cfg(not(windows))]

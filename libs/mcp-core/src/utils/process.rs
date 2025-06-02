@@ -1,9 +1,14 @@
-use std::{os::windows::process::CommandExt, process::Command};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 
 use log::info;
 use sysinfo::System;
 
-use super::command::{CommandWrappedInShellBuilder, CREATE_NO_WINDOW};
+use super::command::CommandWrappedInShellBuilder;
+
+#[cfg(windows)]
+use super::command::CREATE_NO_WINDOW;
 
 fn adapted_process_name(process_name: &str) -> String {
     let name = if cfg!(target_os = "windows") {
