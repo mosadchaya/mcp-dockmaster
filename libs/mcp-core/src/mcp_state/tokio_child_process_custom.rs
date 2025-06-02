@@ -55,8 +55,6 @@ impl TokioChildProcessCustom {
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped());
         command.kill_on_drop(true);
-        #[cfg(unix)]
-        command.process_group(std::process::id());
         #[cfg(windows)]
         {
             command.creation_flags(CREATE_NO_WINDOW);
