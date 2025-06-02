@@ -7,6 +7,7 @@ use tokio::{
     process::{Child, ChildStdin, ChildStdout},
 };
 
+#[cfg(windows)]
 use crate::utils::command::CREATE_NO_WINDOW;
 
 pub(crate) fn child_process(
