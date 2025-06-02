@@ -64,18 +64,18 @@ pub fn find_process_by_name(process_name: &str) -> Result<String, String> {
 
 pub fn kill_process_by_name(process_name: &str) {
     let adapted_process_name = adapted_process_name(process_name);
-    let output = if cfg!(target_os = "windows") {
-        // Windows: Use taskkill command
-        std::process::Command::new("taskkill")
-            .creation_flags(CREATE_NO_WINDOW)
-            .args(["/F", "/T", "/IM", &adapted_process_name])
-            .output()
-    } else {
-        // Unix-like systems: Use pkill command
-        std::process::Command::new("pkill")
-            .args(["-9", &adapted_process_name])
-            .output()
-    };
+    // Windows: Use taskkill command
+    #[cfg(windows)]
+    let output = std::process::Command::new("taskkill")
+        .creation_flags(CREATE_NO_WINDOW)
+        .args(["/F", "/T", "/IM", &adapted_process_name])
+        .output();
+
+    // Unix-like systems: Use pkill command
+    #[cfg(not(windows))]
+    let output = std::process::Command::new("pkill")
+        .args(["-9", &adapted_process_name])
+        .output();
 
     match output {
         Ok(output) => {
