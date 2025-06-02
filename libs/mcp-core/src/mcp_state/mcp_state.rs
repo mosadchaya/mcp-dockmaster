@@ -1,3 +1,4 @@
+use crate::mcp_state::tokio_child_process_custom::TokioChildProcessCustom;
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
 use crate::types::ServerToolInfo;
@@ -7,12 +8,10 @@ use rmcp::model::{
     CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam,
 };
 use rmcp::service::RunningService;
-use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
 use rmcp::{RoleClient, ServiceError, ServiceExt};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::process::Command;
 use tokio::sync::RwLock;
 
 /// MCPState: the main service layer
@@ -263,7 +262,7 @@ impl MCPState {
             },
         };
 
-        let tokio_child_process = TokioChildProcess::new_with_raw_command(command)
+        let tokio_child_process = TokioChildProcessCustom::new(command)
             .map_err(|e| format!("Failed to create tokio child process: {e}"))?;
         let service = client_info
             .serve(tokio_child_process)

@@ -33,7 +33,7 @@ once_cell = "1.21.3"
 home = "0.5.11"
 strip-ansi-escapes = "0.2.1"
 uuid = { version = "1.17.0", features = ["v4", "serde"] }
-rmcp = { git = "https://github.com/agallardol/rust-sdk.git", rev = "6e213d69f23c84a53c0296d283fb54200850c7fb", features = [
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk.git", rev = "a66f66ae345a0fafde1e2ee496ec137d77aef82a", features = [
     "client",
     "server",
     "transport-sse-server",
@@ -43,6 +43,7 @@ rmcp = { git = "https://github.com/agallardol/rust-sdk.git", rev = "6e213d69f23c
 
 bytes = "1.10.1"
 probly-search = "2.0.1"
+pin-project-lite = "0.2.15"
 
 [lib]
 name = "mcp_core"
