@@ -23,6 +23,13 @@
         "command": "cargo watch -x run",
         "cwd": "apps/mcp-proxy-server"
       }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mcp-proxy-server",
+        "command": "cargo clean"
+      }
     }
   }
 }
