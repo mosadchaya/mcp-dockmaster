@@ -1,9 +1,9 @@
-use std::process::Command;
+use std::{os::windows::process::CommandExt, process::Command};
 
 use log::info;
 use sysinfo::System;
 
-use super::command::CommandWrappedInShellBuilder;
+use super::command::{CommandWrappedInShellBuilder, CREATE_NO_WINDOW};
 
 fn adapted_process_name(process_name: &str) -> String {
     let name = if cfg!(target_os = "windows") {
@@ -62,6 +62,7 @@ pub fn kill_process_by_name(process_name: &str) {
     let output = if cfg!(target_os = "windows") {
         // Windows: Use taskkill command
         std::process::Command::new("taskkill")
+            .creation_flags(CREATE_NO_WINDOW)
             .args(["/F", "/T", "/IM", &adapted_process_name])
             .output()
     } else {

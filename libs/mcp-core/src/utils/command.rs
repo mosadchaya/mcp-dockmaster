@@ -124,7 +124,7 @@ fn default_shell() -> String {
 }
 
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone)]
 pub struct CommandWrappedInShellBuilder {
