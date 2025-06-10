@@ -11,6 +11,8 @@ use mcp_core::{
     utils::default_storage_path,
 };
 
+mod export;
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -91,6 +93,17 @@ enum Commands {
 
     /// Clear the database
     Clear,
+
+    /// Export server configurations
+    Export {
+        /// Output file path
+        #[arg(short, long)]
+        output: std::path::PathBuf,
+
+        /// Database path (optional, uses default if not provided)
+        #[arg(short, long)]
+        db_path: Option<std::path::PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -242,6 +255,20 @@ async fn main() {
                 Err(e) => {
                     error!("Error clearing database: {e}");
                     println!("Error clearing database: {e}");
+                }
+            }
+        }
+        Commands::Export { output, db_path } => {
+            info!("Exporting server configurations");
+
+            // Use the export functionality
+            match export::export_servers(db_path, output) {
+                Ok(_) => {
+                    println!("Export completed successfully");
+                }
+                Err(e) => {
+                    error!("Error exporting servers: {e}");
+                    println!("Error exporting servers: {e}");
                 }
             }
         }

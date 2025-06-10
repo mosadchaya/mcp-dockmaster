@@ -1,0 +1,233 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "modelcontextprotocol/sequentialthinking",
+      "name": "Sequential Thinking MCP Server",
+      "description": "This package offers a structured approach to problem-solving through a sequential thinking tool that assists in breaking down complex problems into manageable steps. It facilitates revision and alternative thought paths, allows dynamic adjustments of the problem-solving process, and assists in hypothesis generation and verification. Key inputs include current thought steps, whether additional steps are needed, and if current thinking requires revision or branching. Designed to support dynamic problem analysis, the tool can be integrated into workflows where thorough examination and context maintenance across multiple steps are essential.",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "distribution_type": "npm",
+      "distribution_package": "@modelcontextprotocol/server-sequential-thinking",
+      "env_vars": {}
+    },
+    {
+      "id": "modelcontextprotocol/filesystem",
+      "name": "Filesystem MCP Server",
+      "description": "This package is designed for performing various filesystem operations including reading and writing files, creating, listing, and deleting directories, moving files or directories, and retrieving file metadata. It supports advanced file editing with fuzzy matching and formatting options. Users can manage files within specific directories configured by mounting them. This package is particularly useful for users needing programmatic access to filesystem functionalities.",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "$MOUNT_DIR"
+      ],
+      "distribution_type": "npm",
+      "distribution_package": "@modelcontextprotocol/filesystem",
+      "env_vars": {
+        "MOUNT_DIR": {
+          "value": "\"/Users/mariya\" \"/Applications\" \"/opt/homebrew\" \"/usr/local\" \"/tmp\" \"/System/Library\" \"/Library\" \"/private/etc\" \"/var/log\" \"/usr/bin\" \"/usr/share\"",
+          "description": "",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "secretiveshell/mcp-timeserver",
+      "name": "MCP-timeserver",
+      "description": "The MCP-timeserver is a server package that provides datetime information to client systems. It allows users to retrieve the current date and time in various timezones using a custom datetime URI scheme. Users can access local time by calling the function 'get_current_time()', which returns the current system time. For example, the input 'datetime://Africa/Freetown/now' will return the current time in Freetown. This package is useful for applications needing accurate time data across different regions and is applicable in development and automation scenarios.",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "uvx",
+      "args": [
+        "mcp-timeserver"
+      ],
+      "distribution_type": "pip",
+      "distribution_package": "mcp-timeserver",
+      "env_vars": {}
+    },
+    {
+      "id": "upstash/context7",
+      "name": "@upstash/context7-mcp MCP Server",
+      "description": "MCP server for Context7",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "distribution_type": "npm",
+      "distribution_package": "@upstash/context7-mcp",
+      "env_vars": {
+        "MCP": {
+          "value": "",
+          "description": "",
+          "required": false
+        },
+        "CLIENT_NAME": {
+          "value": "",
+          "description": "",
+          "required": false
+        },
+        "YOUR_SMITHERY_KEY": {
+          "value": "",
+          "description": "",
+          "required": false
+        },
+        "DEFAULT_MINIMUM_TOKENS": {
+          "value": "",
+          "description": "",
+          "required": false
+        },
+        "ERR_MODULE_NOT_FOUND": {
+          "value": "",
+          "description": "",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "modelcontextprotocol/servers-fetch",
+      "name": "Fetch MCP Server",
+      "description": "The Fetch MCP Server provides web content fetching capabilities, allowing users to retrieve and process content from web pages, and convert HTML to markdown for easier consumption. It includes a tool called 'fetch' that fetches a URL and extracts its content as markdown. Users can specify a URL to fetch and optional parameters like the maximum number of characters to return and the starting character index. The package supports customization of user-agent strings and adherence to robots.txt files. Example usage includes fetching a webpage and processing its content in chunks using a starting index.",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "distribution_type": "pip",
+      "distribution_package": "mcp-server-fetch",
+      "env_vars": {}
+    },
+    {
+      "id": "modelcontextprotocol/puppeteer",
+      "name": "Puppeteer MCP Server",
+      "description": "The Puppeteer MCP Server provides functionalities for browser automation using Puppeteer, allowing users to interact with web pages programmatically. It includes tools such as puppeteer_navigate for navigating to URLs, puppeteer_screenshot for capturing screenshots, puppeteer_click for clicking elements, puppeteer_hover for hovering over elements, puppeteer_fill for filling input fields, puppeteer_select for selecting options in drop-down menus, and puppeteer_evaluate for executing JavaScript in the browser's context. The server offers features like console log monitoring and a way to access screenshots as resources. Examples of use include navigating to specific URLs, taking screenshots of web pages, and running JavaScript on a website.",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ],
+      "distribution_type": "docker",
+      "distribution_package": "mcp/puppeteer",
+      "env_vars": {}
+    },
+    {
+      "id": "kazuph/mcp-obsidian",
+      "name": "MCP Obsidian",
+      "description": "MCP Obsidian allows users to integrate their Obsidian vault with a model context protocol client, enabling efficient search and retrieval of notes. Users can read the contents of multiple notes, search for specific notes by name using case-insensitive and regex support, list the directory structure of a specified path, and create new notes within the vault. The tool requires users to configure the path to their Obsidian vault within the client configuration, facilitating seamless interaction with their notes.",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@kazuph/mcp-obsidian"
+      ],
+      "distribution_type": "npm",
+      "distribution_package": "@kazuph/mcp-obsidian",
+      "env_vars": {
+        "OBSIDIAN_VAULT_PATH": {
+          "value": "/Users/mariya/Library/Mobile Documents/iCloud~md~obsidian/Documents/trove-of-masha",
+          "description": "",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "wonderwhy-er/desktop-commander",
+      "name": "Claude Desktop Commander MCP",
+      "description": "The Claude Desktop Commander MCP enables the execution of terminal commands on the user's computer, providing an interface for managing and manipulating processes. Users can run commands with configurable timeouts or stream output from long-running sessions. It includes tools for process management, allowing users to list and kill processes based on their PID. Users can also perform full filesystem operations, such as reading and writing files, creating and listing directories, moving files, and searching for files. Additionally, the package supports surgical text replacements and complete file rewrites for code editing. Examples of usage include executing commands like 'list processes', 'read_file myfile.txt', or 'edit_block src/main.js'.",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander"
+      ],
+      "distribution_type": "npm",
+      "distribution_package": "@wonderwhy-er/desktop-commander",
+      "env_vars": {}
+    },
+    {
+      "id": "blazickjp/arxiv-mcp-server",
+      "name": "ArXiv MCP Server",
+      "description": "The ArXiv MCP Server enables AI assistants to search and access research papers from the arXiv repository through a simple interface. It provides a variety of functionalities such as searching for papers with specific filters like date ranges and categories, downloading content of papers using their arXiv IDs, and listing all downloaded papers. Users can also access the text of the papers they have downloaded. Configuration is done through environment variables, where users can set the storage path for papers. For example, the tool allows users to execute a search with a query for specific terms and get a customized list of papers in response.",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "uvx",
+      "args": [
+        "arxiv-mcp-server"
+      ],
+      "distribution_type": "pip",
+      "distribution_package": "arxiv-mcp-server",
+      "env_vars": {
+        "ARXIV_STORAGE_PATH": {
+          "value": "/tmp/arxiv_papers",
+          "description": "",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "andybrandt/mcp-simple-pubmed",
+      "name": "MCP Simple PubMed",
+      "description": "MCP Simple PubMed provides an interface to search and query the PubMed database of medical papers using the Entrez API. It allows users to search using keywords, access article abstracts, and download full text when available. The package requires configuration of the environment variables `PUBMED_EMAIL`, which is mandatory, and `PUBMED_API_KEY` for higher rate limits. Typically, this tool is useful for retrieving structured document data in XML format, which can aid AI in understanding document structures. A common usage example might involve retrieving and analyzing articles based on a specific medical research topic.",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_simple_pubmed"
+      ],
+      "distribution_type": "pip",
+      "distribution_package": "mcp-simple-pubmed",
+      "env_vars": {
+        "PUBMED_API_KEY": {
+          "value": "",
+          "description": "Optional API key for higher rate limits",
+          "required": false
+        },
+        "PUBMED_EMAIL": {
+          "value": "your.email@domain.com",
+          "description": "",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "hawstein/mcp-server-reddit",
+      "name": "MCP Server Reddit",
+      "description": "The MCP Server Reddit provides access to the public API of Reddit, allowing users to retrieve various types of content from the platform. It features tools for accessing hot posts on Reddit's front page, gathering information about specific subreddits, and retrieving posts according to different criteria such as hot, new, top, and rising. Users can also get detailed content of specific posts and their comments. To use the package, users can input parameters such as subreddit names and post IDs to receive the corresponding outputs. Examples of usage include asking for current hot posts on Reddit or in a specific subreddit, along with viewing detailed content and comments of specific posts.",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "uvx",
+      "args": [
+        "mcp-server-reddit"
+      ],
+      "distribution_type": "pip",
+      "distribution_package": "mcp-server-reddit",
+      "env_vars": {}
+    }
+  ]
+}
