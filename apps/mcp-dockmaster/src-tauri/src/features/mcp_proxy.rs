@@ -4,10 +4,10 @@ use mcp_core::{
         mcp_core_installers_ext::McpCoreInstallersExt, mcp_core_proxy_ext::McpCoreProxyExt,
     },
     models::types::{
-        DiscoverServerToolsRequest, ServerConfigUpdateRequest, ServerRegistrationRequest,
-        ServerRegistrationResponse, ServerToolInfo, ServerUninstallResponse, ServerUpdateRequest,
-        ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
-        ToolUninstallRequest, ToolUpdateResponse,
+        CustomServerRegistrationRequest, DiscoverServerToolsRequest, ServerConfigUpdateRequest, 
+        ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, 
+        ServerUninstallResponse, ServerUpdateRequest, ToolConfigUpdateResponse, 
+        ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest, ToolUpdateResponse,
     },
     types::{IsProcessRunningRequest, RuntimeServer},
 };
@@ -20,6 +20,15 @@ pub async fn register_server(
     request: ServerRegistrationRequest,
 ) -> Result<ServerRegistrationResponse, String> {
     mcp_core.register_server(request).await
+}
+
+/// Register a custom server with validation
+#[tauri::command]
+pub async fn register_custom_server(
+    mcp_core: State<'_, MCPCore>,
+    request: CustomServerRegistrationRequest,
+) -> Result<ServerRegistrationResponse, String> {
+    mcp_core.register_custom_server(request).await
 }
 
 /// List all registered tools

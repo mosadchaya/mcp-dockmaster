@@ -1,8 +1,8 @@
 use crate::features::mcp_proxy::{
     check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
     get_tools_visibility_state, import_server_from_url, list_all_server_tools, list_servers,
-    register_server, restart_server_command, set_tools_hidden, uninstall_server,
-    update_server_config, update_server_status,
+    register_custom_server, register_server, restart_server_command, set_tools_hidden, 
+    uninstall_server, update_server_config, update_server_status,
 };
 use commands::{get_app_identifier, get_mcp_proxy_server_binary_path};
 use features::mcp_proxy::{
@@ -171,6 +171,7 @@ pub async fn run() {
             commands::check_docker_installed,
             commands::check_initialization_complete,
             register_server,
+            register_custom_server,
             list_servers,
             list_all_server_tools,
             discover_tools,

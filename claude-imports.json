@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "imported/clanki",
+      "name": "clanki",
+      "description": "Imported from Claude Desktop: clanki",
+      "tools_type": "node",
+      "enabled": true,
+      "entry_point": null,
+      "command": "node",
+      "args": [
+        "/Users/mariya/Documents/GitHub/clanki/build/index.js"
+      ],
+      "distribution_type": null,
+      "distribution_package": null,
+      "server_type": "local",
+      "working_directory": null,
+      "executable_path": "/Users/mariya/Documents/GitHub/clanki/build/index.js",
+      "env_vars": {}
+    },
+    {
+      "id": "imported/mcp-google-sheets-local",
+      "name": "mcp-google-sheets-local",
+      "description": "Imported from Claude Desktop: mcp-google-sheets-local",
+      "tools_type": "python",
+      "enabled": true,
+      "entry_point": null,
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/mariya/Documents/GitHub/mcp-google-sheets",
+        "mcp-google-sheets"
+      ],
+      "distribution_type": null,
+      "distribution_package": null,
+      "server_type": "local",
+      "working_directory": "/Users/mariya/Documents/GitHub/mcp-google-sheets",
+      "executable_path": null,
+      "env_vars": {
+        "DRIVE_FOLDER_ID": {
+          "value": "1eHtude9t5F5TJ4zrLyT1awBB-Iprjzq-",
+          "description": "Imported from Claude Desktop config",
+          "required": false
+        },
+        "SERVICE_ACCOUNT_PATH": {
+          "value": "/Users/mariya/Documents/Claude/ai-tools-461922-40cad3b52259.json",
+          "description": "Imported from Claude Desktop config",
+          "required": false
+        }
+      }
+    }
+  ]
+}

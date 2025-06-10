@@ -104,6 +104,17 @@ enum Commands {
         #[arg(short, long)]
         db_path: Option<std::path::PathBuf>,
     },
+
+    /// Import Claude Desktop config
+    ImportClaude {
+        /// Claude Desktop config file path
+        #[arg(short, long)]
+        config: std::path::PathBuf,
+
+        /// Output file path for imported servers
+        #[arg(short, long)]
+        output: std::path::PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -269,6 +280,20 @@ async fn main() {
                 Err(e) => {
                     error!("Error exporting servers: {e}");
                     println!("Error exporting servers: {e}");
+                }
+            }
+        }
+        Commands::ImportClaude { config, output } => {
+            info!("Importing Claude Desktop configuration");
+
+            // Use the import functionality
+            match export::import_claude_config(config, output) {
+                Ok(_) => {
+                    println!("Import completed successfully");
+                }
+                Err(e) => {
+                    error!("Error importing Claude config: {e}");
+                    println!("Error importing Claude config: {e}");
                 }
             }
         }

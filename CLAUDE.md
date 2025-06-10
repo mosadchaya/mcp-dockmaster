@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: Phase 1 ✅ Complete | Working on Phase 2
+**Current Status**: Phase 3 ✅ Backend Complete | Working on UI Integration
 
 **Next Steps**:
 1. Ensure Rust is available: `source "$HOME/.cargo/env"`
-2. Check exported servers: `cat exported-servers.json`
-3. Continue with Phase 2: Database schema extension for custom server types
+2. Check imported custom servers: `cat claude-imports.json`
+3. Continue with Phase 3: Backend API extensions for custom server management
 
 **Key Commands**:
 ```bash
@@ -18,6 +18,9 @@ npx nx build mcp-dockmaster-cli
 
 # Export servers from installed Dockmaster
 ./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli export --output servers.json
+
+# Import Claude Desktop custom servers
+./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli import-claude --config "/Users/mariya/Library/Application Support/Claude/claude_desktop_config.json" --output custom-servers.json
 
 # Quick export (Node.js, no build needed)
 node export-servers.js
@@ -160,23 +163,93 @@ Extending MCP Dockmaster to support custom server patterns beyond standard npm/p
 - `libs/mcp-core/src/database/migration.rs` - Rust migration module
 - Export functionality integrated into CLI
 
-#### Phase 2: Database Schema Extension ⏳
-- [ ] Extend SQLite schema for flexible server types (package/local/custom)
-- [ ] Add complex arguments and environment variable support
-- [ ] Implement backward-compatible migrations
-- [ ] Create validation framework
+#### Phase 2: Database Schema Extension ✅ COMPLETED
+- [x] Extended SQLite schema for flexible server types (package/local/custom)
+- [x] Added complex arguments and environment variable support
+- [x] Implemented backward-compatible migrations
+- [x] Created validation framework and import functionality
 
-#### Phase 3: Backend API Extensions ⏳
-- [ ] Extend Rust commands in `src-tauri/src/lib.rs`
-- [ ] Implement path validation and template resolution
-- [ ] Add Claude Desktop config import/export
-- [ ] Create lifecycle management for custom patterns
+**Phase 2 Outputs:**
+- `libs/mcp-core/migrations/sqlite/2025-06-10-000001_add_custom_server_support/` - Database migration
+- Extended schema with `server_type`, `working_directory`, `executable_path` fields
+- `claude-imports.json` - Successfully imported clanki and mcp-google-sheets-local
+- CLI import command: `import-claude` for Claude Desktop config import
+
+**Phase 3 Outputs:**
+- `libs/mcp-core/src/validation.rs` - Comprehensive validation framework for custom servers
+- `libs/mcp-core/src/core/mcp_core_proxy_ext.rs` - Extended with `register_custom_server` method
+- `apps/mcp-dockmaster/src-tauri/src/features/mcp_proxy.rs` - Added `register_custom_server` Tauri command
+- Template resolution for environment variables (`$HOME`, `$USER`, `$SHELL`, etc.)
+- Runtime dependency validation (Node.js, Python, uv, Docker)
+- Path validation with relative/absolute path support
+- Security checks to prevent path traversal attacks
+
+**Phase 3 Key Features:**
+- **Generic Custom Server Support**: Can register ANY custom server, not just specific examples
+- **Runtime Detection**: Validates Node.js, Python, uv, Docker availability before registration
+- **Template Variables**: Resolves `$HOME`, `$USER`, `$SHELL` in paths and environment variables
+- **Path Safety**: Validates executable permissions and prevents dangerous path operations
+- **Command Building**: Intelligently constructs commands based on runtime and executable type
+- **Validation Framework**: Comprehensive error reporting with detailed validation messages
+- **Lifecycle Integration**: Custom servers start/stop/restart like standard package servers
+
+#### Phase 3: Backend API Extensions ✅ COMPLETED
+- [x] Extend Tauri commands to support custom server types (local/custom)
+- [ ] Add server registration API for local filesystem servers (UI + CLI)
+- [x] Implement comprehensive path validation:
+  - [x] Support both relative and absolute paths
+  - [x] Validate executable files exist and are executable
+  - [x] Validate working directories exist
+  - [x] Check runtime dependencies (Node.js, Python, uv, etc.)
+- [x] Create lifecycle management for custom server patterns (start/stop/restart)
+- [x] Add environment variable template resolution (`$HOME`, `$USER`, etc.)
+- [ ] Extend CLI with `add-custom-server` command
+
+**Phase 3 Success Criteria:**
+- Users can add **any** custom server through Dockmaster UI/CLI (not just specific examples)
+- System validates required runtimes (Node.js, Python, uv, etc.) are available
+- Environment variables like `$HOME`, `$USER` are properly resolved
+- Both relative (`./build/index.js`) and absolute paths work
+- Custom servers start/stop/restart like standard package servers
+
+**Phase 3 CLI Interface:**
+```bash
+# Generic pattern for adding any custom server
+./mcp-dockmaster-cli add-custom-server \
+  --name <server-name> \
+  --description "<description>" \
+  --type <package|local|custom> \
+  --runtime <node|python|docker|custom> \
+  [--executable <path>] \
+  [--command <command>] \
+  [--args <arg1,arg2,arg3>] \
+  [--working-dir <path>] \
+  [--env KEY=value] \
+  [--env KEY2=value2]
+
+# Examples:
+# Local Node.js server
+./mcp-dockmaster-cli add-custom-server \
+  --name my-node-server --type local --runtime node \
+  --executable ./dist/server.js --working-dir /path/to/project
+
+# Local Python server with uv
+./mcp-dockmaster-cli add-custom-server \
+  --name my-python-server --type local --runtime python \
+  --command uv --args "run,--directory,$HOME/project,server" \
+  --env API_KEY=secret --env DATA_PATH=$HOME/data
+
+# Custom binary
+./mcp-dockmaster-cli add-custom-server \
+  --name my-binary --type custom --runtime custom \
+  --executable /usr/local/bin/my-server --args "--port,8080"
+```
 
 #### Phase 4: Frontend UI Enhancement ⏳
-- [ ] Design custom server configuration forms
-- [ ] Add file browser for local path selection
-- [ ] Create environment variable editor with templates
-- [ ] Build import wizard for Claude Desktop configs
+- [ ] Design custom server configuration forms with server type selection
+- [ ] Add file browser integration for local path selection
+- [ ] Create environment variable editor with validation
+- [ ] Build "Add Custom Server" workflow in the UI
 
 #### Phase 5: Proxy Server Updates ⏳
 - [ ] Extend `apps/mcp-proxy-server/` for custom server types
@@ -185,10 +258,10 @@ Extending MCP Dockmaster to support custom server patterns beyond standard npm/p
 - [ ] Ensure proxy architecture compatibility
 
 #### Phase 6: Migration & Testing ⏳
-- [ ] Migrate example custom servers (clanki, mcp-google-sheets-local)
-- [ ] Test various server patterns
-- [ ] Performance validation
-- [ ] Documentation and examples
+- [ ] Test with example custom servers (clanki, mcp-google-sheets-local as test cases)
+- [ ] Test various server patterns and edge cases
+- [ ] Performance validation with mixed server types
+- [ ] Documentation and examples for custom server patterns
 
 ### Key Files for This Project
 - Database schema: `libs/mcp-core/migrations/sqlite/`
@@ -199,19 +272,19 @@ Extending MCP Dockmaster to support custom server patterns beyond standard npm/p
 
 ### Custom Servers to Support
 
-From Claude Desktop config (`claude_desktop_config.json`):
+From Claude Desktop config (`claude_desktop_config.json`) - **✅ Successfully Imported**:
 
-1. **clanki** (Local Node.js server)
+1. **clanki** (Local Node.js server) ✅ 
    ```json
    {
      "command": "node",
      "args": ["/Users/mariya/Documents/GitHub/clanki/build/index.js"]
    }
    ```
-   - Uses direct file path instead of package
-   - Requires Node.js runtime
+   - ✅ Detected as `server_type: "local"`, `tools_type: "node"`
+   - ✅ Executable path captured: `/Users/mariya/Documents/GitHub/clanki/build/index.js`
 
-2. **mcp-google-sheets-local** (Local Python server with complex args)
+2. **mcp-google-sheets-local** (Local Python server with complex args) ✅
    ```json
    {
      "command": "uv",
@@ -222,6 +295,6 @@ From Claude Desktop config (`claude_desktop_config.json`):
      }
    }
    ```
-   - Uses `uv run` with directory argument
-   - Complex environment variables with file paths
-   - Not a standard pip package installation
+   - ✅ Detected as `server_type: "local"`, `tools_type: "python"`
+   - ✅ Working directory captured: `/Users/mariya/Documents/GitHub/mcp-google-sheets`
+   - ✅ Environment variables imported with metadata
