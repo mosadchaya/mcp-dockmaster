@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::models::types::{ServerConfiguration, ServerEnvironment};
+// Removed unused imports
 use crate::schema::{server_env, servers};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,6 +19,9 @@ pub struct ExportedServer {
     pub args: Option<Vec<String>>,
     pub distribution_type: Option<String>,
     pub distribution_package: Option<String>,
+    pub server_type: Option<String>,
+    pub working_directory: Option<String>,
+    pub executable_path: Option<String>,
     pub env_vars: HashMap<String, ExportedEnvVar>,
 }
 
@@ -47,6 +50,9 @@ struct ServerRecord {
     pub args: Option<String>,
     pub distribution_type: Option<String>,
     pub distribution_package: Option<String>,
+    pub server_type: Option<String>,
+    pub working_directory: Option<String>,
+    pub executable_path: Option<String>,
 }
 
 #[derive(Queryable, Debug)]
@@ -78,6 +84,9 @@ pub fn export_servers_to_json(db_path: &Path) -> Result<String> {
             servers::args,
             servers::distribution_type,
             servers::distribution_package,
+            servers::server_type,
+            servers::working_directory,
+            servers::executable_path,
         ))
         .load::<ServerRecord>(&mut connection)?;
     
@@ -126,6 +135,9 @@ pub fn export_servers_to_json(db_path: &Path) -> Result<String> {
             args,
             distribution_type: server.distribution_type,
             distribution_package: server.distribution_package,
+            server_type: server.server_type,
+            working_directory: server.working_directory,
+            executable_path: server.executable_path,
             env_vars: env_by_server.remove(&server.id).unwrap_or_default(),
         });
     }
@@ -143,4 +155,116 @@ pub fn export_servers_to_file(db_path: &Path, output_path: &Path) -> Result<()> 
     let json = export_servers_to_json(db_path)?;
     std::fs::write(output_path, json)?;
     Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClaudeDesktopConfig {
+    #[serde(rename = "mcpServers")]
+    pub mcp_servers: HashMap<String, ClaudeServerConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClaudeServerConfig {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+}
+
+pub fn import_claude_desktop_config(config_path: &Path) -> Result<Vec<ExportedServer>> {
+    let config_str = std::fs::read_to_string(config_path)?;
+    let config: ClaudeDesktopConfig = serde_json::from_str(&config_str)?;
+    
+    let mut servers = Vec::new();
+    
+    for (server_name, server_config) in config.mcp_servers {
+        // Skip the mcp-dockmaster proxy server itself
+        if server_name == "mcp-dockmaster" {
+            continue;
+        }
+        
+        // Determine server type based on configuration patterns
+        let (server_type, tools_type, working_directory, executable_path) = analyze_server_config(&server_config);
+        
+        // Convert env vars to our format
+        let mut env_vars = HashMap::new();
+        for (key, value) in server_config.env {
+            env_vars.insert(key, ExportedEnvVar {
+                value,
+                description: "Imported from Claude Desktop config".to_string(),
+                required: false,
+            });
+        }
+        
+        servers.push(ExportedServer {
+            id: format!("imported/{}", server_name),
+            name: server_name.clone(),
+            description: format!("Imported from Claude Desktop: {}", server_name),
+            tools_type,
+            enabled: true,
+            entry_point: None,
+            command: Some(server_config.command),
+            args: if server_config.args.is_empty() { None } else { Some(server_config.args) },
+            distribution_type: None,
+            distribution_package: None,
+            server_type: Some(server_type),
+            working_directory,
+            executable_path,
+            env_vars,
+        });
+    }
+    
+    Ok(servers)
+}
+
+fn analyze_server_config(config: &ClaudeServerConfig) -> (String, String, Option<String>, Option<String>) {
+    let command = &config.command;
+    let args = &config.args;
+    
+    // Determine if this is a local server based on patterns
+    if command == "node" && args.len() == 1 && args[0].starts_with('/') {
+        // Local Node.js server (like clanki)
+        return (
+            "local".to_string(),
+            "node".to_string(),
+            None,
+            Some(args[0].clone()),
+        );
+    }
+    
+    if command == "uv" && args.contains(&"run".to_string()) && args.contains(&"--directory".to_string()) {
+        // Local Python project with uv (like mcp-google-sheets-local)
+        let dir_index = args.iter().position(|x| x == "--directory").unwrap_or(0);
+        let working_dir = if dir_index + 1 < args.len() {
+            Some(args[dir_index + 1].clone())
+        } else {
+            None
+        };
+        
+        return (
+            "local".to_string(),
+            "python".to_string(),
+            working_dir,
+            None,
+        );
+    }
+    
+    // Check if command is an absolute path
+    if command.starts_with('/') {
+        return (
+            "local".to_string(),
+            "custom".to_string(),
+            None,
+            Some(command.clone()),
+        );
+    }
+    
+    // Default to custom type for other patterns
+    (
+        "custom".to_string(),
+        "custom".to_string(),
+        None,
+        None,
+    )
 }

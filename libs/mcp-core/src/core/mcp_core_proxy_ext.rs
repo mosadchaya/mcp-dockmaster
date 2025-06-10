@@ -1,14 +1,15 @@
 use crate::models::types::{
-    DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
-    ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
-    ServerRegistrationResponse, ServerStatus, ServerUninstallResponse, ServerUpdateRequest,
-    ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, ToolUninstallRequest,
-    ToolUpdateResponse,
+    CustomServerRegistrationRequest, DiscoverServerToolsRequest, Distribution, RuntimeServer, 
+    ServerConfigUpdateRequest, ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, 
+    ServerRegistrationRequest, ServerRegistrationResponse, ServerStatus, ServerUninstallResponse, 
+    ServerUpdateRequest, ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse, 
+    ToolUninstallRequest, ToolUpdateResponse,
 };
 use crate::types::ServerToolInfo;
 use crate::utils::github::{
     extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
 };
+use crate::validation::{validate_custom_server, resolve_template_variables};
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future;
@@ -70,6 +71,11 @@ pub trait McpCoreProxyExt {
         repo_info: &GitHubRepo,
         env_vars: HashSet<String>,
     ) -> Result<ServerRegistrationResponse, String>;
+    /// Register a custom server with validation
+    async fn register_custom_server(
+        &self,
+        request: CustomServerRegistrationRequest,
+    ) -> Result<ServerRegistrationResponse, String>;
 }
 
 #[async_trait]
@@ -95,6 +101,13 @@ impl McpCoreProxyExt for MCPCore {
         let server_id = request.server_id.clone();
         info!("Generated server ID: {}", server_id);
 
+        // Parse server type from request or default to Package
+        let server_type = match request.server_type.as_deref() {
+            Some("local") => crate::models::types::ServerType::Local,
+            Some("custom") => crate::models::types::ServerType::Custom,
+            _ => crate::models::types::ServerType::Package, // Default
+        };
+
         // Create the Tool struct
         let server = ServerDefinition {
             name: request.server_name.clone(),
@@ -104,6 +117,9 @@ impl McpCoreProxyExt for MCPCore {
             entry_point: None,
             configuration: request.configuration,
             distribution: request.distribution,
+            server_type,
+            working_directory: request.working_directory,
+            executable_path: request.executable_path,
         };
 
         // Save the tool in the registry
@@ -712,6 +728,9 @@ impl McpCoreProxyExt for MCPCore {
             tools_type: "node".to_string(),
             configuration,
             distribution,
+            server_type: None, // Default for Node.js imports
+            working_directory: None,
+            executable_path: None,
         };
 
         // Register the server
@@ -813,9 +832,126 @@ impl McpCoreProxyExt for MCPCore {
             tools_type: "python".to_string(),
             configuration,
             distribution,
+            server_type: None, // Default for Python imports
+            working_directory: None,
+            executable_path: None,
         };
 
         // Register the server
         self.register_server(request).await
+    }
+
+    /// Register a custom server with validation
+    async fn register_custom_server(
+        &self,
+        request: CustomServerRegistrationRequest,
+    ) -> Result<ServerRegistrationResponse, String> {
+        info!("Registering custom server: {}", request.name);
+
+        // Validate the custom server configuration
+        let validation_result = validate_custom_server(
+            &request.server_type,
+            &request.runtime,
+            &request.command,
+            &request.executable_path,
+            &request.args,
+            &request.working_directory,
+            &request.env_vars,
+        ).await;
+
+        // Check validation results
+        if !validation_result.valid {
+            let error_msg = format!("Custom server validation failed: {}", 
+                validation_result.errors.join("; "));
+            error!("{}", error_msg);
+            return Err(error_msg);
+        }
+
+        // Log warnings
+        for warning in &validation_result.warnings {
+            log::warn!("Custom server validation warning: {}", warning);
+        }
+
+        // Generate server ID
+        let server_id = format!("custom/{}", request.name.to_lowercase().replace(' ', "-"));
+
+        // Resolve template variables in paths
+        let resolved_executable_path = if let Some(path) = &request.executable_path {
+            Some(resolve_template_variables(path).map_err(|e| 
+                format!("Failed to resolve executable path template: {}", e))?)
+        } else {
+            None
+        };
+
+        let resolved_working_directory = if let Some(dir) = &request.working_directory {
+            Some(resolve_template_variables(dir).map_err(|e| 
+                format!("Failed to resolve working directory template: {}", e))?)
+        } else {
+            None
+        };
+
+        // Build environment variables with template resolution
+        let mut env_map = HashMap::new();
+        if let Some(env_vars) = &request.env_vars {
+            for (key, value) in env_vars {
+                let resolved_value = resolve_template_variables(value).map_err(|e| 
+                    format!("Failed to resolve environment variable '{}' template: {}", key, e))?;
+                env_map.insert(key.clone(), ServerEnvironment {
+                    description: format!("Custom environment variable: {}", key),
+                    default: Some(resolved_value.clone()),
+                    required: false,
+                });
+            }
+        }
+
+        // Build command and args
+        let (command, args) = if let Some(exec_path) = &resolved_executable_path {
+            // For executable path, determine command based on runtime
+            let cmd = match request.runtime.as_str() {
+                "node" => "node".to_string(),
+                "python" => request.command.unwrap_or_else(|| "python3".to_string()),
+                _ => request.command.unwrap_or_else(|| exec_path.clone()),
+            };
+            
+            let mut args_vec = if request.runtime == "node" || 
+                                 (request.runtime == "python" && cmd != *exec_path) {
+                vec![exec_path.clone()]
+            } else {
+                vec![]
+            };
+            
+            if let Some(additional_args) = request.args {
+                args_vec.extend(additional_args);
+            }
+            
+            (Some(cmd), if args_vec.is_empty() { None } else { Some(args_vec) })
+        } else if let Some(cmd) = request.command {
+            (Some(cmd), request.args)
+        } else {
+            return Err("Either executable_path or command must be specified".to_string());
+        };
+
+        // Create configuration
+        let configuration = Some(ServerConfiguration {
+            command,
+            args,
+            env: if env_map.is_empty() { None } else { Some(env_map) },
+        });
+
+        // Create registration request
+        let registration_request = ServerRegistrationRequest {
+            server_id,
+            server_name: request.name,
+            description: request.description,
+            tools_type: request.runtime,
+            configuration,
+            distribution: None, // Custom servers don't have package distribution
+            server_type: Some(request.server_type),
+            working_directory: resolved_working_directory,
+            executable_path: resolved_executable_path,
+        };
+
+        // Register the server using the standard registration method
+        self.register_server(registration_request).await
     }
 }

@@ -60,6 +60,15 @@ pub enum ToolType {
     Docker,
 }
 
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerType {
+    #[default]
+    Package, // Standard npm/pip/docker packages (existing behavior)
+    Local,   // Local filesystem servers (clanki, local projects)
+    Custom,  // Fully custom configurations
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ServerStatus {
@@ -115,6 +124,12 @@ pub struct ServerDefinition {
     pub configuration: Option<ServerConfiguration>,
     #[serde(default)]
     pub distribution: Option<Distribution>,
+    #[serde(default)]
+    pub server_type: ServerType,
+    #[serde(default)]
+    pub working_directory: Option<String>,
+    #[serde(default)]
+    pub executable_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -132,9 +147,29 @@ pub struct ServerRegistrationRequest {
     pub server_id: String,
     pub server_name: String,
     pub description: String,
-    pub tools_type: String, // "node", "python", "docker"
+    pub tools_type: String, // "node", "python", "docker", "custom"
     pub configuration: Option<ServerConfiguration>,
     pub distribution: Option<Distribution>,
+    #[serde(default)]
+    pub server_type: Option<String>, // "package", "local", "custom"
+    #[serde(default)]
+    pub working_directory: Option<String>,
+    #[serde(default)]
+    pub executable_path: Option<String>,
+}
+
+/// Custom server registration request with validation
+#[derive(Debug, Deserialize)]
+pub struct CustomServerRegistrationRequest {
+    pub name: String,
+    pub description: String,
+    pub server_type: String, // "local", "custom"
+    pub runtime: String,     // "node", "python", "docker", "custom"
+    pub command: Option<String>,
+    pub executable_path: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub working_directory: Option<String>,
+    pub env_vars: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]

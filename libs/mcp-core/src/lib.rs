@@ -7,6 +7,7 @@ pub mod mcp_state;
 pub mod models;
 pub mod registry;
 pub mod schema;
+pub mod validation;
 
 // Re-export commonly used types and functions
 pub use models::*;

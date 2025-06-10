@@ -190,6 +190,9 @@ pub async fn handle_register_server(
                 tools_type,
                 configuration,
                 distribution,
+                server_type: None, // Default for registry tools
+                working_directory: None,
+                executable_path: None,
             };
 
             info!("[POST] handle_register_tool: tool {tool:?}");
@@ -228,6 +231,9 @@ pub async fn handle_register_server(
                     tools_type: tool.runtime.clone(),
                     configuration: Some(tool.config.clone()),
                     distribution: Some(tool.distribution.clone()),
+                    server_type: None, // Default for registry tools
+                    working_directory: None,
+                    executable_path: None,
                 })
                 .await
                 .map_err(|e| {

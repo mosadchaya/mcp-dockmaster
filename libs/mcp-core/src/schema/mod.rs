@@ -34,6 +34,9 @@ diesel::table! {
         args -> Nullable<Text>,
         distribution_type -> Nullable<Text>,
         distribution_package -> Nullable<Text>,
+        server_type -> Nullable<Text>,
+        working_directory -> Nullable<Text>,
+        executable_path -> Nullable<Text>,
     }
 }
 

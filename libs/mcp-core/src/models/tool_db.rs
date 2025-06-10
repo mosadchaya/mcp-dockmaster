@@ -15,6 +15,9 @@ pub struct DBServer {
     pub args: Option<String>,
     pub distribution_type: Option<String>,
     pub distribution_package: Option<String>,
+    pub server_type: Option<String>,
+    pub working_directory: Option<String>,
+    pub executable_path: Option<String>,
 }
 
 /// For inserting a new row into the `tools` table
@@ -31,6 +34,9 @@ pub struct NewServer<'a> {
     pub args: Option<&'a str>,
     pub distribution_type: Option<&'a str>,
     pub distribution_package: Option<&'a str>,
+    pub server_type: Option<&'a str>,
+    pub working_directory: Option<&'a str>,
+    pub executable_path: Option<&'a str>,
 }
 
 /// For updating an existing row in the `tools` table
@@ -46,6 +52,9 @@ pub struct UpdateServer<'a> {
     pub args: Option<Option<&'a str>>,
     pub distribution_type: Option<Option<&'a str>>,
     pub distribution_package: Option<Option<&'a str>>,
+    pub server_type: Option<Option<&'a str>>,
+    pub working_directory: Option<Option<&'a str>>,
+    pub executable_path: Option<Option<&'a str>>,
 }
 
 /// This struct corresponds to a row in the `server_env` table.

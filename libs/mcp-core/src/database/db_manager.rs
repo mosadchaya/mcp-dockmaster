@@ -210,6 +210,9 @@ impl DBManager {
                 },
             }),
             distribution,
+            server_type: crate::models::types::ServerType::Package, // Default for existing servers
+            working_directory: db_tool.working_directory,
+            executable_path: db_tool.executable_path,
         };
 
         Ok(server)
@@ -285,6 +288,9 @@ impl DBManager {
                     },
                 }),
                 distribution,
+                server_type: crate::models::types::ServerType::Package, // Default for existing servers
+                working_directory: db_tool.working_directory.clone(),
+                executable_path: db_tool.executable_path.clone(),
             };
 
             tools_map.insert(db_tool.id.clone(), tool);
@@ -323,6 +329,12 @@ impl DBManager {
         };
 
         // Prepare upsert struct
+        let server_type_str = match tool.server_type {
+            crate::models::types::ServerType::Package => "package",
+            crate::models::types::ServerType::Local => "local",
+            crate::models::types::ServerType::Custom => "custom",
+        };
+        
         let new_tool = NewServer {
             id: server_id_str,
             name: &tool.name,
@@ -338,6 +350,9 @@ impl DBManager {
             args: args_as_str.as_deref(),
             distribution_type: distribution_type_str.as_deref(),
             distribution_package: distribution_package_str.as_deref(),
+            server_type: Some(server_type_str),
+            working_directory: tool.working_directory.as_deref(),
+            executable_path: tool.executable_path.as_deref(),
         };
 
         // For updates, we need to create an UpdateTool struct
@@ -355,6 +370,9 @@ impl DBManager {
             args: Some(args_as_str.as_deref()),
             distribution_type: Some(distribution_type_str.as_deref()),
             distribution_package: Some(distribution_package_str.as_deref()),
+            server_type: Some(Some(server_type_str)),
+            working_directory: Some(tool.working_directory.as_deref()),
+            executable_path: Some(tool.executable_path.as_deref()),
         };
 
         // Insert or update main row
