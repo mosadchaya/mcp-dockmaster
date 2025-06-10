@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: Phase 3 ✅ Backend Complete | Working on UI Integration
+**Current Status**: Phase 4 ✅ UI Complete | Custom Server Registration Ready
 
 **Next Steps**:
 1. Ensure Rust is available: `source "$HOME/.cargo/env"`
@@ -251,11 +251,34 @@ Extending MCP Dockmaster to support custom server patterns beyond standard npm/p
   --executable /usr/local/bin/my-server --args "--port,8080"
 ```
 
-#### Phase 4: Frontend UI Enhancement ⏳
-- [ ] Design custom server configuration forms with server type selection
-- [ ] Add file browser integration for local path selection
-- [ ] Create environment variable editor with validation
-- [ ] Build "Add Custom Server" workflow in the UI
+#### Phase 4: Frontend UI Enhancement ✅ COMPLETED
+- [x] Add "Custom Server Registry" to sidebar navigation (under "MCP Server Registry")
+- [x] Create Custom Server Registry page with similar layout to MCP Server Registry
+- [x] Move "Import from Github" button to Custom Server Registry page
+- [x] Add "Add Custom Server" button with modal popup form (same style as Import dialog)
+- [x] Design custom server configuration form with all fields:
+  - [x] Name (required), Description (required)
+  - [x] Server Type dropdown (package/local/custom)
+  - [x] Runtime dropdown (node/python/docker/custom)
+  - [x] Command (optional), Executable Path (optional, file input)
+  - [x] Arguments (optional, text input), Working Directory (optional, text input)
+  - [x] Environment Variables (optional, key-value editor with add/remove)
+- [x] Implement form validation and integration with register_custom_server API
+
+**Phase 4 Outputs:**
+- `apps/mcp-dockmaster/src/components/CustomServerRegistry.tsx` - Complete custom server management UI
+- `apps/mcp-dockmaster/src/components/ui/select.tsx` - Radix UI Select component integration
+- `apps/mcp-dockmaster/src/components/icons.tsx` - Added CustomServerIcon
+- Updated navigation in `App.tsx` with new route and sidebar item
+- Removed GitHub import from standard Registry component (now in Custom Registry)
+
+**Phase 4 Key Features:**
+- **Complete Custom Server UI**: Full-featured modal form with all configuration options
+- **Visual Server Type Selection**: Dropdowns for server types and runtimes with validation
+- **Environment Variable Management**: Dynamic key-value editor with add/remove functionality
+- **GitHub Import Integration**: Moved GitHub import to appropriate custom server section
+- **Form Validation**: Client-side validation with error display and user feedback
+- **Responsive Design**: Modal layout with proper scrolling for complex forms
 
 #### Phase 5: Proxy Server Updates ⏳
 - [ ] Extend `apps/mcp-proxy-server/` for custom server types

@@ -5,6 +5,7 @@ import { I18nProvider, useTranslation } from '@mcp-dockmaster/i18n';
 import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
+import CustomServerRegistry from "./components/CustomServerRegistry";
 import About from "./pages/about";
 import Feedback from "./pages/feedback";
 import InitMcpOverlay from "./components/init-mcp-overlay";
@@ -28,6 +29,7 @@ import {
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import {
   AboutIcon,
+  CustomServerIcon,
   HomeIcon,
   RegistryIcon,
   ServersIcon,
@@ -85,6 +87,12 @@ function AppSidebar() {
       icon: RegistryIcon,
       to: "/registry",
     },
+    {
+      id: "custom-registry",
+      label: "Custom Server Registry",
+      icon: CustomServerIcon,
+      to: "/custom-registry",
+    },
     { id: "about", label: t('navigation.about'), icon: AboutIcon, to: "/about" },
     { id: "feedback", label: t('navigation.feedback'), icon: MessageSquare, to: "/feedback" },
   ];
@@ -134,6 +142,7 @@ const AppRoutes = () => {
                   <Route path="/" element={<Home />} />
                   <Route path="/installed" element={<InstalledServers />} />
                   <Route path="/registry" element={<Registry />} />
+                  <Route path="/custom-registry" element={<CustomServerRegistry />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/feedback" element={<Feedback />} />
                   <Route element={<Navigate replace to={"/"} />} path="*" />

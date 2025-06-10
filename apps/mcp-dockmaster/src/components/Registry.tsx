@@ -59,11 +59,6 @@ const Registry: React.FC = () => {
   const [detailsPopupVisible, setDetailsPopupVisible] = useState(false);
   const [currentServerDetails, setCurrentServerDetails] = useState<RegistryServer | null>(null);
   
-  // Add state for GitHub import modal
-  const [isGitHubImportModalOpen, setIsGitHubImportModalOpen] = useState(false);
-  const [githubUrl, setGithubUrl] = useState("");
-  const [importingServer, setImportingServer] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
 
   // Add state for restart dialog
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -584,94 +579,6 @@ const Registry: React.FC = () => {
     setCurrentServerDetails(null);
   };
   
-  // Functions to handle the GitHub import modal
-  const openGitHubImportModal = () => {
-    setGithubUrl("");
-    setImportError(null);
-    setIsGitHubImportModalOpen(true);
-  };
-  
-  const closeGitHubImportModal = () => {
-    setIsGitHubImportModalOpen(false);
-    setGithubUrl("");
-    setImportError(null);
-  };
-  
-  const importServerFromGitHub = async () => {
-    if (!githubUrl?.trim()) {
-      setImportError(t('registry.import_modal.error_empty_url'));
-      return;
-    }
-    
-    // Simple validation for GitHub URL
-    if (!githubUrl?.startsWith("https://github.com/")) {
-      setImportError(t('registry.import_modal.error_invalid_url'));
-      return;
-    }
-    
-    setImportingServer(true);
-    setImportError(null);
-    
-    try {
-      const response = await MCPClient.importServerFromUrl(githubUrl);
-      
-      if (response.success) {
-        closeGitHubImportModal();
-        loadAvailableServers(); // Refresh the server list
-      } else {
-        setImportError(response.message || t('registry.import_modal.import_generic_error'));
-      }
-    } catch (error) {
-      console.error("Error importing server:", error);
-      setImportError(t('registry.import_modal.import_error', { message: (error instanceof Error ? error.message : String(error)) }));
-    } finally {
-      setImportingServer(false);
-    }
-  };
-  
-  // Function to render the GitHub import modal
-  const renderGitHubImportModal = () => {
-    return (
-      <Dialog open={isGitHubImportModalOpen} onOpenChange={setIsGitHubImportModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{t('registry.import_modal.title')}</DialogTitle>
-            <DialogDescription>
-              {t('registry.import_modal.description')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
-            <p className="text-amber-800 text-sm">
-              <strong>{t('registry.import_modal.note_title')}</strong> {t('registry.import_modal.note_description')}
-            </p>
-          </div>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="github-url">{t('registry.import_modal.url_label')}</Label>
-              <Input
-                id="github-url"
-                placeholder={t('registry.import_modal.url_placeholder')}
-                value={githubUrl}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGithubUrl(e.target.value)}
-                disabled={importingServer}
-              />
-              {importError && (
-                <p className="text-destructive text-sm">{importError}</p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeGitHubImportModal} disabled={importingServer}>
-              {t('registry.import_modal.cancel_button')}
-            </Button>
-            <Button onClick={importServerFromGitHub} disabled={!githubUrl.trim() || importingServer}>
-              {importingServer ? t('registry.import_modal.importing_button') : t('registry.import_modal.import_button')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  };
   
   // Function to render the details popup
   const renderEnvVarsDialog = () => {
@@ -981,9 +888,6 @@ const Registry: React.FC = () => {
       <div className="flex flex-col space-y-1.5">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold tracking-tight">{t('registry.title')}</h1>
-          <Button variant="outline" onClick={openGitHubImportModal}>
-            {t('registry.import_button')}
-          </Button>
         </div>
         <p className="text-muted-foreground text-sm">
           {t('registry.description')}
@@ -1185,7 +1089,6 @@ const Registry: React.FC = () => {
         </>
       )}
       {renderDetailsPopup()}
-      {renderGitHubImportModal()}
       {renderEnvVarsDialog()}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>

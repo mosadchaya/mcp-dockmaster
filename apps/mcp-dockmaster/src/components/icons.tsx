@@ -119,6 +119,77 @@ export const RegistryIcon = ({ className }: { className?: string }) => {
   );
 };
 
+export const CustomServerIcon = ({ className }: { className?: string }) => {
+  return (
+    <svg
+      className={cn(className)}
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      fill="none"
+    >
+      <path
+        d="M18 3H6C5.06812 3 4.60218 3 4.23463 3.15224C3.74458 3.35523 3.35523 3.74458 3.15224 4.23463C3 4.60218 3 5.06812 3 6C3 6.93188 3 7.39782 3.15224 7.76537C3.35523 8.25542 3.74458 8.64477 4.23463 8.84776C4.60218 9 5.06812 9 6 9H18C18.9319 9 19.3978 9 19.7654 8.84776C20.2554 8.64477 20.6448 8.25542 20.8478 7.76537C21 7.39782 21 6.93188 21 6C21 5.06812 21 4.60218 20.8478 4.23463C20.6448 3.74458 20.2554 3.35523 19.7654 3.15224C19.3978 3 18.9319 3 18 3Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18 10H6C5.06812 10 4.60218 10 4.23463 10.1522C3.74458 10.3552 3.35523 10.7446 3.15224 11.2346C3 11.6022 3 12.0681 3 13C3 13.9319 3 14.3978 3.15224 14.7654C3.35523 15.2554 3.74458 15.6448 4.23463 15.8478C4.60218 16 5.06812 16 6 16H18C18.9319 16 19.3978 16 19.7654 15.8478C20.2554 15.6448 20.6448 15.2554 20.8478 14.7654C21 14.3978 21 13.9319 21 13C21 12.0681 21 11.6022 20.8478 11.2346C20.6448 10.7446 20.2554 10.3552 19.7654 10.1522C19.3978 10 18.9319 10 18 10Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 6H6.01"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 6H9.01"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 13H6.01"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 13H9.01"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Custom indicator - wrench/tool icon */}
+      <path
+        d="M14 11L16 9L17 10L15 12L14 11Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="currentColor"
+        opacity="0.3"
+      />
+      <path
+        d="M16 9L18 7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
 export const AboutIcon = ({ className }: { className?: string }) => {
   return (
     <svg
