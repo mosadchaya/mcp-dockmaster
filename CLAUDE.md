@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ Important: Working Directory
+**ALWAYS work from the repository root**: `/Users/mariya/Documents/GitHub/mcp-dockmaster/`
+- This file is located at the repository root
+- If you're in a subdirectory (e.g., `libs/mcp-core/`), this file won't be found
+- Use relative paths from the root: `libs/mcp-core/src/`, `apps/mcp-dockmaster/`, etc.
+
 ## Quick Start for Custom Server Patterns Project
 
 **Current Status**: Phase 3 ✅ Backend Complete | Working on UI Integration
