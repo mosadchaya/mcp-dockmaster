@@ -10,12 +10,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: Phase 4 ✅ UI Complete | Custom Server Registration Ready
+**Current Status**: Phase 4 ✅ COMPLETED | Enhanced Directory Detection Ready
+
+**Latest Update (2025-06-11)**:
+- ✅ Enhanced directory-based detection supporting Node.js and Docker projects
+- ✅ Priority-based detection system with intelligent runtime selection
+- ✅ **Interactive Runtime Selection**: Replaced passive toast notifications with user-controlled dialog
+- ✅ Smart Node.js script detection (analyzes package.json scripts in preference order)
+- ✅ Docker detection with docker-compose vs Dockerfile prioritization
+- ✅ **Multi-Runtime Dialog**: When multiple runtimes detected, shows interactive selection with radio buttons
 
 **Next Steps**:
 1. Pre-compile Rust components (see Dev Server Instructions below)
 2. Start dev server: `nohup npx nx serve mcp-dockmaster > dev-server.log 2>&1 &`
-3. Test custom server registration at: `http://localhost:1420/custom-registry`
+3. Test enhanced detection at: `http://localhost:1420/custom-registry`
 
 **Key Commands**:
 ```bash
@@ -354,20 +362,42 @@ sleep 5 && curl -s -I http://localhost:1420 | head -1
   - [x] Added real-time feedback via toast notifications for auto-detection
   - [x] Verified uv detection works with mcp-google-sheets project structure
 
+**Phase 4 Enhanced Directory Detection (Final Session 2025-06-11):**
+- [x] **Extended Rust Backend**: Added `check_node_project` and `check_docker_project` Tauri commands
+- [x] **Smart Node.js Detection**: Analyzes package.json scripts in preference order (start→serve→dev→run)
+- [x] **Docker Detection**: Prioritizes docker-compose files over Dockerfile, suggests appropriate commands
+- [x] **Priority-Based System**: Handles multi-runtime projects with intelligent primary selection:
+  - Priority 1: Python/uv projects (highest specificity)
+  - Priority 2: Node.js projects (development workflow priority)
+  - Priority 3: Docker projects (deployment/containerization priority)
+- [x] **Interactive Runtime Selection**: User-controlled dialog when multiple runtimes detected
+  - Radio button selection with "Recommended" badge for highest priority
+  - Preserves intelligent command detection within each runtime type
+  - Replaces passive toast notifications with active user choice
+- [x] **Real-World Testing**: Verified with clanki (Node.js) and context7 (Node.js + Docker) projects
+
 **Technical Improvements:**
-- **Rust Backend**: Added `check_uv_project` command in `src-tauri/src/lib.rs` that checks for `uv.lock` and `pyproject.toml` files
-- **Frontend Logic**: Enhanced `CustomServerRegistry.tsx` with dual auto-detection approach:
-  - Path-based detection: Analyzes file extensions (.js, .py, .sh, etc.)
-  - Directory-based detection: Analyzes project structure (uv.lock, pyproject.toml, package.json, etc.)
+- **Rust Backend**: Added `check_uv_project`, `check_node_project`, `check_docker_project` commands in `src-tauri/src/lib.rs`
+- **Smart Detection Logic**: Node.js script analysis, Docker compose vs Dockerfile prioritization
+- **Frontend Logic**: Enhanced `CustomServerRegistry.tsx` with interactive runtime selection dialog
 - **UX Flow**: Auto-detection triggers on file picker selection, manual input blur, and directory changes
+- **Interactive Selection**: Modal dialog with radio buttons for runtime choice when multiple detected
 - **Error Handling**: Graceful fallback when file system operations fail
 
-**Next Steps for Phase 4 Completion:**
-- [ ] Test complete flow: Add custom server → Verify in Installed Servers → Start/Stop server
-- [ ] Add server list view to Custom Server Registry page (currently only shows cards)
-- [ ] Consider adding "Edit" functionality for existing custom servers
-- [ ] Test with real custom server examples (clanki, mcp-google-sheets-local)
-- [ ] Expand directory-based detection to support more project types (package.json→Node.js, Dockerfile→Docker, etc.)
+**Testing Results:**
+- ✅ **clanki**: Correctly detects Node.js with `npm run start` (has package.json with start script)
+- ✅ **context7**: Shows interactive dialog with Node.js vs Docker selection options
+- ✅ **Interactive UX**: "Multiple Runtimes Detected" dialog with radio buttons and "Recommended" badge
+- ✅ **Command Intelligence**: Docker still prioritizes `docker-compose up` over `docker run` when both available
+- ✅ **User Control**: Full user choice between detected runtime options instead of automatic selection
+
+**Interactive Dialog Features:**
+- **Multi-Runtime Detection**: Shows dialog when 2+ runtimes found (e.g., Node.js + Docker)
+- **Radio Button Selection**: Clear visual selection with runtime type and command preview
+- **Priority Indication**: "Recommended" badge on highest priority option
+- **Command Preservation**: Each runtime maintains its intelligent command detection (docker-compose > docker run)
+- **Form Integration**: Selected runtime automatically populates form fields
+- **Single Runtime**: Still auto-selects with simple toast for single runtime projects
 
 #### Phase 5: Proxy Server Updates ⏳
 - [ ] Extend `apps/mcp-proxy-server/` for custom server types

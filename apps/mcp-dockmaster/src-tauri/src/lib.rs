@@ -104,6 +104,94 @@ mod commands {
         
         Ok(false)
     }
+
+    #[tauri::command]
+    pub async fn check_node_project(directory: String) -> Result<Option<String>, String> {
+        use std::path::Path;
+        
+        let dir_path = Path::new(&directory);
+        
+        // Check if package.json exists
+        let package_json_path = dir_path.join("package.json");
+        if package_json_path.exists() {
+            // Try to parse package.json to find scripts
+            match std::fs::read_to_string(&package_json_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(package_json) => {
+                            // Check for common start scripts in order of preference
+                            let script_preferences = ["start", "serve", "dev", "run"];
+                            
+                            if let Some(scripts) = package_json.get("scripts").and_then(|s| s.as_object()) {
+                                for script_name in script_preferences {
+                                    if scripts.contains_key(script_name) {
+                                        return Ok(Some(format!("npm run {}", script_name)));
+                                    }
+                                }
+                                
+                                // If no preferred scripts found but scripts exist, use npm start as default
+                                if !scripts.is_empty() {
+                                    return Ok(Some("npm start".to_string()));
+                                }
+                            }
+                            
+                            // If no scripts, suggest node directly
+                            return Ok(Some("node".to_string()));
+                        }
+                        Err(_) => {
+                            // If we can't parse package.json, default to node
+                            return Ok(Some("node".to_string()));
+                        }
+                    }
+                }
+                Err(_) => {
+                    // If we can't read package.json, default to node
+                    return Ok(Some("node".to_string()));
+                }
+            }
+        }
+        
+        // Check for other Node.js indicators
+        let node_indicators = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb"];
+        for indicator in node_indicators {
+            if dir_path.join(indicator).exists() {
+                return Ok(Some("node".to_string()));
+            }
+        }
+        
+        Ok(None)
+    }
+
+    #[tauri::command]
+    pub async fn check_docker_project(directory: String) -> Result<Option<String>, String> {
+        use std::path::Path;
+        
+        let dir_path = Path::new(&directory);
+        
+        // Check for docker-compose files first (more specific)
+        let compose_files = [
+            "docker-compose.yml", 
+            "docker-compose.yaml", 
+            "compose.yml", 
+            "compose.yaml"
+        ];
+        
+        for compose_file in compose_files {
+            if dir_path.join(compose_file).exists() {
+                return Ok(Some("docker-compose up".to_string()));
+            }
+        }
+        
+        // Check for Dockerfile
+        let dockerfile_names = ["Dockerfile", "dockerfile"];
+        for dockerfile in dockerfile_names {
+            if dir_path.join(dockerfile).exists() {
+                return Ok(Some("docker run".to_string()));
+            }
+        }
+        
+        Ok(None)
+    }
 }
 
 fn init_services(app_handle: tauri::AppHandle) {
@@ -207,6 +295,8 @@ pub async fn run() {
             commands::check_docker_installed,
             commands::check_initialization_complete,
             commands::check_uv_project,
+            commands::check_node_project,
+            commands::check_docker_project,
             register_server,
             register_custom_server,
             list_servers,

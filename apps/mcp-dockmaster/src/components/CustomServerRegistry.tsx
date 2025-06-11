@@ -40,6 +40,12 @@ const CustomServerRegistry: React.FC = () => {
   const [isAddServerModalOpen, setIsAddServerModalOpen] = useState(false);
   const [addingServer, setAddingServer] = useState(false);
   const [addServerError, setAddServerError] = useState<string | null>(null);
+  
+  // Runtime Selection Dialog State
+  const [isRuntimeSelectionOpen, setIsRuntimeSelectionOpen] = useState(false);
+  const [detectedRuntimes, setDetectedRuntimes] = useState<Array<{ runtime: string; command: string; priority: number }>>([]);
+  const [selectedRuntimeIndex, setSelectedRuntimeIndex] = useState(0);
+  
   const [customServerForm, setCustomServerForm] = useState<CustomServerForm>({
     name: "",
     description: "",
@@ -166,21 +172,51 @@ const CustomServerRegistry: React.FC = () => {
   };
 
   // Auto-detect runtime and command based on working directory
-  const detectRuntimeFromDirectory = async (directory: string): Promise<{ runtime: string; command: string } | null> => {
+  const detectRuntimeFromDirectory = async (directory: string): Promise<{ runtime: string; command: string; alternatives?: string[] } | null> => {
     try {
-      // Check for uv project (Python with uv)
+      const detectedRuntimes: Array<{ runtime: string; command: string; priority: number }> = [];
+      
+      // Check for uv project (Python with uv) - highest priority for Python
       const isUvProject = await checkForUvProject(directory);
       if (isUvProject) {
-        return { runtime: 'python', command: 'uv' };
+        detectedRuntimes.push({ runtime: 'python', command: 'uv', priority: 1 });
       }
       
-      // TODO: Add more directory-based detection here
-      // - package.json -> Node.js
-      // - Dockerfile -> Docker
-      // - requirements.txt -> Python
-      // - Cargo.toml -> Rust
+      // Check for Node.js project - high priority for development
+      const nodeProject = await checkForNodeProject(directory);
+      if (nodeProject) {
+        detectedRuntimes.push({ runtime: 'node', command: nodeProject, priority: 2 });
+      }
       
-      return null;
+      // Check for Docker project - lower priority (usually for deployment)
+      const dockerProject = await checkForDockerProject(directory);
+      if (dockerProject) {
+        detectedRuntimes.push({ runtime: 'docker', command: dockerProject, priority: 3 });
+      }
+      
+      if (detectedRuntimes.length === 0) {
+        return null;
+      }
+      
+      // Sort by priority
+      detectedRuntimes.sort((a, b) => a.priority - b.priority);
+      
+      // If multiple runtimes detected, show selection dialog
+      if (detectedRuntimes.length > 1) {
+        setDetectedRuntimes(detectedRuntimes);
+        setSelectedRuntimeIndex(0); // Default to highest priority (first item)
+        setIsRuntimeSelectionOpen(true);
+        return null; // Return null to pause the auto-detection, user will select via dialog
+      }
+      
+      // Single runtime detected - auto-select and show simple toast
+      const single = detectedRuntimes[0];
+      toast.success(`Detected ${single.runtime} project`);
+      
+      return { 
+        runtime: single.runtime, 
+        command: single.command
+      };
     } catch (error) {
       console.error('Error detecting runtime from directory:', error);
       return null;
@@ -195,10 +231,31 @@ const CustomServerRegistry: React.FC = () => {
       return result;
     } catch (error) {
       console.error('Error checking for uv project:', error);
-      // Fallback: assume it's a uv project if the directory contains "uv" in its name
-      // or if it's in a common Python project structure
-      const lowerDir = directory.toLowerCase();
-      return lowerDir.includes('uv') || lowerDir.includes('pyproject');
+      return false;
+    }
+  };
+
+  // Check if a directory contains Node.js project files
+  const checkForNodeProject = async (directory: string): Promise<string | null> => {
+    try {
+      // Use a Tauri command to check for Node.js project files and get suggested command
+      const result = await invoke('check_node_project', { directory }) as string | null;
+      return result;
+    } catch (error) {
+      console.error('Error checking for Node.js project:', error);
+      return null;
+    }
+  };
+
+  // Check if a directory contains Docker project files
+  const checkForDockerProject = async (directory: string): Promise<string | null> => {
+    try {
+      // Use a Tauri command to check for Docker project files and get suggested command
+      const result = await invoke('check_docker_project', { directory }) as string | null;
+      return result;
+    } catch (error) {
+      console.error('Error checking for Docker project:', error);
+      return null;
     }
   };
 
@@ -675,6 +732,64 @@ const CustomServerRegistry: React.FC = () => {
             </Button>
             <Button onClick={addCustomServer} disabled={addingServer}>
               {addingServer ? "Adding..." : "Add Server"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Runtime Selection Dialog */}
+      <Dialog open={isRuntimeSelectionOpen} onOpenChange={setIsRuntimeSelectionOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Multiple Runtimes Detected</DialogTitle>
+            <DialogDescription>
+              We detected multiple ways to run this project. Please select which runtime you'd like to use:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-3">
+              {detectedRuntimes.map((runtime, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id={`runtime-${index}`}
+                    name="runtime-selection"
+                    checked={selectedRuntimeIndex === index}
+                    onChange={() => setSelectedRuntimeIndex(index)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <label htmlFor={`runtime-${index}`} className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium capitalize">{runtime.runtime}</span>
+                        <span className="text-muted-foreground ml-2">({runtime.command})</span>
+                      </div>
+                      {index === 0 && (
+                        <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRuntimeSelectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                const selected = detectedRuntimes[selectedRuntimeIndex];
+                setCustomServerForm(prev => ({
+                  ...prev,
+                  runtime: selected.runtime,
+                  command: selected.command
+                }));
+                setIsRuntimeSelectionOpen(false);
+                toast.success(`Selected ${selected.runtime} runtime`);
+              }}
+            >
+              Use Selected Runtime
             </Button>
           </DialogFooter>
         </DialogContent>
