@@ -337,6 +337,38 @@ sleep 5 && curl -s -I http://localhost:1420 | head -1
 - **Form Validation**: Client-side validation with error display and user feedback
 - **Responsive Design**: Modal layout with proper scrolling for complex forms
 
+**Phase 4 Final Enhancements (Session 2025-06-11):**
+- [x] File browser integration with native OS dialogs (File picker for executables, Folder picker for directories)
+- [x] Environment variable templates (8 common templates with dropdown selector)
+- [x] Fixed Tauri dialog permissions (added "dialog:default" to capabilities)
+- [x] UI refinements: Removed "(optional)" labels, moved buttons into cards, equal card heights
+- [x] Smart auto-detection: Automatically detects runtime/command from executable path (.js→node, .py→python/uv)
+- [x] Added @tauri-apps/plugin-dialog dependency
+- [x] Form validation with required field checking
+- [x] **Enhanced Auto-Detection UX (2025-06-11 Session 2):**
+  - [x] Fixed fs permission issues by removing problematic `fs:default` permission
+  - [x] Added custom Tauri command `check_uv_project` for file checking on Rust side
+  - [x] Implemented `detectRuntimeFromDirectory` function for directory-based auto-detection
+  - [x] Enhanced working directory auto-detection to trigger on both file picker and manual input
+  - [x] Improved UX flow: Setting EITHER executable path OR working directory triggers auto-detection
+  - [x] Added real-time feedback via toast notifications for auto-detection
+  - [x] Verified uv detection works with mcp-google-sheets project structure
+
+**Technical Improvements:**
+- **Rust Backend**: Added `check_uv_project` command in `src-tauri/src/lib.rs` that checks for `uv.lock` and `pyproject.toml` files
+- **Frontend Logic**: Enhanced `CustomServerRegistry.tsx` with dual auto-detection approach:
+  - Path-based detection: Analyzes file extensions (.js, .py, .sh, etc.)
+  - Directory-based detection: Analyzes project structure (uv.lock, pyproject.toml, package.json, etc.)
+- **UX Flow**: Auto-detection triggers on file picker selection, manual input blur, and directory changes
+- **Error Handling**: Graceful fallback when file system operations fail
+
+**Next Steps for Phase 4 Completion:**
+- [ ] Test complete flow: Add custom server → Verify in Installed Servers → Start/Stop server
+- [ ] Add server list view to Custom Server Registry page (currently only shows cards)
+- [ ] Consider adding "Edit" functionality for existing custom servers
+- [ ] Test with real custom server examples (clanki, mcp-google-sheets-local)
+- [ ] Expand directory-based detection to support more project types (package.json→Node.js, Dockerfile→Docker, etc.)
+
 #### Phase 5: Proxy Server Updates ⏳
 - [ ] Extend `apps/mcp-proxy-server/` for custom server types
 - [ ] Implement argument/env template resolution

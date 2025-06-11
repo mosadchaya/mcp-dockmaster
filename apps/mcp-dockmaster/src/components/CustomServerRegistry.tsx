@@ -11,6 +11,7 @@ import { Badge } from "./ui/badge";
 import { Plus, Github, Download, FolderOpen, File } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+// import { exists } from "@tauri-apps/plugin-fs"; // Removed due to permission issues
 import { toast } from "sonner";
 import MCPClient from "../lib/mcpClient";
 
@@ -134,7 +135,7 @@ const CustomServerRegistry: React.FC = () => {
   };
 
   // Auto-detect runtime and command based on executable path
-  const detectRuntimeFromPath = (path: string): { runtime: string; command: string } => {
+  const detectRuntimeFromPath = (path: string): { runtime: string; command: string; needsUvCheck?: boolean } => {
     const lowerPath = path.toLowerCase();
     const filename = path.split('/').pop() || '';
     
@@ -145,11 +146,9 @@ const CustomServerRegistry: React.FC = () => {
     
     // Python detection
     if (lowerPath.endsWith('.py')) {
-      // Check if path contains 'uv' or common uv project indicators
-      if (lowerPath.includes('/uv/') || lowerPath.includes('/.venv/') || lowerPath.includes('/site-packages/')) {
-        return { runtime: 'python', command: 'uv' };
-      }
-      return { runtime: 'python', command: 'python' };
+      // For Python files, we should check if the project uses uv
+      // This will be done when we have the working directory
+      return { runtime: 'python', command: 'python', needsUvCheck: true };
     }
     
     // Docker detection
@@ -166,6 +165,43 @@ const CustomServerRegistry: React.FC = () => {
     return { runtime: 'custom', command: '' };
   };
 
+  // Auto-detect runtime and command based on working directory
+  const detectRuntimeFromDirectory = async (directory: string): Promise<{ runtime: string; command: string } | null> => {
+    try {
+      // Check for uv project (Python with uv)
+      const isUvProject = await checkForUvProject(directory);
+      if (isUvProject) {
+        return { runtime: 'python', command: 'uv' };
+      }
+      
+      // TODO: Add more directory-based detection here
+      // - package.json -> Node.js
+      // - Dockerfile -> Docker
+      // - requirements.txt -> Python
+      // - Cargo.toml -> Rust
+      
+      return null;
+    } catch (error) {
+      console.error('Error detecting runtime from directory:', error);
+      return null;
+    }
+  };
+
+  // Check if a directory contains uv.lock file (for Python projects)
+  const checkForUvProject = async (directory: string): Promise<boolean> => {
+    try {
+      // Use a Tauri command to check for uv project files
+      const result = await invoke('check_uv_project', { directory }) as boolean;
+      return result;
+    } catch (error) {
+      console.error('Error checking for uv project:', error);
+      // Fallback: assume it's a uv project if the directory contains "uv" in its name
+      // or if it's in a common Python project structure
+      const lowerDir = directory.toLowerCase();
+      return lowerDir.includes('uv') || lowerDir.includes('pyproject');
+    }
+  };
+
   // File browser functions
   const openFileDialog = async (fieldName: "executable_path" | "working_directory") => {
     try {
@@ -176,17 +212,44 @@ const CustomServerRegistry: React.FC = () => {
       if (result && typeof result === 'string') {
         if (fieldName === "executable_path") {
           // Auto-detect runtime and command when executable path is selected
-          const { runtime, command } = detectRuntimeFromPath(result);
+          const { runtime, command, needsUvCheck } = detectRuntimeFromPath(result);
+          
+          // For Python projects, check if we should use uv
+          let finalCommand = command;
+          if (needsUvCheck && customServerForm.working_directory) {
+            const isUvProject = await checkForUvProject(customServerForm.working_directory);
+            if (isUvProject) {
+              finalCommand = 'uv';
+            }
+          }
+          
           setCustomServerForm(prev => ({
             ...prev,
             [fieldName]: result,
             runtime: runtime,
-            command: command || prev.command,
+            command: finalCommand || prev.command,
           }));
           
           // Show toast notification about auto-detection
           if (runtime !== 'custom') {
-            toast.success(`Auto-detected ${runtime} runtime`);
+            toast.success(`Auto-detected ${runtime} runtime${finalCommand === 'uv' ? ' with uv' : ''}`);
+          }
+        } else if (fieldName === "working_directory") {
+          // When working directory is set, auto-detect runtime from directory
+          setCustomServerForm(prev => ({
+            ...prev,
+            [fieldName]: result,
+          }));
+          
+          // Auto-detect runtime and command from directory
+          const detected = await detectRuntimeFromDirectory(result);
+          if (detected) {
+            setCustomServerForm(prev => ({
+              ...prev,
+              runtime: detected.runtime,
+              command: detected.command,
+            }));
+            toast.success(`Auto-detected ${detected.runtime} runtime with ${detected.command}`);
           }
         } else {
           setCustomServerForm(prev => ({
@@ -463,14 +526,24 @@ const CustomServerRegistry: React.FC = () => {
                     placeholder="/path/to/executable or ./relative/path"
                     value={customServerForm.executable_path}
                     onChange={(e) => setCustomServerForm(prev => ({ ...prev, executable_path: e.target.value }))}
-                    onBlur={(e) => {
+                    onBlur={async (e) => {
                       // Auto-detect runtime when user finishes typing
                       if (e.target.value) {
-                        const { runtime, command } = detectRuntimeFromPath(e.target.value);
+                        const { runtime, command, needsUvCheck } = detectRuntimeFromPath(e.target.value);
+                        
+                        // For Python projects, check if we should use uv
+                        let finalCommand = command;
+                        if (needsUvCheck && customServerForm.working_directory) {
+                          const isUvProject = await checkForUvProject(customServerForm.working_directory);
+                          if (isUvProject) {
+                            finalCommand = 'uv';
+                          }
+                        }
+                        
                         setCustomServerForm(prev => ({
                           ...prev,
                           runtime: runtime,
-                          command: command || prev.command,
+                          command: finalCommand || prev.command,
                         }));
                       }
                     }}
@@ -497,6 +570,20 @@ const CustomServerRegistry: React.FC = () => {
                     placeholder="/path/to/working/directory"
                     value={customServerForm.working_directory}
                     onChange={(e) => setCustomServerForm(prev => ({ ...prev, working_directory: e.target.value }))}
+                    onBlur={async (e) => {
+                      // Auto-detect runtime when user finishes typing directory path
+                      if (e.target.value) {
+                        const detected = await detectRuntimeFromDirectory(e.target.value);
+                        if (detected) {
+                          setCustomServerForm(prev => ({
+                            ...prev,
+                            runtime: detected.runtime,
+                            command: detected.command,
+                          }));
+                          toast.success(`Auto-detected ${detected.runtime} runtime with ${detected.command}`);
+                        }
+                      }
+                    }}
                     disabled={addingServer}
                   />
                   <Button

@@ -68,6 +68,42 @@ mod commands {
     pub async fn get_app_identifier(app_handle: tauri::AppHandle) -> Result<String, String> {
         Ok(app_handle.config().identifier.clone())
     }
+
+    #[tauri::command]
+    pub async fn check_uv_project(directory: String) -> Result<bool, String> {
+        use std::path::Path;
+        
+        let dir_path = Path::new(&directory);
+        
+        // Check if uv.lock exists
+        let uv_lock_path = dir_path.join("uv.lock");
+        if uv_lock_path.exists() {
+            return Ok(true);
+        }
+        
+        // Check if pyproject.toml exists (indicates modern Python project)
+        let pyproject_path = dir_path.join("pyproject.toml");
+        if pyproject_path.exists() {
+            // Check if the pyproject.toml contains uv-specific content
+            match std::fs::read_to_string(&pyproject_path) {
+                Ok(content) => {
+                    let content_lower = content.to_lowercase();
+                    // Look for uv-specific markers in pyproject.toml
+                    if content_lower.contains("uv") || 
+                       content_lower.contains("requires-python") ||
+                       content_lower.contains("build-system") {
+                        return Ok(true);
+                    }
+                }
+                Err(_) => {
+                    // If we can't read the file, assume it's a modern Python project
+                    return Ok(true);
+                }
+            }
+        }
+        
+        Ok(false)
+    }
 }
 
 fn init_services(app_handle: tauri::AppHandle) {
@@ -170,6 +206,7 @@ pub async fn run() {
             commands::check_uv_installed,
             commands::check_docker_installed,
             commands::check_initialization_complete,
+            commands::check_uv_project,
             register_server,
             register_custom_server,
             list_servers,
