@@ -8,8 +8,9 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
-import { Plus, Github, FolderOpen, File } from "lucide-react";
+import { Plus, Github, Download, FolderOpen, File } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import MCPClient from "../lib/mcpClient";
 
@@ -53,6 +54,18 @@ const CustomServerRegistry: React.FC = () => {
   // Environment variables state
   const [envVarKey, setEnvVarKey] = useState("");
   const [envVarValue, setEnvVarValue] = useState("");
+  
+  // Environment variable templates
+  const envVarTemplates = [
+    { name: "API Key", key: "API_KEY", value: "", description: "API authentication key" },
+    { name: "API URL", key: "API_URL", value: "https://api.example.com", description: "Base API endpoint URL" },
+    { name: "Database URL", key: "DATABASE_URL", value: "sqlite://./database.db", description: "Database connection string" },
+    { name: "Port", key: "PORT", value: "3000", description: "Server port number" },
+    { name: "Debug Mode", key: "DEBUG", value: "false", description: "Enable debug logging" },
+    { name: "Log Level", key: "LOG_LEVEL", value: "info", description: "Logging level (error, warn, info, debug)" },
+    { name: "Working Directory", key: "WORKDIR", value: "./", description: "Working directory path" },
+    { name: "Config Path", key: "CONFIG_PATH", value: "./config.json", description: "Configuration file path" },
+  ];
 
   // GitHub Import Modal Functions
   const openGitHubImportModal = () => {
@@ -120,6 +133,74 @@ const CustomServerRegistry: React.FC = () => {
     setAddServerError(null);
   };
 
+  // Auto-detect runtime and command based on executable path
+  const detectRuntimeFromPath = (path: string): { runtime: string; command: string } => {
+    const lowerPath = path.toLowerCase();
+    const filename = path.split('/').pop() || '';
+    
+    // Node.js detection
+    if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.cjs')) {
+      return { runtime: 'node', command: 'node' };
+    }
+    
+    // Python detection
+    if (lowerPath.endsWith('.py')) {
+      // Check if path contains 'uv' or common uv project indicators
+      if (lowerPath.includes('/uv/') || lowerPath.includes('/.venv/') || lowerPath.includes('/site-packages/')) {
+        return { runtime: 'python', command: 'uv' };
+      }
+      return { runtime: 'python', command: 'python' };
+    }
+    
+    // Docker detection
+    if (filename === 'dockerfile' || filename.startsWith('docker-compose')) {
+      return { runtime: 'docker', command: 'docker' };
+    }
+    
+    // Binary/executable detection
+    if (!filename.includes('.') || lowerPath.endsWith('.sh') || lowerPath.endsWith('.exe')) {
+      return { runtime: 'custom', command: '' };
+    }
+    
+    // Default
+    return { runtime: 'custom', command: '' };
+  };
+
+  // File browser functions
+  const openFileDialog = async (fieldName: "executable_path" | "working_directory") => {
+    try {
+      const result = fieldName === "working_directory" 
+        ? await open({ directory: true, multiple: false })
+        : await open({ multiple: false });
+      
+      if (result && typeof result === 'string') {
+        if (fieldName === "executable_path") {
+          // Auto-detect runtime and command when executable path is selected
+          const { runtime, command } = detectRuntimeFromPath(result);
+          setCustomServerForm(prev => ({
+            ...prev,
+            [fieldName]: result,
+            runtime: runtime,
+            command: command || prev.command,
+          }));
+          
+          // Show toast notification about auto-detection
+          if (runtime !== 'custom') {
+            toast.success(`Auto-detected ${runtime} runtime`);
+          }
+        } else {
+          setCustomServerForm(prev => ({
+            ...prev,
+            [fieldName]: result,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Error opening file dialog:", error);
+      toast.error("Failed to open file dialog");
+    }
+  };
+
   const addEnvironmentVariable = () => {
     if (!envVarKey.trim() || !envVarValue.trim()) return;
     
@@ -133,6 +214,11 @@ const CustomServerRegistry: React.FC = () => {
     
     setEnvVarKey("");
     setEnvVarValue("");
+  };
+
+  const addTemplateEnvVar = (template: typeof envVarTemplates[0]) => {
+    setEnvVarKey(template.key);
+    setEnvVarValue(template.value);
   };
 
   const removeEnvironmentVariable = (key: string) => {
@@ -185,19 +271,7 @@ const CustomServerRegistry: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
       <div className="flex flex-col space-y-1.5">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Custom Server Registry</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={openGitHubImportModal}>
-              <Github className="w-4 h-4 mr-2" />
-              Import From Github
-            </Button>
-            <Button onClick={openAddServerModal}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Custom Server
-            </Button>
-          </div>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Custom Server Registry</h1>
         <p className="text-muted-foreground text-sm">
           Register and manage custom MCP servers from local filesystems, development environments, 
           or any custom configuration not available in the standard registry.
@@ -205,46 +279,52 @@ const CustomServerRegistry: React.FC = () => {
       </div>
 
       {/* Feature Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <File className="w-5 h-5" />
-              Local Servers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Register servers from your local filesystem with custom executable paths and working directories.
-            </CardDescription>
-          </CardContent>
-        </Card>
-        
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="flex flex-col h-full">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Github className="w-5 h-5" />
               GitHub Import
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <CardDescription>
+          <CardContent className="flex flex-col flex-1 justify-between">
+            <CardDescription className="mb-4">
               Import MCP servers directly from GitHub repositories with automatic configuration detection.
             </CardDescription>
+            <div className="flex justify-start mt-auto">
+              <Button 
+                variant="outline" 
+                className="bg-background border-input hover:bg-accent hover:text-accent-foreground"
+                onClick={openGitHubImportModal}
+              >
+                <Github className="w-4 h-4 mr-2" />
+                Import From Github
+              </Button>
+            </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="flex flex-col h-full">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <FolderOpen className="w-5 h-5" />
-              Custom Config
+              <Download className="w-5 h-5" />
+              Custom Servers
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Configure servers with custom commands, environment variables, and runtime-specific settings.
+          <CardContent className="flex flex-col flex-1 justify-between">
+            <CardDescription className="mb-4">
+              Register any custom server: local filesystem, development environments, or custom configurations with runtime-specific settings.
             </CardDescription>
+            <div className="flex justify-start mt-auto">
+              <Button 
+                variant="outline" 
+                className="bg-background border-input hover:bg-accent hover:text-accent-foreground"
+                onClick={openAddServerModal}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Custom Server
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -365,7 +445,7 @@ const CustomServerRegistry: React.FC = () => {
             {/* Command Configuration */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="command">Command (optional)</Label>
+                <Label htmlFor="command">Command</Label>
                 <Input
                   id="command"
                   placeholder="node, python, uv, etc."
@@ -376,31 +456,83 @@ const CustomServerRegistry: React.FC = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="executable-path">Executable Path (optional)</Label>
-                <Input
-                  id="executable-path"
-                  placeholder="/path/to/executable or ./relative/path"
-                  value={customServerForm.executable_path}
-                  onChange={(e) => setCustomServerForm(prev => ({ ...prev, executable_path: e.target.value }))}
-                  disabled={addingServer}
-                />
+                <Label htmlFor="executable-path">Executable Path</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="executable-path"
+                    placeholder="/path/to/executable or ./relative/path"
+                    value={customServerForm.executable_path}
+                    onChange={(e) => setCustomServerForm(prev => ({ ...prev, executable_path: e.target.value }))}
+                    onBlur={(e) => {
+                      // Auto-detect runtime when user finishes typing
+                      if (e.target.value) {
+                        const { runtime, command } = detectRuntimeFromPath(e.target.value);
+                        setCustomServerForm(prev => ({
+                          ...prev,
+                          runtime: runtime,
+                          command: command || prev.command,
+                        }));
+                      }
+                    }}
+                    disabled={addingServer}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openFileDialog("executable_path")}
+                    disabled={addingServer}
+                    className="px-3"
+                  >
+                    <File className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="working-directory">Working Directory (optional)</Label>
-                <Input
-                  id="working-directory"
-                  placeholder="/path/to/working/directory"
-                  value={customServerForm.working_directory}
-                  onChange={(e) => setCustomServerForm(prev => ({ ...prev, working_directory: e.target.value }))}
-                  disabled={addingServer}
-                />
+                <Label htmlFor="working-directory">Working Directory</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="working-directory"
+                    placeholder="/path/to/working/directory"
+                    value={customServerForm.working_directory}
+                    onChange={(e) => setCustomServerForm(prev => ({ ...prev, working_directory: e.target.value }))}
+                    disabled={addingServer}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openFileDialog("working_directory")}
+                    disabled={addingServer}
+                    className="px-3"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
             {/* Environment Variables */}
             <div className="space-y-4">
-              <Label>Environment Variables</Label>
+              <div className="flex items-center justify-between">
+                <Label>Environment Variables</Label>
+                <Select onValueChange={(value) => {
+                  const template = envVarTemplates.find(t => t.key === value);
+                  if (template) addTemplateEnvVar(template);
+                }}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Add template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {envVarTemplates.map((template) => (
+                      <SelectItem key={template.key} value={template.key}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <Input

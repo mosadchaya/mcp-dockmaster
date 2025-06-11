@@ -13,9 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Current Status**: Phase 4 ✅ UI Complete | Custom Server Registration Ready
 
 **Next Steps**:
-1. Ensure Rust is available: `source "$HOME/.cargo/env"`
-2. Check imported custom servers: `cat claude-imports.json`
-3. Continue with Phase 3: Backend API extensions for custom server management
+1. Pre-compile Rust components (see Dev Server Instructions below)
+2. Start dev server: `nohup npx nx serve mcp-dockmaster > dev-server.log 2>&1 &`
+3. Test custom server registration at: `http://localhost:1420/custom-registry`
 
 **Key Commands**:
 ```bash
@@ -39,8 +39,12 @@ node export-servers.js
 # Install all dependencies
 npm ci
 
-# Start the desktop app with hot reload
-npx nx serve mcp-dockmaster
+# Ensure all tools are available
+source ~/.cargo/env && export PATH="$HOME/.deno/bin:$PATH"
+
+# ⚠️ IMPORTANT: Pre-compile Rust first (see Dev Server Instructions above)
+# Then start the desktop app with hot reload
+nohup npx nx serve mcp-dockmaster > dev-server.log 2>&1 &
 
 # Run all tests
 npx nx run-many -t test
@@ -142,8 +146,61 @@ Extending MCP Dockmaster to support custom server patterns beyond standard npm/p
 
 #### Required Tools
 - ✅ **Rust** (installed via `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- ✅ **Deno** (installed via `curl -fsSL https://deno.land/install.sh | sh`)
 - ✅ **Node.js** v18+ (already installed)
 - ✅ **SQLite3** (for database inspection)
+
+#### Environment Setup
+```bash
+# Source Rust environment (required for cargo commands)
+source ~/.cargo/env
+
+# Add Deno to PATH (required for build scripts)
+export PATH="$HOME/.deno/bin:$PATH"
+
+# Install all dependencies
+npm ci
+```
+
+#### Dev Server Instructions
+
+**⚠️ IMPORTANT**: The initial Rust compilation takes 30-45 seconds and may cause timeouts. Always pre-compile first!
+
+**Pre-compilation Steps** (run these first):
+```bash
+# 1. Pre-compile Tauri app (takes ~35 seconds first time)
+cd /Users/mariya/Documents/GitHub/mcp-dockmaster/apps/mcp-dockmaster/src-tauri
+source ~/.cargo/env && cargo build
+
+# 2. Pre-compile proxy server
+cd /Users/mariya/Documents/GitHub/mcp-dockmaster/apps/mcp-proxy-server
+source ~/.cargo/env && cargo build --release
+
+# 3. Copy proxy server binary
+cd /Users/mariya/Documents/GitHub/mcp-dockmaster
+export PATH="$HOME/.deno/bin:$PATH" && deno run -A ci-scripts/copy-mcp-proxy-server-binary/index.ts
+```
+
+**Start Dev Server**:
+```bash
+# After pre-compilation, start dev server in background
+source ~/.cargo/env && export PATH="$HOME/.deno/bin:$PATH"
+nohup npx nx serve mcp-dockmaster > dev-server.log 2>&1 &
+
+# Check if server is running (should return HTTP/1.1 200 OK)
+sleep 5 && curl -s -I http://localhost:1420 | head -1
+```
+
+**Access the Application**:
+- **Web Browser**: `http://localhost:1420`
+- **Desktop App**: Opens automatically (native Tauri window)
+- **Custom Server Registry**: `http://localhost:1420/custom-registry`
+
+**Troubleshooting**:
+- If `ERR_CONNECTION_REFUSED`: Server isn't running, check dev-server.log
+- If timeout during start: Always pre-compile Rust components first
+- If cargo not found: Run `source ~/.cargo/env`
+- If deno not found: Run `export PATH="$HOME/.deno/bin:$PATH"`
 
 #### Key Paths
 - **Installed Dockmaster DB**: `/Users/mariya/Library/Application Support/com.mcp-dockmaster.desktop/mcp_dockmaster.db`

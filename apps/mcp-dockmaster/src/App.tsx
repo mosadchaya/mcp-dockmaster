@@ -29,12 +29,11 @@ import {
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import {
   AboutIcon,
-  CustomServerIcon,
   HomeIcon,
   RegistryIcon,
   ServersIcon,
 } from "./components/icons";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ServerCog } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -90,7 +89,7 @@ function AppSidebar() {
     {
       id: "custom-registry",
       label: "Custom Server Registry",
-      icon: CustomServerIcon,
+      icon: ServerCog,
       to: "/custom-registry",
     },
     { id: "about", label: t('navigation.about'), icon: AboutIcon, to: "/about" },
