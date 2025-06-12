@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(retrieved_tool.name, "Updated Tool");
         assert_eq!(retrieved_tool.description, "An updated test tool");
         assert_eq!(retrieved_tool.proxy_id, Some("new_proxy".to_string()));
-        assert_eq!(retrieved_tool.is_active, true);
+        assert!(retrieved_tool.is_active);
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
         let retrieved_tool = db.get_server_tool("test_tool", server_id).unwrap();
 
         // Verify is_active is false
-        assert_eq!(retrieved_tool.is_active, false);
+        assert!(!retrieved_tool.is_active);
 
         // Update the tool to set is_active to true
         let updated_tool = ServerToolInfo {
@@ -317,7 +317,7 @@ mod tests {
         let retrieved_updated_tool = db.get_server_tool("test_tool", server_id).unwrap();
 
         // Verify is_active is now true
-        assert_eq!(retrieved_updated_tool.is_active, true);
+        assert!(retrieved_updated_tool.is_active);
     }
 
     #[test]

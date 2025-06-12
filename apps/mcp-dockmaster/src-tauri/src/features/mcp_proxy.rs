@@ -198,7 +198,7 @@ pub async fn analyze_github_repository(
     mcp_core: State<'_, MCPCore>,
     url: String,
 ) -> Result<Vec<serde_json::Value>, String> {
-    (&*mcp_core).analyze_github_repository(url).await
+    (*mcp_core).analyze_github_repository(url).await
 }
 
 /// Analyze a local directory to extract environment variables

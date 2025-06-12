@@ -10,6 +10,12 @@ pub struct ValidationResult {
     pub warnings: Vec<String>,
 }
 
+impl Default for ValidationResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValidationResult {
     pub fn new() -> Self {
         Self {
@@ -162,7 +168,7 @@ async fn validate_executable_path(path: &str) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(&path_buf)?;
+        let metadata = std::fs::metadata(path_buf)?;
         let permissions = metadata.permissions();
         if permissions.mode() & 0o111 == 0 {
             return Err(anyhow!("File is not executable: {}", resolved_path));
@@ -198,7 +204,7 @@ async fn validate_environment_variables(env_vars: &HashMap<String, String>, resu
         }
 
         // Validate key format (basic check for valid environment variable names)
-        if !key.chars().all(|c| c.is_alphanumeric() || c == '_') || key.chars().next().map_or(false, |c| c.is_numeric()) {
+        if !key.chars().all(|c| c.is_alphanumeric() || c == '_') || key.chars().next().is_some_and(|c| c.is_numeric()) {
             result.add_warning(format!("Environment variable key '{}' may not be valid", key));
         }
 

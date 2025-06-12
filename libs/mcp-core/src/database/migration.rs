@@ -106,7 +106,7 @@ pub fn export_servers_to_json(db_path: &Path) -> Result<String> {
     for env in env_records {
         env_by_server
             .entry(env.server_id.clone())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(
                 env.env_key,
                 ExportedEnvVar {

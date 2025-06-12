@@ -155,8 +155,6 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
 
 /// Analyze the context around an environment variable to determine description and required status
 pub fn analyze_env_var_context(var_name: &str, readme_content: &str) -> (String, bool) {
-    let mut required = false;
-    
     // Patterns that indicate a variable is required
     let required_indicators = [
         "required", "must", "need", "mandatory", "essential", "necessary"
@@ -168,7 +166,7 @@ pub fn analyze_env_var_context(var_name: &str, readme_content: &str) -> (String,
     ];
     
     // Common descriptions for known environment variable patterns
-    let (mut default_description, default_required) = match var_name {
+    let (mut default_description, mut required) = match var_name {
         name if name.contains("API_KEY") || name.contains("APIKEY") => {
             ("API authentication key".to_string(), true)
         },
@@ -204,8 +202,6 @@ pub fn analyze_env_var_context(var_name: &str, readme_content: &str) -> (String,
         }
     };
     
-    required = default_required;
-    
     // Look for context in the README content
     for line in readme_content.lines() {
         let line_lower = line.to_lowercase();
@@ -230,9 +226,9 @@ pub fn analyze_env_var_context(var_name: &str, readme_content: &str) -> (String,
             if line.len() > var_name.len() + 10 {
                 // Clean up the line and try to extract meaningful description
                 let clean_line = line
-                    .replace('`', "")
-                    .replace('*', "")
-                    .replace('#', "")
+                    .chars()
+                    .filter(|&c| c != '`' && c != '*' && c != '#')
+                    .collect::<String>()
                     .trim()
                     .to_string();
                     

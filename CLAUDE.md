@@ -10,21 +10,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: Phase 6 ✅ COMPLETED | Custom Server UX Refinements
+**Current Status**: Phase 6 ✅ COMPLETED | Custom Server UX Refinements + Production Ready
 
-**Latest Update (2025-06-11 - UX Improvements)**:
-- ✅ **Environment Variable UX**: Replaced automatic detection with manual entry approach for better accuracy
-- ✅ **Modal UI Polish**: Fixed padding and layout issues in custom server registration modal
-- ✅ **User-Controlled Workflow**: Users manually add environment variables based on their project needs
-- ✅ **Template System**: Dropdown templates for common environment variable patterns (API_KEY, DATABASE_URL, etc.)
-- ✅ **Clean Interface**: Removed non-functional README reading, simplified UI for better usability
+**Latest Update (2025-06-12 - Dev Environment & Code Quality)**:
+- ✅ **Exported Servers Visibility**: Fixed Phase 1 servers now visible in dev environment
+- ✅ **Database Migration Issues**: Resolved migration conflicts and database path discrepancies
+- ✅ **Dev Server Operational**: All 11 exported servers running successfully at `http://localhost:1420/`
+- ✅ **Code Quality**: Fixed all Clippy warnings (needless borrows, bool assertions, consecutive string replaces)
+- ✅ **Import Tools**: Created working `import-servers.js` script for seamless server migration
 
 **Complete Custom Server Support**:
 - All phases completed with full custom server functionality
 - Enhanced UX with manual environment variable configuration
 - Tested and ready for production use
 - Template variables working: `$HOME/config`, `${USER}/projects`, environment variable resolution
-- Dev server ready for testing: `http://localhost:1420/custom-registry`
+- **Dev server fully operational**: `http://localhost:1420/` (web UI) and `http://localhost:1420/custom-registry`
+- **All 11 exported servers active**: Sequential Thinking, Filesystem, Obsidian, Reddit, Desktop Commander, etc.
 
 **Key Commands**:
 ```bash
@@ -39,6 +40,12 @@ npx nx build mcp-dockmaster-cli
 
 # Quick export (Node.js, no build needed)
 node export-servers.js
+
+# Import servers into dev environment
+node import-servers.js exported-servers.json
+
+# List running servers via CLI
+./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli list
 ```
 
 ## Commands
@@ -208,9 +215,21 @@ sleep 5 && curl -s -I http://localhost:1420 | head -1
 ```
 
 **Access the Application**:
-- **Web Browser**: `http://localhost:1420`
+- **Web Browser**: `http://localhost:1420` ✅ **WORKING** - All 11 exported servers visible
 - **Desktop App**: Opens automatically (native Tauri window)
 - **Custom Server Registry**: `http://localhost:1420/custom-registry`
+
+**Verification**:
+```bash
+# Check server status
+curl -s -I http://localhost:1420 | head -1  # Should return HTTP/1.1 200 OK
+
+# List all running servers
+./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli list
+
+# View server logs
+tail -f dev-server.log | grep -E "(server|tool|initialized)"
+```
 
 **Troubleshooting**:
 - If `ERR_CONNECTION_REFUSED`: Server isn't running, check dev-server.log
@@ -219,15 +238,41 @@ sleep 5 && curl -s -I http://localhost:1420 | head -1
 - If deno not found: Run `export PATH="$HOME/.deno/bin:$PATH"`
 
 #### Key Paths
-- **Installed Dockmaster DB**: `/Users/mariya/Library/Application Support/com.mcp-dockmaster.desktop/mcp_dockmaster.db`
+- **Production Dockmaster DB**: `/Users/mariya/Library/Application Support/com.mcp-dockmaster.desktop/mcp_dockmaster.db`
+- **Dev Server DB**: `/Users/mariya/Library/Application Support/com.mcp-dockmaster.desktop.local/mcp_dockmaster.db` ⭐ **ACTIVE**
+- **CLI DB**: `/Users/mariya/Library/Application Support/com.mcp.dockmaster/mcp_dockmaster.db`
 - **Claude Desktop Config**: `/Users/mariya/Library/Application Support/Claude/claude_desktop_config.json`
-- **Local Fork DB**: `/Users/mariya/Library/Application Support/com.mcp.dockmaster/mcp_dockmaster.db`
+
+**Note**: The dev server uses the `.local` suffix database, which now contains all 11 imported servers.
 
 #### Export Tools Created
 1. **Node.js Export Script**: `export-servers.js` - Quick export without building
-2. **Rust CLI Export**: `apps/mcp-dockmaster-cli/` with export command
+2. **Node.js Import Script**: `import-servers.js` - Import servers into dev environment (NEW)
+3. **Rust CLI Export**: `apps/mcp-dockmaster-cli/` with export command
    - Build: `npx nx build mcp-dockmaster-cli`
    - Run: `./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli export --output <file>`
+
+### Recent Fixes & Improvements (2025-06-12)
+
+#### ✅ Phase 1 Export/Import Resolution
+**Issue**: Exported servers from Phase 1 were not visible in the dev environment
+**Root Cause**: Database path mismatch between CLI (`com.mcp.dockmaster`) and dev server (`com.mcp-dockmaster.desktop.local`)
+**Solution**: 
+- Created `import-servers.js` script that handles both database paths
+- Fixed migration system to handle existing tables properly
+- Verified all 11 servers now visible and running in dev environment
+
+#### ✅ Code Quality Improvements
+- Fixed all Clippy warnings: needless borrows, bool assertions, consecutive string replaces
+- Improved error handling in github.rs environment variable analysis
+- Added Default trait implementations where appropriate
+- Optimized string processing operations
+
+#### ✅ Development Environment Stability
+- Dev server now consistently starts and serves web interface at `http://localhost:1420`
+- All 11 exported servers (Sequential Thinking, Filesystem, Obsidian, etc.) are active
+- Migration conflicts resolved
+- Database operations working correctly across both CLI and web interface
 
 ### Implementation Phases
 
