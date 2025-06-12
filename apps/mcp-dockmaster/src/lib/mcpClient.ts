@@ -247,6 +247,24 @@ export class MCPClient {
     });
   }
   
+  /**
+   * Analyze a GitHub repository to extract environment variables
+   */
+  static async analyzeGitHubRepository(url: string): Promise<Array<{key: string, value: string, description: string, required: boolean}>> {
+    return await invoke<Array<{key: string, value: string, description: string, required: boolean}>>('analyze_github_repository', { 
+      url 
+    });
+  }
+
+  /**
+   * Analyze a local directory to extract environment variables
+   */
+  static async analyzeLocalDirectory(directory: string): Promise<Array<{key: string, value: string, description: string, required: boolean}>> {
+    return await invoke<Array<{key: string, value: string, description: string, required: boolean}>>('analyze_local_directory', { 
+      directory 
+    });
+  }
+  
 
   /**
    * Get Claude configuration for MCP servers

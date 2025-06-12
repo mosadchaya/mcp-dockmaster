@@ -133,11 +133,24 @@ impl MCPCore {
         }
 
         info!("Creating MCP server...");
-        let mcp_server_addr = "127.0.0.1:11011"
+        // Use port 0 to let the OS assign an available port, fallback to 11011 for main app
+        let default_port = if cfg!(test) { "127.0.0.1:0" } else { "127.0.0.1:11011" };
+        let mcp_server_addr: std::net::SocketAddr = default_port
             .parse()
             .map_err(|e: std::net::AddrParseError| InitError::InitMcpServer(e.to_string()))?;
+        
+        // Bind listener first to get the actual address
+        let listener = tokio::net::TcpListener::bind(mcp_server_addr)
+            .await
+            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
+            
+        let actual_addr = listener.local_addr()
+            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
+        info!("Server started on {}", actual_addr);
+        
+        // Now create SSE server with the actual bound address
         let (sse_server, router) = SseServer::new(SseServerConfig {
-            bind: mcp_server_addr,
+            bind: actual_addr,
             sse_path: "/sse".to_string(),
             post_path: "/post".to_string(),
             ct: self.sse_server_cancel_token.clone(),
@@ -148,13 +161,6 @@ impl MCPCore {
         sse_server.with_service(move || McpServer::new(mcp_core.clone()));
 
         let mcp_http_router = Router::new().merge(router);
-
-        // Start HTTP server
-        let listener = tokio::net::TcpListener::bind(mcp_server_addr)
-            .await
-            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
-
-        info!("Server started on {mcp_server_addr}");
         let cancellation_token = self.sse_server_cancel_token.clone();
         let mcp_http_server =
             axum::serve(listener, mcp_http_router).with_graceful_shutdown(async move {

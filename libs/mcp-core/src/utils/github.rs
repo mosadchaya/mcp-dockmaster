@@ -152,3 +152,110 @@ pub fn extract_env_vars_from_readme(readme_content: &str) -> HashSet<String> {
 
     env_vars
 }
+
+/// Analyze the context around an environment variable to determine description and required status
+pub fn analyze_env_var_context(var_name: &str, readme_content: &str) -> (String, bool) {
+    let mut required = false;
+    
+    // Patterns that indicate a variable is required
+    let required_indicators = [
+        "required", "must", "need", "mandatory", "essential", "necessary"
+    ];
+    
+    // Patterns that indicate a variable is optional
+    let optional_indicators = [
+        "optional", "default", "fallback", "if not set", "leave empty"
+    ];
+    
+    // Common descriptions for known environment variable patterns
+    let (mut default_description, default_required) = match var_name {
+        name if name.contains("API_KEY") || name.contains("APIKEY") => {
+            ("API authentication key".to_string(), true)
+        },
+        name if name.contains("TOKEN") => {
+            ("Authentication token".to_string(), true)
+        },
+        name if name.contains("SECRET") => {
+            ("Secret key for authentication or encryption".to_string(), true)
+        },
+        name if name.contains("URL") && name.contains("API") => {
+            ("API endpoint URL".to_string(), false)
+        },
+        name if name.contains("PORT") => {
+            ("Server port number".to_string(), false)
+        },
+        name if name.contains("HOST") => {
+            ("Server hostname or IP address".to_string(), false)
+        },
+        name if name.contains("DB") || name.contains("DATABASE") => {
+            ("Database connection string or URL".to_string(), true)
+        },
+        name if name.contains("PATH") => {
+            ("File or directory path".to_string(), false)
+        },
+        name if name.contains("DEBUG") => {
+            ("Enable debug mode (true/false)".to_string(), false)
+        },
+        name if name.contains("LOG") => {
+            ("Logging configuration".to_string(), false)
+        },
+        _ => {
+            (format!("Environment variable for {}", var_name.to_lowercase().replace('_', " ")), false)
+        }
+    };
+    
+    required = default_required;
+    
+    // Look for context in the README content
+    for line in readme_content.lines() {
+        let line_lower = line.to_lowercase();
+        if line_lower.contains(&var_name.to_lowercase()) {
+            // Check for required indicators
+            for indicator in &required_indicators {
+                if line_lower.contains(indicator) {
+                    required = true;
+                    break;
+                }
+            }
+            
+            // Check for optional indicators (overrides required if found)
+            for indicator in &optional_indicators {
+                if line_lower.contains(indicator) {
+                    required = false;
+                    break;
+                }
+            }
+            
+            // Try to extract a better description from the line
+            if line.len() > var_name.len() + 10 {
+                // Clean up the line and try to extract meaningful description
+                let clean_line = line
+                    .replace('`', "")
+                    .replace('*', "")
+                    .replace('#', "")
+                    .trim()
+                    .to_string();
+                    
+                if clean_line.len() > var_name.len() + 20 && clean_line.len() < 200 {
+                    // Find the part after the variable name
+                    if let Some(pos) = clean_line.find(var_name) {
+                        let after_var = &clean_line[pos + var_name.len()..];
+                        if let Some(colon_pos) = after_var.find(':') {
+                            let potential_desc = after_var[colon_pos + 1..].trim();
+                            if potential_desc.len() > 5 && potential_desc.len() < 150 {
+                                default_description = potential_desc.to_string();
+                            }
+                        } else if let Some(dash_pos) = after_var.find('-') {
+                            let potential_desc = after_var[dash_pos + 1..].trim();
+                            if potential_desc.len() > 5 && potential_desc.len() < 150 {
+                                default_description = potential_desc.to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    (default_description, required)
+}

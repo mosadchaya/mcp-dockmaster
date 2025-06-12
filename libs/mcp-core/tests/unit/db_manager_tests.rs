@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use mcp_core::{
-        database::db_manager::DBManager, models::types::ServerDefinition,
+        database::db_manager::DBManager, models::types::{ServerDefinition, ServerType},
         utils::default_storage_path,
     };
     use serial_test::serial;
@@ -45,6 +45,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Save the tool
@@ -73,6 +76,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         let tool2 = ServerDefinition {
@@ -83,6 +89,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Save the tools
@@ -112,6 +121,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Save the tool
@@ -140,6 +152,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Save the tool
@@ -173,6 +188,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         db.save_server("test_tool", &tool)
@@ -209,6 +227,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Save and retrieve to verify DB is still working

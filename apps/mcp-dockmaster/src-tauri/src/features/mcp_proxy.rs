@@ -191,3 +191,21 @@ pub async fn get_tools_visibility_state(mcp_core: State<'_, MCPCore>) -> Result<
     let mcp_state = mcp_core.mcp_state.read().await;
     Ok(mcp_state.are_tools_hidden().await)
 }
+
+/// Analyze a GitHub repository to extract environment variables
+#[tauri::command]
+pub async fn analyze_github_repository(
+    mcp_core: State<'_, MCPCore>,
+    url: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    (&*mcp_core).analyze_github_repository(url).await
+}
+
+/// Analyze a local directory to extract environment variables
+#[tauri::command]
+pub async fn analyze_local_directory(
+    mcp_core: State<'_, MCPCore>,
+    directory: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    (&*mcp_core).analyze_local_directory(directory).await
+}

@@ -165,6 +165,36 @@ impl MCPState {
             return Err(format!("Missing tools_type for server {server_id}"));
         }
 
+        // Additional validation for custom servers
+        if matches!(server_data.server_type, crate::models::types::ServerType::Local | crate::models::types::ServerType::Custom) {
+            // Validate that custom servers have proper configuration
+            if server_data.configuration.is_none() && server_data.executable_path.is_none() {
+                error!("Custom/Local server {} requires either configuration or executable_path", server_id);
+                return Err(format!("Custom/Local server {} requires either configuration or executable_path", server_id));
+            }
+            
+            // For custom servers with working directory, validate it exists
+            if let Some(working_dir) = &server_data.working_directory {
+                match crate::validation::resolve_template_variables(working_dir) {
+                    Ok(resolved_dir) => {
+                        let path = std::path::Path::new(&resolved_dir);
+                        if !path.exists() {
+                            error!("Working directory does not exist for server {}: {}", server_id, resolved_dir);
+                            return Err(format!("Working directory does not exist: {}", resolved_dir));
+                        }
+                        if !path.is_dir() {
+                            error!("Working directory path is not a directory for server {}: {}", server_id, resolved_dir);
+                            return Err(format!("Working directory path is not a directory: {}", resolved_dir));
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to resolve working directory template for server {}: {}", server_id, e);
+                        return Err(format!("Failed to resolve working directory template: {}", e));
+                    }
+                }
+            }
+        }
+
         // Check if the client already exists
         let client_exists = {
             let mcp_clients = self.mcp_clients.read().await;
@@ -194,11 +224,26 @@ impl MCPState {
                     env_map.len(),
                     server_id
                 );
-                // Convert ToolEnvironment -> just the defaults
-                let simple_env_map: HashMap<String, String> = env_map
-                    .iter()
-                    .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
-                    .collect();
+                // Convert ToolEnvironment -> resolved values
+                let mut simple_env_map: HashMap<String, String> = HashMap::new();
+                for (k, tool_env) in env_map.iter() {
+                    if let Some(value) = &tool_env.default {
+                        // Resolve template variables in environment values
+                        match crate::validation::resolve_template_variables(value) {
+                            Ok(resolved_value) => {
+                                if resolved_value != *value {
+                                    info!("Resolved environment variable '{}' template '{}' to '{}'", k, value, resolved_value);
+                                }
+                                simple_env_map.insert(k.clone(), resolved_value);
+                            },
+                            Err(e) => {
+                                error!("Failed to resolve environment variable '{}' template '{}': {}", k, value, e);
+                                // Use original value as fallback
+                                simple_env_map.insert(k.clone(), value.clone());
+                            }
+                        }
+                    }
+                }
                 Some(simple_env_map)
             } else {
                 info!("No environment variables found for server {server_id}");
@@ -209,12 +254,48 @@ impl MCPState {
             None
         };
 
-        // Get the configuration from the tool data
+        // Get the configuration from the tool data, with support for custom servers with executable_path
         let config_value = if let Some(configuration) = &server_data.configuration {
             info!("Using configuration from server data for {server_id}");
             json!({
                 "command": configuration.command,
                 "args": configuration.args
+            })
+        } else if let Some(executable_path) = &server_data.executable_path {
+            // Handle custom servers with executable_path
+            info!("Creating configuration from executable_path for custom server {server_id}");
+            
+            // Resolve template variables in executable path
+            let resolved_executable = match crate::validation::resolve_template_variables(executable_path) {
+                Ok(resolved) => {
+                    if resolved != *executable_path {
+                        info!("Resolved executable path template '{}' to '{}'", executable_path, resolved);
+                    }
+                    resolved
+                },
+                Err(e) => {
+                    error!("Failed to resolve executable path template '{}': {}", executable_path, e);
+                    return Err(format!("Failed to resolve executable path template: {}", e));
+                }
+            };
+            
+            // Determine command based on server type and tools_type
+            let command = match server_data.tools_type.as_str() {
+                "node" => "node",
+                "python" => "python3",
+                _ => &resolved_executable, // For custom runtime, use the executable directly
+            };
+            
+            // For node/python runtimes, executable_path becomes first argument
+            let args = if matches!(server_data.tools_type.as_str(), "node" | "python") {
+                vec![json!(resolved_executable)]
+            } else {
+                vec![]
+            };
+            
+            json!({
+                "command": command,
+                "args": args
             })
         } else if !server_data
             .entry_point
@@ -227,31 +308,62 @@ impl MCPState {
                 "command": server_data.entry_point
             })
         } else {
-            error!("Missing configuration for server {server_id}");
-            return Err(format!("Missing configuration for server {server_id}"));
+            error!("Missing configuration and executable_path for server {server_id}");
+            return Err(format!("Missing configuration and executable_path for server {server_id}"));
         };
 
         let mut envs = env_vars.unwrap_or_default();
-        let mut sustituted_args = Vec::new();
+        let mut substituted_args = Vec::new();
         for v in config_value["args"].as_array().unwrap_or(&vec![]) {
             let args_key = v.as_str().unwrap();
-            let adapted_args_key = args_key.replace("$", "");
-
-            let args_value = if args_key.starts_with("$") && envs.contains_key(&adapted_args_key) {
-                let args_value_from_env = envs.get(&adapted_args_key).unwrap().clone();
-                envs.remove(&adapted_args_key);
-                args_value_from_env
-            } else {
-                args_key.to_string()
+            
+            // First try template variable resolution (handles $HOME, $USER, etc.)
+            let args_value = match crate::validation::resolve_template_variables(args_key) {
+                Ok(resolved) => {
+                    // If resolved value is different, template was applied
+                    if resolved != args_key {
+                        info!("Resolved argument template '{}' to '{}'", args_key, resolved);
+                        resolved
+                    } else {
+                        // Fall back to legacy environment variable substitution
+                        let adapted_args_key = args_key.replace("$", "");
+                        if args_key.starts_with("$") && envs.contains_key(&adapted_args_key) {
+                            let args_value_from_env = envs.get(&adapted_args_key).unwrap().clone();
+                            envs.remove(&adapted_args_key);
+                            args_value_from_env
+                        } else {
+                            args_key.to_string()
+                        }
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to resolve argument template '{}': {}", args_key, e);
+                    args_key.to_string()
+                }
             };
-            sustituted_args.push(args_value);
+            substituted_args.push(args_value);
         }
 
         let mut command_builder =
             CommandWrappedInShellBuilder::new(config_value["command"].as_str().unwrap());
-        command_builder.args(sustituted_args.iter().map(|s| s.as_str()));
+        command_builder.args(substituted_args.iter().map(|s| s.as_str()));
         command_builder.envs(envs);
-        let command = command_builder.build();
+        
+        // Set working directory for custom servers if specified
+        let mut command = command_builder.build();
+        if let Some(working_dir) = &server_data.working_directory {
+            // Resolve template variables in working directory
+            match crate::validation::resolve_template_variables(working_dir) {
+                Ok(resolved_dir) => {
+                    info!("Setting working directory for server {}: {}", server_id, resolved_dir);
+                    command.current_dir(resolved_dir);
+                },
+                Err(e) => {
+                    error!("Failed to resolve working directory template for server {}: {}", server_id, e);
+                    return Err(format!("Failed to resolve working directory template: {}", e));
+                }
+            }
+        }
 
         let client_info = ClientInfo {
             protocol_version: Default::default(),
@@ -263,11 +375,27 @@ impl MCPState {
         };
 
         let tokio_child_process = TokioChildProcessCustom::new(command)
-            .map_err(|e| format!("Failed to create tokio child process: {e}"))?;
+            .map_err(|e| {
+                error!("Failed to create tokio child process for server {}: {}", server_id, e);
+                // Enhanced error message for custom servers
+                if matches!(server_data.server_type, crate::models::types::ServerType::Local | crate::models::types::ServerType::Custom) {
+                    format!("Failed to start custom server '{}': {}. Please check the executable path and arguments.", server_id, e)
+                } else {
+                    format!("Failed to create tokio child process for server '{}': {}", server_id, e)
+                }
+            })?;
         let service = client_info
             .serve(tokio_child_process)
             .await
-            .map_err(|e| format!("Failed to serve tokio child process: {e}"))?;
+            .map_err(|e| {
+                error!("Failed to serve tokio child process for server {}: {}", server_id, e);
+                // Enhanced error message for custom servers
+                if matches!(server_data.server_type, crate::models::types::ServerType::Local | crate::models::types::ServerType::Custom) {
+                    format!("Failed to initialize custom server '{}': {}. The server may have crashed or failed to start properly.", server_id, e)
+                } else {
+                    format!("Failed to serve tokio child process for server '{}': {}", server_id, e)
+                }
+            })?;
 
         self.mcp_clients.write().await.insert(
             server_id.to_string(),

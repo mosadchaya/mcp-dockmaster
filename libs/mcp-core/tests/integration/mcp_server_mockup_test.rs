@@ -15,6 +15,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Create a unique database path for this test
         use tempfile::tempdir;
@@ -59,6 +60,9 @@ mod tests {
                 env: None,
             }),
             distribution: None,
+            server_type: None,
+            working_directory: None,
+            executable_path: None,
         };
 
         eprintln!("Registering tool with configuration: {registration_request:?}");
@@ -422,6 +426,7 @@ mod tests {
     // }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_server_lifecycle_management() -> Result<(), String> {
         // Create a unique database path for this test
         use tempfile::tempdir;
@@ -466,6 +471,9 @@ mod tests {
                 env: None,
             }),
             distribution: None,
+            server_type: None,
+            working_directory: None,
+            executable_path: None,
         };
 
         // Register the server

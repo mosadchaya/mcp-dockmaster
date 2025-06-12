@@ -24,7 +24,13 @@ interface CustomServerForm {
   executable_path?: string;
   args?: string[];
   working_directory?: string;
-  env_vars?: Record<string, string>;
+  env_vars?: Record<string, CustomEnvConfig>;
+}
+
+interface CustomEnvConfig {
+  value: string;
+  description: string;
+  required: boolean;
 }
 
 const CustomServerRegistry: React.FC = () => {
@@ -58,20 +64,26 @@ const CustomServerRegistry: React.FC = () => {
     env_vars: {},
   });
   
-  // Environment variables state
+  // Environment Variables Guidance Dialog State
+  const [showEnvVarsDialog, setShowEnvVarsDialog] = useState(false);
+  const [envVarDialogValues, setEnvVarDialogValues] = useState<Record<string, string>>({});
+  
+  // Environment variables configuration state
   const [envVarKey, setEnvVarKey] = useState("");
   const [envVarValue, setEnvVarValue] = useState("");
+  const [envVarDescription, setEnvVarDescription] = useState("");
+  const [envVarRequired, setEnvVarRequired] = useState(false);
   
   // Environment variable templates
   const envVarTemplates = [
-    { name: "API Key", key: "API_KEY", value: "", description: "API authentication key" },
-    { name: "API URL", key: "API_URL", value: "https://api.example.com", description: "Base API endpoint URL" },
-    { name: "Database URL", key: "DATABASE_URL", value: "sqlite://./database.db", description: "Database connection string" },
-    { name: "Port", key: "PORT", value: "3000", description: "Server port number" },
-    { name: "Debug Mode", key: "DEBUG", value: "false", description: "Enable debug logging" },
-    { name: "Log Level", key: "LOG_LEVEL", value: "info", description: "Logging level (error, warn, info, debug)" },
-    { name: "Working Directory", key: "WORKDIR", value: "./", description: "Working directory path" },
-    { name: "Config Path", key: "CONFIG_PATH", value: "./config.json", description: "Configuration file path" },
+    { name: "API Key", key: "API_KEY", value: "", description: "API authentication key", required: true },
+    { name: "API URL", key: "API_URL", value: "https://api.example.com", description: "Base API endpoint URL", required: false },
+    { name: "Database URL", key: "DATABASE_URL", value: "sqlite://./database.db", description: "Database connection string", required: false },
+    { name: "Port", key: "PORT", value: "3000", description: "Server port number", required: false },
+    { name: "Debug Mode", key: "DEBUG", value: "false", description: "Enable debug logging", required: false },
+    { name: "Log Level", key: "LOG_LEVEL", value: "info", description: "Logging level (error, warn, info, debug)", required: false },
+    { name: "Working Directory", key: "WORKDIR", value: "./", description: "Working directory path", required: false },
+    { name: "Config Path", key: "CONFIG_PATH", value: "./config.json", description: "Configuration file path", required: false },
   ];
 
   // GitHub Import Modal Functions
@@ -115,6 +127,93 @@ const CustomServerRegistry: React.FC = () => {
       setImportError(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setImportingServer(false);
+    }
+  };
+
+  // Auto-detect environment variables from GitHub URL
+  const analyzeGitHubRepository = async (url: string) => {
+    if (!url?.startsWith("https://github.com/")) {
+      return;
+    }
+
+    try {
+      toast.info("Analyzing repository for environment variables...");
+      const envVars = await MCPClient.analyzeGitHubRepository(url);
+      
+      if (envVars.length > 0) {
+        // Convert to CustomEnvConfig format and add to form
+        const newEnvVars: Record<string, CustomEnvConfig> = {};
+        envVars.forEach(envVar => {
+          newEnvVars[envVar.key] = {
+            value: envVar.value,
+            description: envVar.description,
+            required: envVar.required,
+          };
+        });
+
+        setCustomServerForm(prev => ({
+          ...prev,
+          env_vars: {
+            ...prev.env_vars,
+            ...newEnvVars,
+          },
+        }));
+
+        toast.success(`Found ${envVars.length} environment variables! Added to your server configuration.`);
+      } else {
+        toast.info("No environment variables detected in repository.");
+      }
+    } catch (error) {
+      console.error("Error analyzing repository:", error);
+      toast.error("Failed to analyze repository for environment variables.");
+    }
+  };
+
+  // Read and display README content from local directory
+  const [readmeContent, setReadmeContent] = useState<string>("");
+  const [isLoadingReadme, setIsLoadingReadme] = useState(false);
+
+  const readLocalReadme = async (directory?: string) => {
+    const targetDirectory = directory || customServerForm.working_directory;
+    
+    if (!targetDirectory?.trim()) {
+      toast.error("Please specify a working directory first.");
+      return;
+    }
+
+    setIsLoadingReadme(true);
+    try {
+      // Try to read README files from the directory
+      const readmeFiles = ["README.md", "readme.md", "Readme.md", "README.txt", "readme.txt"];
+      let foundContent = "";
+      
+      for (const filename of readmeFiles) {
+        try {
+          const filePath = `${targetDirectory}/${filename}`;
+          const content = await invoke('read_text_file', { path: filePath }) as string;
+          if (content.trim()) {
+            foundContent = content;
+            break;
+          }
+        } catch (error) {
+          // File doesn't exist, try next one
+          continue;
+        }
+      }
+
+      if (foundContent) {
+        setReadmeContent(foundContent);
+        toast.success("README content loaded successfully!");
+      } else {
+        setReadmeContent("No README file found in the specified directory.");
+        toast.info("No README file found in directory.");
+      }
+    } catch (error) {
+      console.error("Error reading README:", error);
+      setReadmeContent("Failed to read README file.");
+      toast.error("Failed to read README file.");
+    } finally {
+      setIsLoadingReadme(false);
     }
   };
 
@@ -308,6 +407,11 @@ const CustomServerRegistry: React.FC = () => {
             }));
             toast.success(`Auto-detected ${detected.runtime} runtime with ${detected.command}`);
           }
+          
+          // Also read README for reference
+          setTimeout(() => {
+            readLocalReadme(result);
+          }, 1000); // Delay to let runtime detection finish
         } else {
           setCustomServerForm(prev => ({
             ...prev,
@@ -322,23 +426,31 @@ const CustomServerRegistry: React.FC = () => {
   };
 
   const addEnvironmentVariable = () => {
-    if (!envVarKey.trim() || !envVarValue.trim()) return;
+    if (!envVarKey.trim()) return;
     
     setCustomServerForm(prev => ({
       ...prev,
       env_vars: {
         ...prev.env_vars,
-        [envVarKey]: envVarValue,
+        [envVarKey]: {
+          value: envVarValue,
+          description: envVarDescription,
+          required: envVarRequired,
+        },
       },
     }));
     
     setEnvVarKey("");
     setEnvVarValue("");
+    setEnvVarDescription("");
+    setEnvVarRequired(false);
   };
 
   const addTemplateEnvVar = (template: typeof envVarTemplates[0]) => {
     setEnvVarKey(template.key);
     setEnvVarValue(template.value);
+    setEnvVarDescription(template.description);
+    setEnvVarRequired(template.required);
   };
 
   const removeEnvironmentVariable = (key: string) => {
@@ -350,16 +462,75 @@ const CustomServerRegistry: React.FC = () => {
     }));
   };
 
+  // Environment Variables Guidance Dialog Functions
+  const hasEnvVars = () => {
+    return customServerForm.env_vars && Object.keys(customServerForm.env_vars).length > 0;
+  };
+
+  const openEnvVarsDialog = () => {
+    if (!hasEnvVars()) {
+      // No environment variables, proceed directly
+      performServerRegistration();
+      return;
+    }
+
+    // Initialize dialog values with defaults
+    const initialValues: Record<string, string> = {};
+    Object.entries(customServerForm.env_vars || {}).forEach(([key, config]) => {
+      initialValues[key] = config.value || "";
+    });
+
+    setEnvVarDialogValues(initialValues);
+    setShowEnvVarsDialog(true);
+  };
+
+  const handleEnvVarDialogChange = (key: string, value: string) => {
+    setEnvVarDialogValues(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const isEnvVarDialogValid = () => {
+    if (!customServerForm.env_vars) return true;
+    
+    // Check if all required environment variables have values
+    return Object.entries(customServerForm.env_vars).every(([key, config]) => {
+      if (config.required) {
+        const value = envVarDialogValues[key];
+        return value && value.trim() !== "";
+      }
+      return true;
+    });
+  };
+
   const addCustomServer = async () => {
     if (!customServerForm.name.trim() || !customServerForm.description.trim()) {
       setAddServerError("Name and description are required");
       return;
     }
 
+    // Check if environment variables need configuration
+    openEnvVarsDialog();
+  };
+
+  const performServerRegistration = async (finalEnvVars?: Record<string, string>) => {
     setAddingServer(true);
     setAddServerError(null);
     
     try {
+      // Convert environment variables to the format expected by backend
+      let envVarsForBackend: Record<string, string> | null = null;
+      
+      if (customServerForm.env_vars && Object.keys(customServerForm.env_vars).length > 0) {
+        envVarsForBackend = {};
+        Object.entries(customServerForm.env_vars).forEach(([key, config]) => {
+          // Use dialog values if provided, otherwise use default values
+          const value = finalEnvVars?.[key] || config.value || "";
+          envVarsForBackend![key] = value;
+        });
+      }
+
       const response = await invoke("register_custom_server", {
         request: {
           name: customServerForm.name,
@@ -370,12 +541,13 @@ const CustomServerRegistry: React.FC = () => {
           executable_path: customServerForm.executable_path || null,
           args: customServerForm.args && customServerForm.args.length > 0 ? customServerForm.args : null,
           working_directory: customServerForm.working_directory || null,
-          env_vars: Object.keys(customServerForm.env_vars || {}).length > 0 ? customServerForm.env_vars : null,
+          env_vars: envVarsForBackend,
         },
       }) as { success: boolean; message?: string };
 
       if (response.success) {
         closeAddServerModal();
+        setShowEnvVarsDialog(false);
         toast.success("Custom server added successfully!");
       } else {
         setAddServerError(response.message || "Failed to add custom server");
@@ -458,9 +630,9 @@ const CustomServerRegistry: React.FC = () => {
               Enter a GitHub repository URL to import a new MCP server. The repository should contain a package.json (for Node.js) or pyproject.toml (for Python) file.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
-            <p className="text-amber-800 text-sm">
-              <strong>Note:</strong> We will attempt to extract required environment variables from the repository's README.md file. Please note that this process may not identify all required variables correctly.
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-3">
+            <p className="text-blue-800 text-sm">
+              <strong>Enhanced Detection:</strong> We automatically analyze the repository for environment variables from README.md and .env.example files. You can also preview detected variables before importing.
             </p>
           </div>
           <div className="grid gap-4 py-4">
@@ -482,6 +654,13 @@ const CustomServerRegistry: React.FC = () => {
             <Button variant="outline" onClick={closeGitHubImportModal} disabled={importingServer}>
               Cancel
             </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => analyzeGitHubRepository(githubUrl)} 
+              disabled={!githubUrl.trim() || importingServer}
+            >
+              Preview Variables
+            </Button>
             <Button onClick={importServerFromGitHub} disabled={!githubUrl.trim() || importingServer}>
               {importingServer ? "Importing..." : "Import"}
             </Button>
@@ -491,7 +670,7 @@ const CustomServerRegistry: React.FC = () => {
 
       {/* Add Custom Server Modal */}
       <Dialog open={isAddServerModalOpen} onOpenChange={setIsAddServerModalOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[650px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Custom Server</DialogTitle>
             <DialogDescription>
@@ -657,6 +836,33 @@ const CustomServerRegistry: React.FC = () => {
               </div>
             </div>
 
+            {/* GitHub Repository Analysis */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>GitHub Repository (Optional)</Label>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://github.com/owner/repo"
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
+                  disabled={addingServer}
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => analyzeGitHubRepository(githubUrl)}
+                  disabled={!githubUrl.trim() || addingServer}
+                >
+                  Analyze
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Automatically detect environment variables from GitHub repository README and .env.example files.
+              </p>
+            </div>
+
             {/* Environment Variables */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -677,8 +883,32 @@ const CustomServerRegistry: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <div className="flex gap-2">
+              <p className="text-sm text-muted-foreground">
+                Add environment variables required by your server. Use the template dropdown for common patterns or add custom variables manually.
+              </p>
+              
+              {/* README Content Display */}
+              {readmeContent && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">README Content</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setReadmeContent("")}
+                      className="h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto bg-background border rounded p-3 text-xs font-mono whitespace-pre-wrap">
+                    {readmeContent}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
                   <Input
                     placeholder="Variable name"
                     value={envVarKey}
@@ -686,39 +916,95 @@ const CustomServerRegistry: React.FC = () => {
                     disabled={addingServer}
                   />
                   <Input
-                    placeholder="Variable value"
+                    placeholder="Default value"
                     value={envVarValue}
                     onChange={(e) => setEnvVarValue(e.target.value)}
                     disabled={addingServer}
                   />
+                </div>
+                <Input
+                  placeholder="Description (optional)"
+                  value={envVarDescription}
+                  onChange={(e) => setEnvVarDescription(e.target.value)}
+                  disabled={addingServer}
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="env-required"
+                      checked={envVarRequired}
+                      onChange={(e) => setEnvVarRequired(e.target.checked)}
+                      disabled={addingServer}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="env-required" className="text-sm">
+                      Required variable
+                    </Label>
+                  </div>
                   <Button 
                     type="button" 
                     variant="outline" 
                     size="sm"
                     onClick={addEnvironmentVariable}
-                    disabled={!envVarKey.trim() || !envVarValue.trim() || addingServer}
+                    disabled={!envVarKey.trim() || addingServer}
                   >
                     Add
                   </Button>
                 </div>
+              </div>
                 
-                {/* Display existing environment variables */}
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(customServerForm.env_vars || {}).map(([key, value]) => (
-                    <Badge key={key} variant="secondary" className="flex items-center gap-1">
-                      {key}={value}
-                      <button
-                        type="button"
-                        onClick={() => removeEnvironmentVariable(key)}
-                        className="ml-1 text-xs hover:text-destructive"
-                        disabled={addingServer}
-                      >
-                        ×
-                      </button>
-                    </Badge>
+                {/* Display manually added environment variables */}
+                <div className="space-y-2">
+                  {Object.entries(customServerForm.env_vars || {}).map(([key, config]) => (
+                    <div key={key} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{key}</span>
+                          {config.required ? (
+                            <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                              Required
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-300 text-xs">
+                              Optional
+                            </Badge>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEnvironmentVariable(key)}
+                          className="text-xs hover:text-destructive p-1"
+                          disabled={addingServer}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {config.description && (
+                        <div className="text-sm text-muted-foreground">{config.description}</div>
+                      )}
+                      <div className="space-y-1">
+                        <Input
+                          placeholder={config.value || `Enter value for ${key}`}
+                          value={config.value || ""}
+                          onChange={(e) => {
+                            setCustomServerForm(prev => ({
+                              ...prev,
+                              env_vars: {
+                                ...prev.env_vars,
+                                [key]: {
+                                  ...config,
+                                  value: e.target.value,
+                                },
+                              },
+                            }));
+                          }}
+                          disabled={addingServer}
+                        />
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
             </div>
 
             {addServerError && (
@@ -790,6 +1076,100 @@ const CustomServerRegistry: React.FC = () => {
               }}
             >
               Use Selected Runtime
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Environment Variables Guidance Dialog */}
+      <Dialog open={showEnvVarsDialog} onOpenChange={setShowEnvVarsDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Configure Environment Variables - {customServerForm.name}</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const requiredCount = Object.values(customServerForm.env_vars || {}).filter(config => config.required).length;
+                const optionalCount = Object.values(customServerForm.env_vars || {}).filter(config => !config.required).length;
+                
+                if (requiredCount > 0 && optionalCount > 0) {
+                  return `This server requires ${requiredCount} environment variable${requiredCount > 1 ? 's' : ''} and has ${optionalCount} optional variable${optionalCount > 1 ? 's' : ''}.`;
+                } else if (requiredCount > 0) {
+                  return `This server requires ${requiredCount} environment variable${requiredCount > 1 ? 's' : ''}.`;
+                } else {
+                  return `This server has ${optionalCount} optional environment variable${optionalCount > 1 ? 's' : ''}.`;
+                }
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Required Variables Section */}
+            {(() => {
+              const requiredVars = Object.entries(customServerForm.env_vars || {}).filter(([_, config]) => config.required);
+              if (requiredVars.length === 0) return null;
+              
+              return (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-red-700">Required Variables *</h3>
+                  {requiredVars.map(([key, config]) => (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={`env-dialog-${key}`} className="flex items-center gap-1">
+                        {key}
+                        <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id={`env-dialog-${key}`}
+                        placeholder={config.description || key}
+                        value={envVarDialogValues[key] || ""}
+                        onChange={(e) => handleEnvVarDialogChange(key, e.target.value)}
+                        disabled={addingServer}
+                      />
+                      {config.description && (
+                        <div className="text-sm text-muted-foreground">{config.description}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            
+            {/* Optional Variables Section */}
+            {(() => {
+              const optionalVars = Object.entries(customServerForm.env_vars || {}).filter(([_, config]) => !config.required);
+              if (optionalVars.length === 0) return null;
+              
+              return (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-slate-700">Optional Variables</h3>
+                  {optionalVars.map(([key, config]) => (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={`env-dialog-${key}`}>{key}</Label>
+                      <Input
+                        id={`env-dialog-${key}`}
+                        placeholder={config.description || config.value || key}
+                        value={envVarDialogValues[key] || config.value || ""}
+                        onChange={(e) => handleEnvVarDialogChange(key, e.target.value)}
+                        disabled={addingServer}
+                      />
+                      {config.description && (
+                        <div className="text-sm text-muted-foreground">{config.description}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEnvVarsDialog(false)} disabled={addingServer}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => performServerRegistration(envVarDialogValues)} 
+              disabled={!isEnvVarDialogValid() || addingServer}
+            >
+              {addingServer ? "Adding..." : "Add Server"}
             </Button>
           </DialogFooter>
         </DialogContent>

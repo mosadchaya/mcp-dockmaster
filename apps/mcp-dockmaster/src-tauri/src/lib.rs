@@ -1,8 +1,9 @@
 use crate::features::mcp_proxy::{
-    check_database_exists_command, clear_database_command, discover_tools, execute_proxy_tool,
-    get_tools_visibility_state, import_server_from_url, list_all_server_tools, list_servers,
-    register_custom_server, register_server, restart_server_command, set_tools_hidden, 
-    uninstall_server, update_server_config, update_server_status,
+    analyze_github_repository, analyze_local_directory, check_database_exists_command, clear_database_command, 
+    discover_tools, execute_proxy_tool, get_tools_visibility_state, import_server_from_url, 
+    list_all_server_tools, list_servers, register_custom_server, register_server, 
+    restart_server_command, set_tools_hidden, uninstall_server, update_server_config, 
+    update_server_status,
 };
 use commands::{get_app_identifier, get_mcp_proxy_server_binary_path};
 use features::mcp_proxy::{
@@ -192,6 +193,12 @@ mod commands {
         
         Ok(None)
     }
+
+    #[tauri::command]
+    pub async fn read_text_file(path: String) -> Result<String, String> {
+        use std::fs;
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read file {}: {}", path, e))
+    }
 }
 
 fn init_services(app_handle: tauri::AppHandle) {
@@ -297,6 +304,7 @@ pub async fn run() {
             commands::check_uv_project,
             commands::check_node_project,
             commands::check_docker_project,
+            commands::read_text_file,
             register_server,
             register_custom_server,
             list_servers,
@@ -317,6 +325,8 @@ pub async fn run() {
             get_cursor_config,
             get_generic_config,
             import_server_from_url,
+            analyze_github_repository,
+            analyze_local_directory,
             restart_process,
             is_process_running,
             check_for_updates_command,

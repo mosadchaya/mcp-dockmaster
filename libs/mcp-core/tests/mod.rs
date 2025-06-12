@@ -8,4 +8,5 @@ mod unit {
     mod mcp_core_runtimes_ext;
     mod server_tool_info_db_tests;
     mod server_tool_info_deserialization_tests;
+    mod template_resolution_tests;
 }

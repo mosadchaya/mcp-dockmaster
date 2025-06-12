@@ -2,8 +2,7 @@
 mod tests {
     use mcp_core::{
         database::db_manager::DBManager,
-        models::types::{InputSchema, InputSchemaProperty, ServerToolInfo},
-        types::ServerDefinition,
+        models::types::{InputSchema, InputSchemaProperty, ServerToolInfo, ServerDefinition, ServerType},
     };
     use serial_test::serial;
     use std::collections::HashMap;
@@ -35,6 +34,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 
@@ -118,6 +120,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 
@@ -169,6 +174,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 
@@ -209,6 +217,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 
@@ -263,6 +274,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 
@@ -321,6 +335,9 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
+            server_type: ServerType::Package,
+            working_directory: None,
+            executable_path: None,
         };
         db.save_server(server_id, &server).unwrap();
 

@@ -7,7 +7,7 @@ use crate::models::types::{
 };
 use crate::types::ServerToolInfo;
 use crate::utils::github::{
-    extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
+    analyze_env_var_context, extract_env_vars_from_readme, fetch_github_file, parse_github_url, GitHubRepo,
 };
 use crate::validation::{validate_custom_server, resolve_template_variables};
 use anyhow::Result;
@@ -76,6 +76,18 @@ pub trait McpCoreProxyExt {
         &self,
         request: CustomServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
+    
+    /// Analyze a GitHub repository to extract environment variables
+    async fn analyze_github_repository(
+        &self,
+        github_url: String,
+    ) -> Result<Vec<serde_json::Value>, String>;
+    
+    /// Analyze a local directory to extract environment variables
+    async fn analyze_local_directory(
+        &self,
+        directory: String,
+    ) -> Result<Vec<serde_json::Value>, String>;
 }
 
 #[async_trait]
@@ -953,5 +965,200 @@ impl McpCoreProxyExt for MCPCore {
 
         // Register the server using the standard registration method
         self.register_server(registration_request).await
+    }
+    
+    /// Analyze a GitHub repository to extract environment variables
+    async fn analyze_github_repository(
+        &self,
+        github_url: String,
+    ) -> Result<Vec<serde_json::Value>, String> {
+        info!("Analyzing GitHub repository for environment variables: {}", github_url);
+
+        // Parse GitHub URL
+        let repo_info = parse_github_url(&github_url)?;
+        info!("Parsed GitHub URL: owner={}, repo={}", repo_info.owner, repo_info.repo);
+
+        // Create HTTP client
+        let client = Client::builder()
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
+
+        // Extract environment variables from README.md
+        let mut env_vars = HashSet::new();
+        let readme_result = fetch_github_file(&client, &repo_info.owner, &repo_info.repo, "README.md").await;
+        
+        let readme_content = match &readme_result {
+            Ok(content) => {
+                info!("Found README.md, extracting environment variables");
+                env_vars = extract_env_vars_from_readme(content);
+                info!("Extracted {} environment variables from README.md", env_vars.len());
+                content.clone()
+            },
+            Err(_) => String::new()
+        };
+
+        // Try to fetch .env.example file for additional environment variables
+        let env_example_result = fetch_github_file(&client, &repo_info.owner, &repo_info.repo, ".env.example").await;
+        if let Ok(env_example_content) = env_example_result {
+            info!("Found .env.example file");
+            for line in env_example_content.lines() {
+                if let Some(eq_pos) = line.find('=') {
+                    let var_name = line[..eq_pos].trim();
+                    if var_name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') {
+                        env_vars.insert(var_name.to_string());
+                    }
+                }
+            }
+        }
+
+        // Convert to structured format with enhanced detection
+        let mut result = Vec::new();
+        
+        for var_name in env_vars {
+            let (description, required) = analyze_env_var_context(&var_name, &readme_content);
+            
+            result.push(serde_json::json!({
+                "key": var_name,
+                "value": "",
+                "description": description,
+                "required": required
+            }));
+        }
+
+        // Sort by required first, then alphabetically
+        result.sort_by(|a, b| {
+            let a_required = a["required"].as_bool().unwrap_or(false);
+            let b_required = b["required"].as_bool().unwrap_or(false);
+            
+            match (a_required, b_required) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a["key"].as_str().unwrap_or("").cmp(b["key"].as_str().unwrap_or(""))
+            }
+        });
+
+        info!("Repository analysis complete. Found {} environment variables", result.len());
+        Ok(result)
+    }
+    
+    /// Analyze a local directory to extract environment variables
+    async fn analyze_local_directory(
+        &self,
+        directory: String,
+    ) -> Result<Vec<serde_json::Value>, String> {
+        info!("Analyzing local directory for environment variables: {}", directory);
+
+        use std::path::Path;
+        use std::fs;
+
+        let dir_path = Path::new(&directory);
+        if !dir_path.exists() || !dir_path.is_dir() {
+            return Err(format!("Directory does not exist or is not a directory: {}", directory));
+        }
+
+        // Extract environment variables from local files
+        let mut env_vars = HashSet::new();
+        let mut readme_content = String::new();
+
+        // Files to check for environment variables
+        let files_to_check = [
+            "README.md", 
+            "readme.md", 
+            "Readme.md", 
+            ".env.example", 
+            ".env.template", 
+            ".env.sample",
+            "config.example.json",
+            "config.template.json"
+        ];
+
+        for file_name in &files_to_check {
+            let file_path = dir_path.join(file_name);
+            if file_path.exists() && file_path.is_file() {
+                match fs::read_to_string(&file_path) {
+                    Ok(content) => {
+                        info!("Found and reading {}", file_name);
+                        
+                        if file_name.to_lowercase().contains("readme") {
+                            // For README files, extract using existing regex patterns
+                            let extracted = extract_env_vars_from_readme(&content);
+                            env_vars.extend(extracted);
+                            readme_content = content;
+                        } else if file_name.starts_with(".env") {
+                            // For .env files, parse key=value pairs
+                            for line in content.lines() {
+                                let line = line.trim();
+                                if line.is_empty() || line.starts_with('#') {
+                                    continue;
+                                }
+                                if let Some(eq_pos) = line.find('=') {
+                                    let var_name = line[..eq_pos].trim();
+                                    if var_name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') 
+                                        && var_name.len() > 1 {
+                                        env_vars.insert(var_name.to_string());
+                                    }
+                                }
+                            }
+                        } else if file_name.contains("config") && file_name.ends_with(".json") {
+                            // For JSON config files, look for keys that look like env vars
+                            if let Ok(json_value) = serde_json::from_str::<Value>(&content) {
+                                fn extract_env_keys(value: &Value, env_vars: &mut HashSet<String>) {
+                                    match value {
+                                        Value::Object(map) => {
+                                            for (key, val) in map {
+                                                if key.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') 
+                                                    && key.len() > 2 {
+                                                    env_vars.insert(key.clone());
+                                                }
+                                                extract_env_keys(val, env_vars);
+                                            }
+                                        },
+                                        Value::Array(arr) => {
+                                            for item in arr {
+                                                extract_env_keys(item, env_vars);
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                                extract_env_keys(&json_value, &mut env_vars);
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        info!("Could not read {}: {}", file_name, e);
+                    }
+                }
+            }
+        }
+
+        // Convert to structured format with enhanced detection
+        let mut result = Vec::new();
+        
+        for var_name in env_vars {
+            let (description, required) = analyze_env_var_context(&var_name, &readme_content);
+            
+            result.push(serde_json::json!({
+                "key": var_name,
+                "value": "",
+                "description": description,
+                "required": required
+            }));
+        }
+
+        // Sort by required first, then alphabetically
+        result.sort_by(|a, b| {
+            let a_required = a["required"].as_bool().unwrap_or(false);
+            let b_required = b["required"].as_bool().unwrap_or(false);
+            
+            match (a_required, b_required) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a["key"].as_str().unwrap_or("").cmp(b["key"].as_str().unwrap_or(""))
+            }
+        });
+
+        info!("Local directory analysis complete. Found {} environment variables", result.len());
+        Ok(result)
     }
 }
