@@ -171,7 +171,6 @@ const CustomServerRegistry: React.FC = () => {
 
   // Read and display README content from local directory
   const [readmeContent, setReadmeContent] = useState<string>("");
-  const [isLoadingReadme, setIsLoadingReadme] = useState(false);
 
   const readLocalReadme = async (directory?: string) => {
     const targetDirectory = directory || customServerForm.working_directory;
@@ -181,7 +180,6 @@ const CustomServerRegistry: React.FC = () => {
       return;
     }
 
-    setIsLoadingReadme(true);
     try {
       // Try to read README files from the directory
       const readmeFiles = ["README.md", "readme.md", "Readme.md", "README.txt", "readme.txt"];
@@ -212,8 +210,6 @@ const CustomServerRegistry: React.FC = () => {
       console.error("Error reading README:", error);
       setReadmeContent("Failed to read README file.");
       toast.error("Failed to read README file.");
-    } finally {
-      setIsLoadingReadme(false);
     }
   };
 
