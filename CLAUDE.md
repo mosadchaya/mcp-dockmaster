@@ -12,7 +12,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Current Status**: PRODUCTION DEPLOYMENT ✅ COMPLETED | Ready for Distribution
 
-**Latest Update (2025-06-11 - Production Deployment)**:
+**Latest Update (2025-06-13 - Arguments Support for Custom Servers)**:
+- ✅ **Arguments Field**: Added command-line arguments support to custom server configuration
+- ✅ **UI Enhancement**: Arguments input field positioned above environment variables in form
+- ✅ **Backend Validation**: Enhanced argument validation with template resolution and path checking
+- ✅ **Clanki Pattern Support**: Full support for clanki-style servers with `node` command and file path arguments
+- ✅ **Code Quality**: Fixed Clippy warnings in validation code (slice usage over vector references)
+
+**Previous Update (2025-06-11 - Production Deployment)**:
 - ✅ **Production Build**: Successfully built production version with all dependencies
 - ✅ **Application Installation**: MCP Dockmaster now accessible from `/Applications/MCP Dockmaster.app`
 - ✅ **Server Preservation**: All 11 imported servers preserved and running in production
@@ -568,6 +575,35 @@ tail -f dev-server.log | grep -E "(server|tool|initialized)"
 - Improved modal padding and width to prevent horizontal scrollbars
 - Manual environment variable entry with template assistance for common patterns
 - Better user experience with accurate, user-controlled configuration approach
+
+#### Phase 7: Arguments Support ✅ COMPLETED (2025-06-13)
+- [x] **UI Arguments Field**: Added command-line arguments input field to custom server form
+- [x] **Form Positioning**: Positioned arguments field above environment variables for logical flow
+- [x] **Comma-Separated Input**: User-friendly comma-separated input with automatic array conversion
+- [x] **Backend Validation**: Enhanced `validate_arguments()` function in `validation.rs`
+- [x] **Template Resolution**: Arguments support template variables like `$HOME`, `$USER`
+- [x] **Path Validation**: Warns about non-existent file paths in arguments
+- [x] **Clanki Pattern Support**: Full support for clanki-style servers with file path arguments
+
+**Phase 7 Implementation Details:**
+- **Frontend**: Added arguments field in `CustomServerRegistry.tsx` with comma-separated input parsing
+- **Backend**: Enhanced `validate_custom_server()` to include argument validation
+- **Validation**: New `validate_arguments()` function with template resolution and path checking
+- **Code Quality**: Fixed Clippy warning by using slice (`&[String]`) instead of vector reference
+- **User Experience**: Clear placeholder text and helpful description for argument format
+
+**Phase 7 Clanki Example:**
+Users can now configure clanki servers with:
+- **Command**: `node`
+- **Arguments**: `/Users/mariya/Documents/GitHub/clanki/build/index.js`
+- **Server Type**: `local`
+- **Runtime**: `node`
+
+**Phase 7 Outputs:**
+- Enhanced `apps/mcp-dockmaster/src/components/CustomServerRegistry.tsx` with arguments field
+- Updated `libs/mcp-core/src/validation.rs` with comprehensive argument validation
+- Full support for Claude Desktop patterns like clanki with command-line arguments
+- Improved form layout with logical field ordering
 
 ### Key Files for This Project
 - Database schema: `libs/mcp-core/migrations/sqlite/`

@@ -89,6 +89,11 @@ pub async fn validate_custom_server(
         }
     }
 
+    // Validate arguments
+    if let Some(args) = _args {
+        validate_arguments(args, &mut result);
+    }
+
     // Validate environment variables
     if let Some(env) = env_vars {
         validate_environment_variables(env, &mut result).await;
@@ -192,6 +197,38 @@ async fn validate_working_directory(path: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Validate command-line arguments
+fn validate_arguments(args: &[String], result: &mut ValidationResult) {
+    for (index, arg) in args.iter().enumerate() {
+        // Check for empty arguments
+        if arg.trim().is_empty() {
+            result.add_warning(format!("Argument at index {} is empty", index));
+            continue;
+        }
+
+        // Try to resolve template variables in arguments
+        match resolve_template_variables(arg) {
+            Ok(resolved) => {
+                // Check if the resolved argument looks like a file path and validate it
+                if arg.contains('/') && !arg.starts_with('-') {
+                    let path = Path::new(&resolved);
+                    if path.is_absolute() && !path.exists() {
+                        result.add_warning(format!("Argument '{}' points to non-existent path: {}", arg, resolved));
+                    }
+                }
+            },
+            Err(e) => {
+                result.add_warning(format!("Could not resolve template in argument '{}': {}", arg, e));
+            }
+        }
+    }
+
+    // Validate argument count (reasonable limit)
+    if args.len() > 50 {
+        result.add_warning(format!("Large number of arguments ({}). This may be excessive.", args.len()));
+    }
 }
 
 /// Validate environment variables and resolve templates

@@ -207,5 +207,5 @@ pub async fn analyze_local_directory(
     mcp_core: State<'_, MCPCore>,
     directory: String,
 ) -> Result<Vec<serde_json::Value>, String> {
-    (&*mcp_core).analyze_local_directory(directory).await
+    mcp_core.analyze_local_directory(directory).await
 }

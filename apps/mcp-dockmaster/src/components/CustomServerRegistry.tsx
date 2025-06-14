@@ -859,6 +859,29 @@ const CustomServerRegistry: React.FC = () => {
               </p>
             </div>
 
+            {/* Arguments */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="arguments">Arguments</Label>
+                <Input
+                  id="arguments"
+                  placeholder="Comma-separated arguments (e.g., --port, 3000, --env, production)"
+                  value={customServerForm.args?.join(', ') || ''}
+                  onChange={(e) => {
+                    const argsString = e.target.value.trim();
+                    const argsArray = argsString 
+                      ? argsString.split(',').map(arg => arg.trim()).filter(arg => arg.length > 0)
+                      : [];
+                    setCustomServerForm(prev => ({ ...prev, args: argsArray }));
+                  }}
+                  disabled={addingServer}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Comma-separated list of command-line arguments. For example: "--port, 3000" or "/path/to/file.js"
+                </p>
+              </div>
+            </div>
+
             {/* Environment Variables */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
