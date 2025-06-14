@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
 use crate::{
+    config::ToolConfig,
     core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
     mcp_server_implementation::registry_cache::fetch_tool_from_registry,
     registry::registry_search::{RegistrySearch, SearchError},
@@ -46,18 +47,32 @@ struct ServerSearchRequest {
     query: String,
 }
 
-/// Constants for tool names
-pub const TOOL_REGISTER_SERVER: &str = "mcp_register_server";
-pub const TOOL_SEARCH_SERVER: &str = "mcp_search_server";
-pub const TOOL_CONFIGURE_SERVER: &str = "mcp_configure_server";
-pub const TOOL_UNINSTALL_SERVER: &str = "mcp_uninstall_server";
-pub const TOOL_LIST_INSTALLED_SERVERS: &str = "mcp_list_installed_servers";
+/// Base tool names (without namespace)
+const BASE_TOOL_REGISTER_SERVER: &str = "register_server";
+const BASE_TOOL_SEARCH_SERVER: &str = "search_server";
+const BASE_TOOL_CONFIGURE_SERVER: &str = "configure_server";
+const BASE_TOOL_UNINSTALL_SERVER: &str = "uninstall_server";
+const BASE_TOOL_LIST_INSTALLED_SERVERS: &str = "list_installed_servers";
+
+/// Get namespaced tool names using configuration
+pub fn get_tool_names() -> (String, String, String, String, String) {
+    let config = ToolConfig::from_env();
+    (
+        config.tool_name(BASE_TOOL_REGISTER_SERVER),
+        config.tool_name(BASE_TOOL_SEARCH_SERVER),
+        config.tool_name(BASE_TOOL_CONFIGURE_SERVER),
+        config.tool_name(BASE_TOOL_UNINSTALL_SERVER),
+        config.tool_name(BASE_TOOL_LIST_INSTALLED_SERVERS),
+    )
+}
 
 /// Get the list installed servers tool definition
 pub fn get_list_installed_servers_tool() -> Tool {
+    let config = ToolConfig::from_env();
+    let tool_name = config.tool_name(BASE_TOOL_LIST_INSTALLED_SERVERS);
     Tool {
-        name: Cow::Owned(TOOL_LIST_INSTALLED_SERVERS.to_string()),
-        description: Some(Cow::Owned("List all installed servers".to_string())),
+        name: Cow::Owned(tool_name),
+        description: Some(Cow::Owned("List all installed MCP Dockmaster servers".to_string())),
         input_schema: Arc::new(serde_json::Map::from_iter([
             ("type".to_string(), json!("object")),
             ("properties".to_string(), json!({})),
@@ -69,10 +84,12 @@ pub fn get_list_installed_servers_tool() -> Tool {
 
 /// Get the register_server tool definition
 pub fn get_register_server_tool() -> Tool {
+    let config = ToolConfig::from_env();
+    let tool_name = config.tool_name(BASE_TOOL_REGISTER_SERVER);
     Tool {
-        name: Cow::Owned(TOOL_REGISTER_SERVER.to_string()),
+        name: Cow::Owned(tool_name),
         description: Some(Cow::Owned(
-            "Register a new server with MCP using its registry tool ID".to_string(),
+            "Register a new MCP server with Dockmaster using its registry tool ID".to_string(),
         )),
         input_schema: Arc::new(serde_json::Map::from_iter([
             ("type".to_string(), json!("object")),
@@ -92,10 +109,12 @@ pub fn get_register_server_tool() -> Tool {
 }
 
 pub fn get_search_server_tool() -> Tool {
+    let config = ToolConfig::from_env();
+    let tool_name = config.tool_name(BASE_TOOL_SEARCH_SERVER);
     Tool {
-        name: Cow::Owned(TOOL_SEARCH_SERVER.to_string()),
+        name: Cow::Owned(tool_name),
         description: Some(Cow::Owned(
-            "Search for MCP Servers in the registry".to_string(),
+            "Search for MCP Servers in the Dockmaster registry".to_string(),
         )),
         input_schema: Arc::new(serde_json::Map::from_iter([
             ("type".to_string(), json!("object")),
@@ -115,10 +134,12 @@ pub fn get_search_server_tool() -> Tool {
 }
 
 pub fn get_configure_server_tool() -> Tool {
+    let config = ToolConfig::from_env();
+    let tool_name = config.tool_name(BASE_TOOL_CONFIGURE_SERVER);
     Tool {
-        name: Cow::Owned(TOOL_CONFIGURE_SERVER.to_string()),
+        name: Cow::Owned(tool_name),
         description: Some(Cow::Owned(
-            "Configure a server and its environment variables".to_string(),
+            "Configure a Dockmaster server and its environment variables".to_string(),
         )),
         input_schema: Arc::new(serde_json::Map::from_iter([
             ("type".to_string(), json!("object")),
@@ -143,10 +164,12 @@ pub fn get_configure_server_tool() -> Tool {
 
 /// Get the uninstall_server tool definition
 pub fn get_uninstall_server_tool() -> Tool {
+    let config = ToolConfig::from_env();
+    let tool_name = config.tool_name(BASE_TOOL_UNINSTALL_SERVER);
     Tool {
-        name: Cow::Owned(TOOL_UNINSTALL_SERVER.to_string()),
+        name: Cow::Owned(tool_name),
         description: Some(Cow::Owned(
-            "Uninstall a server from MCP using its registry tool ID".to_string(),
+            "Uninstall a server from Dockmaster using its registry tool ID".to_string(),
         )),
         input_schema: Arc::new(serde_json::Map::from_iter([
             ("type".to_string(), json!("object")),

@@ -17,11 +17,10 @@ use crate::{
 use super::{
     get_configure_server_tool, get_register_server_tool, get_search_server_tool,
     tools::{
-        get_list_installed_servers_tool, get_uninstall_server_tool, handle_configure_server,
-        handle_list_installed_servers, handle_register_server, handle_search_server,
-        handle_uninstall_server, TOOL_LIST_INSTALLED_SERVERS, TOOL_UNINSTALL_SERVER,
+        get_list_installed_servers_tool, get_tool_names, get_uninstall_server_tool,
+        handle_configure_server, handle_list_installed_servers, handle_register_server,
+        handle_search_server, handle_uninstall_server,
     },
-    TOOL_CONFIGURE_SERVER, TOOL_REGISTER_SERVER, TOOL_SEARCH_SERVER,
 };
 
 pub struct McpServer {
@@ -83,31 +82,33 @@ impl ServerHandler for McpServer {
         request: CallToolRequestParam,
         _: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        // let tool_id = request.name.into();
+        // Get the current tool names from configuration
+        let (tool_register, tool_search, tool_configure, tool_uninstall, tool_list) = get_tool_names();
+        
         match request.name.clone().to_string().as_str() {
-            TOOL_REGISTER_SERVER => {
+            name if name == tool_register => {
                 handle_register_server(
                     self.mcp_core.clone(),
                     request.arguments.clone().unwrap_or_default(),
                 )
                 .await
             }
-            TOOL_SEARCH_SERVER => handle_search_server(request.arguments.unwrap_or_default()).await,
-            TOOL_CONFIGURE_SERVER => {
+            name if name == tool_search => handle_search_server(request.arguments.unwrap_or_default()).await,
+            name if name == tool_configure => {
                 handle_configure_server(
                     self.mcp_core.clone(),
                     request.arguments.unwrap_or_default(),
                 )
                 .await
             }
-            TOOL_UNINSTALL_SERVER => {
+            name if name == tool_uninstall => {
                 handle_uninstall_server(
                     self.mcp_core.clone(),
                     request.arguments.unwrap_or_default(),
                 )
                 .await
             }
-            TOOL_LIST_INSTALLED_SERVERS => {
+            name if name == tool_list => {
                 handle_list_installed_servers(self.mcp_core.clone()).await
             }
             _ => {

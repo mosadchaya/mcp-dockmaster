@@ -10,9 +10,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: PRODUCTION DEPLOYMENT ✅ COMPLETED | Ready for Distribution
+**Current Status**: PRODUCTION DEPLOYMENT ✅ COMPLETED | Version 0.3.0 with Namespace Separation
 
-**Latest Update (2025-06-13 - Arguments Support for Custom Servers)**:
+**Latest Update (2025-06-14 - Namespace Separation Production Deployment)**:
+- ✅ **Tool Namespace Configuration**: Implemented configurable namespacing to prevent conflicts with Claude's built-in MCP functions
+- ✅ **Environment Variable Control**: Added `DOCKMASTER_TOOL_PREFIX` and `DOCKMASTER_NAMESPACE_MODE` configuration options
+- ✅ **Backward Compatibility**: Support for both namespaced (`dockmaster_*`) and legacy (`mcp_*`) tool names
+- ✅ **Dynamic Tool Names**: Tools now use configurable names based on environment variables
+- ✅ **Updated Descriptions**: Enhanced tool descriptions to clearly identify Dockmaster-specific functionality
+- ✅ **Production Deployment**: Version 0.3.0 successfully deployed with automated deployment script
+- ✅ **Streamlined Process**: Created `deploy.sh` script for efficient future deployments
+
+**Previous Update (2025-06-13 - Arguments Support for Custom Servers)**:
 - ✅ **Arguments Field**: Added command-line arguments support to custom server configuration
 - ✅ **UI Enhancement**: Arguments input field positioned above environment variables in form
 - ✅ **Backend Validation**: Enhanced argument validation with template resolution and path checking
@@ -49,6 +58,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Key Commands**:
 ```bash
+# Automated Production Deployment (RECOMMENDED)
+./deploy.sh [version] [--skip-tests] [--skip-version-bump]
+
+# Examples:
+./deploy.sh 0.3.0                    # Full deployment with version bump
+./deploy.sh 0.3.0 --skip-tests       # Skip tests for faster deployment
+./deploy.sh --skip-version-bump      # Deploy without version change
+
+# Manual Build Commands (for development)
 # Build production app
 source ~/.cargo/env && export PATH="$HOME/.deno/bin:$PATH" && npx nx build mcp-dockmaster --configuration=production
 
@@ -69,6 +87,74 @@ node import-servers.js exported-servers.json
 
 # List running servers via CLI
 ./apps/mcp-dockmaster-cli/target/debug/mcp-dockmaster-cli list
+```
+
+## Deployment
+
+### Automated Production Deployment
+
+The `deploy.sh` script provides a streamlined way to build and deploy MCP Dockmaster to production:
+
+**Features**:
+- ✅ **Version Management**: Automatically updates version numbers across all components
+- ✅ **Pre-compilation**: Rust components compiled before Tauri build to prevent timeouts
+- ✅ **Testing**: Runs comprehensive tests before deployment (can be skipped)
+- ✅ **Backup**: Creates backup of current production version
+- ✅ **DMG Generation**: Automatically creates installer DMG
+- ✅ **Error Handling**: Stops deployment on any error
+- ✅ **Colored Output**: Clear status messages with color coding
+
+**Usage**:
+```bash
+# Full deployment with version bump and testing
+./deploy.sh 0.3.0
+
+# Quick deployment without tests (for urgent fixes)
+./deploy.sh 0.3.0 --skip-tests
+
+# Deploy current code without version change
+./deploy.sh --skip-version-bump
+
+# Background mode for long builds (prevents timeout issues)
+./deploy.sh 0.3.0 --background
+
+# Deploy with custom settings
+./deploy.sh 0.3.1 --skip-tests --skip-version-bump --background
+```
+
+**Output Locations**:
+- **Production App**: `/Applications/MCP Dockmaster.app`
+- **DMG Installer**: `dist/releases/MCP Dockmaster_[version]_aarch64.dmg`
+- **Backups**: `deployment-backups/MCP Dockmaster-backup-[timestamp].app`
+
+**Deployment Steps**:
+1. Environment setup (Cargo, Deno)
+2. Version number updates (if specified)
+3. Comprehensive testing (if not skipped)
+4. Rust pre-compilation (prevents Tauri timeouts)
+5. Production backup creation
+6. Tauri production build (with timeout handling)
+7. DMG installer generation
+8. Deployment summary with verification steps
+
+**Timeout Issues & Solutions**:
+- **Problem**: Tauri builds can take 3-5 minutes, causing timeouts in CI/command-line tools
+- **Root Cause**: Cold compilation of large Rust codebases requires significant time
+- **Solutions Implemented**:
+  - ✅ **Pre-compilation**: Rust components built separately before Tauri build
+  - ✅ **Background Mode**: `--background` flag runs builds with progress indicators
+  - ✅ **Extended Timeouts**: 30-minute timeout for production builds
+  - ✅ **Progress Feedback**: Visual progress indicators for long-running operations
+  - ✅ **Detailed Logging**: Complete build logs saved to `deployment.log`
+  - ✅ **Error Recovery**: Checks for successful app creation even with build warnings
+
+**Recommended Usage for Avoiding Timeouts**:
+```bash
+# Use background mode for CI or automated deployments
+./deploy.sh 0.3.0 --background
+
+# For development, pre-compilation usually sufficient
+./deploy.sh 0.3.0 --skip-tests
 ```
 
 ## Commands
@@ -148,6 +234,35 @@ MCP Dockmaster is a monorepo managed by Nx with the following structure:
 - Configuration (environment variables, arguments)
 - Integration with AI assistants (automatic config file updates)
 - Process management (start/stop/restart)
+
+**Tool Namespace Configuration**: To prevent conflicts with Claude's built-in MCP functions, Dockmaster supports configurable tool namespacing:
+- **Default Behavior**: Tools are prefixed with `dockmaster_` (e.g., `dockmaster_register_server`, `dockmaster_list_installed_servers`)
+- **Environment Variables**:
+  - `DOCKMASTER_TOOL_PREFIX`: Custom prefix for tool names (default: `dockmaster_`)
+  - `DOCKMASTER_NAMESPACE_MODE`: Enable/disable namespacing (`enabled`/`disabled`, default: `enabled`)
+- **Backward Compatibility**: Set `DOCKMASTER_NAMESPACE_MODE=disabled` to use legacy `mcp_*` names
+- **Configuration Location**: Add environment variables to Claude Desktop config's Dockmaster server entry
+
+**Example Claude Desktop Configuration**:
+```json
+{
+  "mcpServers": {
+    "mcp-dockmaster": {
+      "command": "/path/to/mcp-proxy-server",
+      "args": ["--port", "11011"],
+      "env": {
+        "DOCKMASTER_TOOL_PREFIX": "dm_",
+        "DOCKMASTER_NAMESPACE_MODE": "enabled"
+      }
+    }
+  }
+}
+```
+
+**Available Tool Names**:
+- **Default (namespaced)**: `dockmaster_register_server`, `dockmaster_search_server`, `dockmaster_configure_server`, `dockmaster_uninstall_server`, `dockmaster_list_installed_servers`
+- **Custom prefix**: With `DOCKMASTER_TOOL_PREFIX=dm_`: `dm_register_server`, `dm_search_server`, etc.
+- **Legacy (disabled namespace)**: `register_server`, `search_server`, `configure_server`, `uninstall_server`, `list_installed_servers`
 
 ### Database Schema
 
