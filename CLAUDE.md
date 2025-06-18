@@ -10,9 +10,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start for Custom Server Patterns Project
 
-**Current Status**: PRODUCTION DEPLOYMENT ✅ COMPLETED | Version 0.3.0 with Namespace Separation
+**Current Status**: PRODUCTION DEPLOYMENT ✅ COMPLETED | Version 0.3.1 with Package Server Support
 
-**Latest Update (2025-06-14 - Namespace Separation Production Deployment)**:
+**Latest Update (2025-06-18 - Package Server Support and User Guidance)**:
+- ✅ **Package Server Type Support**: Extended validation to accept "package" server type alongside "local" and "custom"
+- ✅ **User Guidance System**: Added comprehensive UI guidance for package server configuration
+- ✅ **Dynamic Command Examples**: Context-aware placeholders and examples based on server type selection
+- ✅ **Package Format Education**: Clear guidance that users should use `npx package-name` instead of `npm install package-name`
+- ✅ **Multi-Runtime Support**: Examples for npm (`npx`), Python (`uvx`), and scoped packages
+- ✅ **Production Deployment**: Version 0.3.1 successfully deployed with package server support
+
+### Package Server Configuration Guide
+
+**How to Add Package Servers (e.g., agent-twitter-client-mcp)**:
+
+1. **Select Server Type**: Choose "package" from the dropdown
+2. **Select Runtime**: Choose appropriate runtime (node, python, etc.)
+3. **Enter Command**: Use the correct execution format:
+   - ✅ **CORRECT**: `npx agent-twitter-client-mcp` (for npm packages)
+   - ✅ **CORRECT**: `uvx mcp-google-sheets` (for Python packages)
+   - ❌ **INCORRECT**: `npm install agent-twitter-client-mcp` (installation command)
+   - ❌ **INCORRECT**: `pip install mcp-google-sheets` (installation command)
+
+4. **Leave Executable Path Empty**: Not needed for package servers
+5. **Add Environment Variables**: If required by the specific package
+
+**UI Guidance Features**:
+- **Dynamic Placeholders**: Command field shows relevant examples based on server type
+- **Example Box**: Package servers display helpful examples and tips
+- **Runtime-Specific Examples**: Different examples for npm, Python, and scoped packages
+- **Education Tips**: Clear guidance about using execution commands vs installation commands
+
+**Why `npx` instead of `npm install`?**
+- MCP Dockmaster uses auto-install execution (`npx -y package-name`)
+- This avoids manual package management complexity
+- Package is downloaded and executed in one step
+- Similar to how the existing registry servers work
+
+**Previous Update (2025-06-14 - Namespace Separation Production Deployment)**:
 - ✅ **Tool Namespace Configuration**: Implemented configurable namespacing to prevent conflicts with Claude's built-in MCP functions
 - ✅ **Environment Variable Control**: Added `DOCKMASTER_TOOL_PREFIX` and `DOCKMASTER_NAMESPACE_MODE` configuration options
 - ✅ **Backward Compatibility**: Support for both namespaced (`dockmaster_*`) and legacy (`mcp_*`) tool names

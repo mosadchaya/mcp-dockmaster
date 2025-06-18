@@ -743,11 +743,30 @@ const CustomServerRegistry: React.FC = () => {
                 <Label htmlFor="command">Command</Label>
                 <Input
                   id="command"
-                  placeholder="node, python, uv, etc."
+                  placeholder={
+                    customServerForm.server_type === "package" 
+                      ? "npx agent-twitter-client-mcp"
+                      : "node, python, uv, etc."
+                  }
                   value={customServerForm.command}
                   onChange={(e) => setCustomServerForm(prev => ({ ...prev, command: e.target.value }))}
                   disabled={addingServer}
                 />
+                {customServerForm.server_type === "package" && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-800 mb-2">
+                      <strong>Package Server Examples:</strong>
+                    </p>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• <code>npx agent-twitter-client-mcp</code> (npm package)</li>
+                      <li>• <code>uvx mcp-google-sheets</code> (Python package)</li>
+                      <li>• <code>npx @modelcontextprotocol/server-filesystem</code> (scoped npm package)</li>
+                    </ul>
+                    <p className="text-xs text-blue-600 mt-2">
+                      💡 Use <code>npx package-name</code> for npm packages (not <code>npm install</code>)
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2">
