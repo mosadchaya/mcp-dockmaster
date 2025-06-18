@@ -49,8 +49,8 @@ pub async fn validate_custom_server(
 
     // Validate server type
     match server_type {
-        "local" | "custom" => {},
-        _ => result.add_error(format!("Invalid server_type '{}'. Must be 'local' or 'custom'", server_type)),
+        "package" | "local" | "custom" => {},
+        _ => result.add_error(format!("Invalid server_type '{}'. Must be 'package', 'local' or 'custom'", server_type)),
     }
 
     // Validate runtime and check dependencies
@@ -272,6 +272,17 @@ fn validate_configuration_consistency(
     result: &mut ValidationResult,
 ) {
     match server_type {
+        "package" => {
+            // Package servers should have a command (like npm, pip, etc.)
+            if command.is_none() {
+                result.add_error("Package servers must specify a command (e.g., 'npm install', 'pip install')".to_string());
+            }
+
+            // Package servers typically don't need executable_path
+            if executable_path.is_some() {
+                result.add_warning("Package servers typically don't need executable_path - command will be used instead".to_string());
+            }
+        },
         "local" => {
             // Local servers should have either executable_path or command
             if executable_path.is_none() && command.is_none() {
